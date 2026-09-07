@@ -8,4 +8,13 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  server: {
+    host: true, // pastikan host true agar listen di semua interface (0.0.0.0)
+    port: 5173, // sesuaikan port yang lu pakai
+    allowedHosts: [
+      'astragis.ikya.my.id' // daftarkan domain tunnel lu di sini
+    ]
+    // Alternatif jika ingin mengizinkan semua host:
+    // allowedHosts: true
+  }
 })
