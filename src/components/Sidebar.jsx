@@ -41,7 +41,7 @@ const Sidebar = ({ isOpen = false, onClose }) => {
       {/* Mobile Backdrop Overlay */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 md:hidden transition-opacity duration-300"
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 md:!hidden transition-opacity duration-300"
           onClick={onClose}
           aria-hidden="true"
         />
@@ -50,10 +50,10 @@ const Sidebar = ({ isOpen = false, onClose }) => {
       {/* Sidebar Container */}
       <aside
         className={`
-          fixed md:static inset-y-0 left-0 z-50
-          w-64 bg-blue-900 text-white flex flex-col shadow-2xl md:shadow-lg
+          fixed md:relative inset-y-0 left-0 z-50
+          w-64 bg-blue-900 text-white flex flex-col shadow-2xl md:shadow-none
           transition-transform duration-300 ease-in-out
-          ${isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+          ${isOpen ? "translate-x-0" : "-translate-x-full md:!translate-x-0"}
           flex-shrink-0 h-full
         `}
       >
@@ -67,10 +67,10 @@ const Sidebar = ({ isOpen = false, onClose }) => {
             Dashboard
           </Link>
 
-          {/* Close button on mobile */}
+          {/* Close button: HANYA ada di mobile, tersembunyi total di desktop */}
           <button
             onClick={onClose}
-            className="md:hidden p-1.5 text-blue-300 hover:text-white hover:bg-blue-800 rounded-lg transition"
+            className="block md:!hidden p-1.5 text-blue-300 hover:text-white hover:bg-blue-800 rounded-lg transition cursor-pointer"
             aria-label="Close Sidebar"
           >
             <XMarkIcon className="w-5 h-5" />
@@ -103,7 +103,7 @@ function SideMenu({ image, text, to, target, onMenuClick }) {
       target={target}
       onClick={() => onMenuClick?.()}
       className={({ isActive }) =>
-        `flex items-center gap-3.5 px-5 py-3.5 transition-all duration-200 text-sm font-medium
+        `flex items-center gap-3 px-5 py-3.5 transition-all duration-200 text-sm font-medium
         ${
           isActive
             ? "bg-blue-800 text-white border-r-4 border-white shadow-inner"
@@ -111,7 +111,7 @@ function SideMenu({ image, text, to, target, onMenuClick }) {
         }`
       }
     >
-      <img src={image} alt={text} className="w-5 h-5 object-contain flex-shrink-0" />
+      <img src={image} alt={text} className="w-5 h-5 object-contain flex-shrink-0 mr-3" />
       <span className="truncate">{text}</span>
     </NavLink>
   );
