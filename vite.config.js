@@ -13,7 +13,10 @@ export default defineConfig({
     port: 5173, // sesuaikan port yang lu pakai
     allowedHosts: [
       'astragis.ikya.my.id' // daftarkan domain tunnel lu di sini
-    ]
+    ],
+    hmr: {
+    clientPort: 443 // agar WebSocket HMR lewat HTTPS Cloudflare
+  }
     // Alternatif jika ingin mengizinkan semua host:
     // allowedHosts: true
   }
