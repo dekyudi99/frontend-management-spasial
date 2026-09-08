@@ -19,7 +19,7 @@ const DashboardLayout = () => {
   return (
     <div className="flex flex-col md:flex-row h-full bg-slate-100 overflow-hidden relative">
       {/* Mobile Header Bar dengan Hamburger Button: HANYA tampil di layar < md */}
-      <div className="flex md:!hidden items-center justify-between px-4 py-2.5 bg-blue-900 text-white shadow-sm z-30 flex-shrink-0 w-full">
+      <div className="md:hidden flex items-center justify-between px-4 py-2.5 bg-blue-900 text-white shadow-sm z-30 flex-shrink-0 w-full">
         <button
           onClick={() => setSidebarOpen(true)}
           className="p-1.5 rounded-lg bg-blue-800 hover:bg-blue-700 text-white focus:outline-none transition active:scale-95 cursor-pointer"
