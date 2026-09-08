@@ -1,4 +1,4 @@
-﻿import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { MapContainer, TileLayer, WMSTileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
@@ -382,45 +382,33 @@ const Layer = () => {
   const visibleCount = layers.filter((l) => l.visible).length;
 
   return (
-    <div className="p-6 bg-slate-50 min-h-[calc(100vh-64px)] font-sans">
+    <div className="p-3 sm:p-5 md:p-6 bg-slate-50 min-h-[calc(100vh-64px)] font-sans">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-            <Layers className="w-7 h-7 text-blue-600" />
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-2">
+            <Layers className="w-6 h-6 sm:w-7 sm:h-7 text-blue-600" />
             Layer Management &amp; Preview
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Kelola, atur transparansi, dan pratinjau layer GIS secara realtime via GeoServer WMS.
-            Klik layer untuk melihat lokasinya di peta.
           </p>
         </div>
         <Button
           onClick={() => setOpen(true)}
           type="primary"
           icon={<Plus className="w-4 h-4" />}
-          className="flex items-center gap-1.5"
+          className="flex items-center gap-1.5 self-start sm:self-auto"
         >
           Tambah Layer Baru
         </Button>
       </div>
 
-      {/* Stat chip - GeoTIFF only */}
-      {/* <div className="flex flex-wrap gap-3 mb-5">
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border ${GEOTIFF_CONFIG.badgeBg} ${GEOTIFF_CONFIG.badgeText} ${GEOTIFF_CONFIG.borderColor}`}>
-          {GEOTIFF_CONFIG.icon}
-          <span>{GEOTIFF_CONFIG.label}</span>
-          <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-white/60 ${GEOTIFF_CONFIG.textColor}`}>
-            {layers.length}
-          </span>
-        </div>
-      </div> */}
-
       {/* Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
 
-        {/* LEFT: Layer List */}
-        <div className="lg:col-span-5 space-y-4">
+        {/* LEFT: Layer List (order-2 on mobile, order-1 on desktop) */}
+        <div className="order-2 lg:order-1 lg:col-span-5 space-y-4">
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
             {/* Search */}
             <div className="p-4 border-b border-slate-100 bg-slate-50/50">
@@ -488,11 +476,10 @@ const Layer = () => {
           </div>
         </div>
 
-        {/* RIGHT: Peta */}
-        <div className="lg:col-span-7">
+        {/* RIGHT: Peta (order-1 on mobile, order-2 on desktop) */}
+        <div className="order-1 lg:order-2 lg:col-span-7">
           <div
-            className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col"
-            style={{ height: 580 }}
+            className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[340px] sm:h-[460px] lg:h-[580px]"
           >
             {/* Map header */}
             <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between bg-white z-10 flex-shrink-0">

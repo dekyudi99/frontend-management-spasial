@@ -264,7 +264,8 @@ const LayerStyleModal = ({ open, onClose, layer, onStyleApplied }) => {
             </Button>
           </div>
 
-          <div className="max-h-[220px] overflow-y-auto space-y-2 pr-1">
+          <div className="max-h-[260px] overflow-y-auto overflow-x-auto pr-1">
+            <div className="min-w-[500px] space-y-2 py-1">
             {classes.map((cls, idx) => (
               <div
                 key={idx}
@@ -337,6 +338,7 @@ const LayerStyleModal = ({ open, onClose, layer, onStyleApplied }) => {
                 </button>
               </div>
             ))}
+            </div>
           </div>
         </div>
 

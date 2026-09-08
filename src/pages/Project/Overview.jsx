@@ -74,8 +74,8 @@ const Overview = (props) => {
 
   return (
     <>
-        <Row gutter={16} className='mb-4'>
-            <Col span={6}>
+        <Row gutter={[16, 16]}>
+            <Col xs={24} sm={12} lg={6}>
                 <Card>
                     <Statistic
                         title="Workspace"
@@ -84,7 +84,7 @@ const Overview = (props) => {
                     />
                 </Card>
             </Col>
-            <Col span={6}>
+            <Col xs={24} sm={12} lg={6}>
                 <Card>
                     <Statistic
                         title="Layers"
@@ -93,7 +93,7 @@ const Overview = (props) => {
                     />
                 </Card>
             </Col>
-            <Col span={6}>
+            <Col xs={24} sm={12} lg={6}>
                 <Card>
                     <Statistic
                         title="API Keys"
@@ -102,7 +102,7 @@ const Overview = (props) => {
                     />
                 </Card>
             </Col>
-            <Col span={6}>
+            <Col xs={24} sm={12} lg={6}>
                 <Card>
                     <Statistic
                         title="Requests"
@@ -121,6 +121,7 @@ const Overview = (props) => {
                 columns={workspaceColumns}
                 dataSource={workspace}
                 rowKey="id"
+                scroll={{ x: 450 }}
             />
         </Card>
     </>

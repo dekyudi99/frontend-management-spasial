@@ -86,10 +86,10 @@ const Project = () => {
   )
 
   return (
-    <div className="p-8">
-      <div className="flex justify-between items-center mb-8">
+    <div className="p-4 sm:p-6 md:p-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <Title level={2}>Project</Title>
+          <Title level={2} className="!mb-1">Project</Title>
           <Text type="secondary">
             Kelola seluruh project integrasi.
           </Text>
@@ -98,6 +98,7 @@ const Project = () => {
         <Button
           icon={<PlusOutlined />}
           type="primary"
+          className="self-start sm:self-auto"
           onClick={() => {
             setMode("create")
             setSelectedProject(null)
@@ -148,7 +149,7 @@ const Project = () => {
       </Row>
 
       {pagination && pagination.total > 0 && (
-        <div className="flex justify-end mt-8">
+        <div className="flex justify-center sm:justify-end mt-8 overflow-x-auto">
           <Pagination
             current={pagination.page}
             pageSize={pagination.size}

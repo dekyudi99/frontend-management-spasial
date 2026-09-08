@@ -201,22 +201,22 @@ const Workspace = () => {
   }
 
   return (
-    <div className="p-6 md:p-8 bg-slate-50 min-h-screen font-sans">
+    <div className="p-3 sm:p-5 md:p-8 bg-slate-50 min-h-screen font-sans">
       {/* Tombol Kembali */}
       <button
         onClick={() => navigate(-1)}
-        className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 transition mb-4 group"
+        className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 transition mb-3 sm:mb-4 group"
       >
         <ArrowLeftOutlined className="group-hover:-translate-x-1 transition-transform" />
         <span>Kembali ke Daftar Workspace</span>
       </button>
 
       {/* Header Workspace */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm mb-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="flex items-start gap-4">
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl flex-shrink-0">
-              <FolderOutlined className="text-2xl" />
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="p-2.5 sm:p-3 bg-blue-50 text-blue-600 rounded-xl flex-shrink-0">
+              <FolderOutlined className="text-xl sm:text-2xl" />
             </div>
             <div>
               <div className="flex items-center gap-2.5 flex-wrap">
@@ -382,81 +382,83 @@ const Workspace = () => {
                       </Button>
                     </div>
 
-                    <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                      {classes.map((cls, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center gap-2.5 p-2.5 bg-white rounded-xl border border-slate-200 text-xs hover:border-slate-300 transition"
-                        >
-                          {/* Color Picker */}
-                          <div className="flex items-center gap-1.5 flex-shrink-0">
-                            <input
-                              type="color"
-                              value={cls.color}
-                              onChange={(e) => updateClass(idx, "color", e.target.value)}
-                              className="w-8 h-8 rounded border border-slate-200 cursor-pointer p-0 bg-transparent"
-                              title="Pilih Warna"
-                            />
-                            <input
-                              type="text"
-                              value={cls.color}
-                              onChange={(e) => updateClass(idx, "color", e.target.value)}
-                              className="w-16 px-1.5 py-1 text-[11px] font-mono border border-slate-200 rounded uppercase text-slate-700"
-                            />
-                          </div>
-
-                          {/* Nilai Piksel */}
-                          <div className="flex items-center gap-1 flex-shrink-0">
-                            <span className="text-[10px] text-slate-400 font-medium">Nilai:</span>
-                            <input
-                              type="number"
-                              value={cls.quantity}
-                              onChange={(e) => updateClass(idx, "quantity", e.target.value)}
-                              className="w-16 px-1.5 py-1 text-xs border border-slate-200 rounded text-slate-800 font-medium text-center"
-                            />
-                          </div>
-
-                          {/* Label Keterangan */}
-                          <div className="flex-1 min-w-0">
-                            <input
-                              type="text"
-                              value={cls.label}
-                              placeholder="Label keterangan (misal: Sangat Tinggi)..."
-                              onChange={(e) => updateClass(idx, "label", e.target.value)}
-                              className="w-full px-2.5 py-1 text-xs border border-slate-200 rounded text-slate-700"
-                            />
-                          </div>
-
-                          {/* Opacity Slider */}
-                          <div className="flex items-center gap-1.5 flex-shrink-0 w-28">
-                            <span className="text-[10px] text-slate-400">Op:</span>
-                            <input
-                              type="range"
-                              min="0"
-                              max="1"
-                              step="0.1"
-                              value={cls.opacity}
-                              onChange={(e) =>
-                                updateClass(idx, "opacity", parseFloat(e.target.value))
-                              }
-                              className="w-16 accent-blue-600 cursor-pointer"
-                            />
-                            <span className="text-[10px] font-mono text-slate-500 w-7">
-                              {Math.round(cls.opacity * 100)}%
-                            </span>
-                          </div>
-
-                          {/* Tombol Hapus */}
-                          <button
-                            type="button"
-                            onClick={() => removeClass(idx)}
-                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition"
-                            title="Hapus Kelas"
+                    <div className="space-y-2 max-h-[320px] overflow-y-auto overflow-x-auto pr-1">
+                      <div className="min-w-[500px] space-y-2">
+                        {classes.map((cls, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center gap-2.5 p-2.5 bg-white rounded-xl border border-slate-200 text-xs hover:border-slate-300 transition"
                           >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
+                            {/* Color Picker */}
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <input
+                                type="color"
+                                value={cls.color}
+                                onChange={(e) => updateClass(idx, "color", e.target.value)}
+                                className="w-8 h-8 rounded border border-slate-200 cursor-pointer p-0 bg-transparent"
+                                title="Pilih Warna"
+                              />
+                              <input
+                                type="text"
+                                value={cls.color}
+                                onChange={(e) => updateClass(idx, "color", e.target.value)}
+                                className="w-16 px-1.5 py-1 text-[11px] font-mono border border-slate-200 rounded uppercase text-slate-700"
+                              />
+                            </div>
+
+                            {/* Nilai Piksel */}
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <span className="text-[10px] text-slate-400 font-medium">Nilai:</span>
+                              <input
+                                type="number"
+                                value={cls.quantity}
+                                onChange={(e) => updateClass(idx, "quantity", e.target.value)}
+                                className="w-16 px-1.5 py-1 text-xs border border-slate-200 rounded text-slate-800 font-medium text-center"
+                              />
+                            </div>
+
+                            {/* Label Keterangan */}
+                            <div className="flex-1 min-w-0">
+                              <input
+                                type="text"
+                                value={cls.label}
+                                placeholder="Label keterangan (misal: Sangat Tinggi)..."
+                                onChange={(e) => updateClass(idx, "label", e.target.value)}
+                                className="w-full px-2.5 py-1 text-xs border border-slate-200 rounded text-slate-700"
+                              />
+                            </div>
+
+                            {/* Opacity Slider */}
+                            <div className="flex items-center gap-1.5 flex-shrink-0 w-28">
+                              <span className="text-[10px] text-slate-400">Op:</span>
+                              <input
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.1"
+                                value={cls.opacity}
+                                onChange={(e) =>
+                                  updateClass(idx, "opacity", parseFloat(e.target.value))
+                                }
+                                className="w-16 accent-blue-600 cursor-pointer"
+                              />
+                              <span className="text-[10px] font-mono text-slate-500 w-7">
+                                {Math.round(cls.opacity * 100)}%
+                              </span>
+                            </div>
+
+                            {/* Tombol Hapus */}
+                            <button
+                              type="button"
+                              onClick={() => removeClass(idx)}
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition"
+                              title="Hapus Kelas"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
 

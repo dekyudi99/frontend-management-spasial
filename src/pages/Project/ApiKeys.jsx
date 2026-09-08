@@ -123,6 +123,7 @@ const ApiKeys = ({id}) => {
             rowKey="id"
             columns={apiColumns}
             dataSource={apiKeys}
+            scroll={{ x: 550 }}
         />
 
         <ApiKeyModal

@@ -10,34 +10,34 @@ const Dashboard = () => {
   },[])
 
   return (
-    <div className='text-black'>
-      <Row gutter={16}>
-        <Col span={6}>
+    <div className='text-black p-4 sm:p-6 md:p-8'>
+      <Row gutter={[16, 16]}>
+        <Col xs={24} sm={12} lg={6}>
             <Card>Total Project</Card>
         </Col>
 
-        <Col span={6}>
+        <Col xs={24} sm={12} lg={6}>
             <Card>Workspace</Card>
         </Col>
 
-        <Col span={6}>
+        <Col xs={24} sm={12} lg={6}>
             <Card>Layer</Card>
         </Col>
 
-        <Col span={6}>
+        <Col xs={24} sm={12} lg={6}>
             <Card>API Key</Card>
         </Col>
     </Row>
 
-    <Row gutter={16} className="mt-6">
+    <Row gutter={[16, 16]} className="mt-6">
 
-        <Col span={16}>
+        <Col xs={24} lg={16}>
             <Card>
                 Recent Activity
             </Card>
         </Col>
 
-        <Col span={8}>
+        <Col xs={24} lg={8}>
             <Card>
                 Quick Action
             </Card>
@@ -45,14 +45,14 @@ const Dashboard = () => {
 
     </Row>
 
-    <Row gutter={16} className="mt-6">
-        <Col span={12}>
+    <Row gutter={[16, 16]} className="mt-6">
+        <Col xs={24} md={12}>
             <Card>
                 System Status
             </Card>
         </Col>
 
-        <Col span={12}>
+        <Col xs={24} md={12}>
             <Card>
                 Documentation
             </Card>

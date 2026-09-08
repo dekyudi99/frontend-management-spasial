@@ -126,6 +126,7 @@ const Workspace = (props) => {
         rowKey="id"
         columns={workspaceColumns}
         dataSource={workspace}
+        scroll={{ x: 500 }}
         pagination={{
           current: paginationData?.page || page,
           pageSize: paginationData?.size || pageSize,

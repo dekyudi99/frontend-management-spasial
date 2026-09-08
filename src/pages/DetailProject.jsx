@@ -48,19 +48,19 @@ const DetailProject = () => {
       const data = project?.data?.data
 
     return(
-        <div className="p-8">
+        <div className="p-4 sm:p-6 md:p-8">
             <Button
                 icon={<ArrowLeftOutlined/>}
                 type="link"
                 onClick={()=>navigate(-1)}
-                className="-m-3"
+                className="-m-3 mb-2"
             >
                 Back
             </Button>
 
-            <div className="flex justify-between items-center mb-8">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
                 <div>
-                    <Title level={2}>
+                    <Title level={2} className="!mb-1">
                         {data.project_name}
                     </Title>
 
@@ -78,6 +78,7 @@ const DetailProject = () => {
                 <Button
                     icon={<EditOutlined/>}
                     type="primary"
+                    className="self-start sm:self-auto"
                     onClick={() => setOpen(true)}
                 >
                     Edit Project
