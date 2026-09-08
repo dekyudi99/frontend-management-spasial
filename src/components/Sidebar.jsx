@@ -39,58 +39,53 @@ const Sidebar = ({ isOpen = false, onClose }) => {
   return (
     <>
       {/* ============================================================ */}
-      {/* 1. MOBILE DRAWER (Hanya aktif di layar mobile < md)          */}
+      {/* 1. MOBILE DRAWER (Hanya di-render jika isOpen = true di mobile)*/}
       {/* ============================================================ */}
-      <div className="md:hidden">
-        {/* Mobile Backdrop Overlay */}
-        {isOpen && (
+      {isOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          {/* Mobile Backdrop Overlay */}
           <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 transition-opacity duration-300"
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-300"
             onClick={onClose}
             aria-hidden="true"
           />
-        )}
 
-        {/* Drawer Container (Melayang di atas konten dengan fixed) */}
-        <aside
-          className={`
-            fixed inset-y-0 left-0 z-50
-            w-64 bg-blue-900 text-white flex flex-col shadow-2xl
-            transition-transform duration-300 ease-in-out
-            ${isOpen ? "translate-x-0" : "-translate-x-full pointer-events-none"}
-          `}
-        >
-          {/* Header Mobile dengan tombol Close (X) */}
-          <div className="flex items-center justify-between p-5 border-b border-blue-800">
-            <Link
-              to="/dashboard"
-              onClick={() => onClose?.()}
-              className="text-xl font-bold tracking-wider text-white hover:text-blue-200 transition"
-            >
-              Dashboard
-            </Link>
+          {/* Drawer Container Melayang */}
+          <aside
+            className="fixed inset-y-0 left-0 z-50 w-64 bg-blue-900 text-white flex flex-col shadow-2xl transition-all duration-300 ease-in-out"
+          >
+            {/* Header Mobile dengan tombol Close (X) */}
+            <div className="flex items-center justify-between p-5 border-b border-blue-800">
+              <Link
+                to="/dashboard"
+                onClick={() => onClose?.()}
+                className="text-xl font-bold tracking-wider text-white hover:text-blue-200 transition"
+              >
+                Dashboard
+              </Link>
 
-            <button
-              onClick={onClose}
-              className="p-1.5 text-blue-300 hover:text-white hover:bg-blue-800 rounded-lg transition cursor-pointer"
-              aria-label="Close Sidebar"
-            >
-              <XMarkIcon className="w-5 h-5" />
-            </button>
-          </div>
+              <button
+                onClick={onClose}
+                className="p-1.5 text-blue-300 hover:text-white hover:bg-blue-800 rounded-lg transition cursor-pointer"
+                aria-label="Close Sidebar"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
 
-          {/* Menus */}
-          <nav className="flex-1 flex flex-col py-3 overflow-y-auto space-y-1">
-            {menus.map((menu) => (
-              <SideMenu key={menu.to} {...menu} onMenuClick={onClose} />
-            ))}
-          </nav>
+            {/* Menus */}
+            <nav className="flex-1 flex flex-col py-3 overflow-y-auto space-y-1">
+              {menus.map((menu) => (
+                <SideMenu key={menu.to} {...menu} onMenuClick={onClose} />
+              ))}
+            </nav>
 
-          <div className="p-4 border-t border-blue-800 text-xs text-blue-300 text-center">
-            &copy; 2026 AstraGIS
-          </div>
-        </aside>
-      </div>
+            <div className="p-4 border-t border-blue-800 text-xs text-blue-300 text-center">
+              &copy; 2026 AstraGIS
+            </div>
+          </aside>
+        </div>
+      )}
 
       {/* ============================================================ */}
       {/* 2. DESKTOP SIDEBAR (Hanya aktif di layar desktop >= md)      */}
