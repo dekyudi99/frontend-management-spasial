@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Button, Table, message, Space, Modal } from 'antd'
-import { PlusOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
+import { Button, Table, message, Space, Modal, Tooltip } from 'antd'
+import { PlusOutlined, ExclamationCircleOutlined, CopyOutlined } from '@ant-design/icons'
 import workspaceApi from '../../api/WorkspaceApi'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import WorkspaceModal from '../../components/WorkspaceModal'
@@ -23,8 +23,12 @@ const Workspace = (props) => {
 
   // 2. Query dengan Dependency page & pageSize
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["workspaces", props.id, page, pageSize],
-    queryFn: () => workspaceApi.list(props.id, { page, size: pageSize }),
+    queryKey: ['workspace', props.id, page, pageSize],
+    queryFn: () => workspaceApi.getall({
+      id: props.id,
+      page: page,
+      size: pageSize
+    }),
     keepPreviousData: true
   })
 
@@ -32,9 +36,7 @@ const Workspace = (props) => {
     mutationFn: (id) => workspaceApi.delete(id),
     onSuccess: (response) => {
       message.success(response?.data?.detail || "Workspace deleted successfully!")
-      queryClient.invalidateQueries({
-        queryKey: ["workspaces", props.id],
-      })
+      queryClient.invalidateQueries({ queryKey: ['workspace', props.id] })
     },
     onError: (err) => {
       message.error(err?.response?.data?.detail || "Failed to delete workspace!")
@@ -46,6 +48,29 @@ const Workspace = (props) => {
       title: "Workspace",
       dataIndex: "name",
       key: "name"
+    },
+    {
+      title: "Workspace ID",
+      dataIndex: "id",
+      key: "id",
+      render: (id) => (
+        <Space size="small">
+          <code className="text-xs bg-slate-100 text-blue-700 font-mono px-2 py-0.5 rounded border border-slate-200 font-semibold">
+            {id}
+          </code>
+          <Tooltip title="Copy Workspace ID">
+            <Button
+              type="text"
+              size="small"
+              icon={<CopyOutlined className="text-slate-400 hover:text-blue-600 text-xs" />}
+              onClick={() => {
+                navigator.clipboard.writeText(id);
+                message.success("Workspace ID copied to clipboard!");
+              }}
+            />
+          </Tooltip>
+        </Space>
+      )
     },
     {
       title: "Layers",

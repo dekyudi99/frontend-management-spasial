@@ -12,6 +12,7 @@ const FiAlertTriangle = ({ size = 16 }) => <svg width={size} height={size} viewB
 const FiChevronDown= ({ size = 16 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
 const FiChevronUp  = ({ size = 16 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
 const FiGlobe      = ({ size = 16 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+const FiFolder     = ({ size = 16 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
 
 
 const appName = import.meta.env.VITE_APP_NAME || 'AstraGIS'
@@ -96,6 +97,7 @@ function ErrorRow({ code, meaning, solution }) {
 const NAV_ITEMS = [
   { id: 'intro',           label: 'Introduction' },
   { id: 'auth',            label: 'Authentication' },
+  { id: 'workspace-guide', label: 'Workspace ID Guide' },
   { id: 'publish-url',     label: 'POST /s2s/publish-from-url' },
   { id: 'publish-file',    label: 'POST /s2s/publish (File)' },
   { id: 'multiuser-query', label: 'GET /s2s/layers (User History)' },
@@ -388,17 +390,17 @@ const SUCCESS_RESPONSE_GROUPS = `{
   "success": true,
   "detail": "Layer Group 'Combined Flood & Rainfall' created successfully.",
   "data": {
-    "id": 12,
+    "id": "bM7xK2pL9qAaBbCc",
     "name": "Combined Flood & Rainfall",
-    "workspace_id": 7,
+    "workspace_id": "WsXyZ1234567890a",
     "workspace_name": "ws_flowgis_project",
     "client_user_id": "42",
     "wms_url": "${geoserverWms}",
     "wms_layers_param": "ws_flowgis_project:Combined Flood & Rainfall",
     "layers_count": 2,
     "layers": [
-      { "id": 65, "layer_name": "Flood Risk Analysis", "order": 0 },
-      { "id": 66, "layer_name": "Rainfall Analysis", "order": 1 }
+      { "id": "LyR1234567890abc", "layer_name": "Flood Risk Analysis", "order": 0 },
+      { "id": "LyR9876543210xyz", "layer_name": "Rainfall Analysis", "order": 1 }
     ],
     "bbox": [100.45, 13.68, 100.65, 13.88],
     "created_at": "2026-09-09T17:00:00Z"
@@ -594,6 +596,45 @@ const Documentation = () => {
               </div>
             </Section>
 
+            {/* Workspace ID Guide */}
+            <Section id="workspace-guide" icon={FiFolder} title="How to Find Your Workspace ID" badge="Required Parameter">
+              <p className="doc-p">
+                Every S2S publishing request requires a <code>workspace_id</code> parameter. AstraGIS uses secure <strong>Hashed IDs</strong> (e.g. <code>bM7xK2pL9q...</code>) to identify workspaces without exposing raw database IDs.
+              </p>
+
+              <h3 className="doc-subtitle">Finding Your Workspace ID in AstraGIS Dashboard</h3>
+              <div className="doc-step-list">
+                <div className="doc-step">
+                  <span className="doc-step-num">1</span>
+                  <div>
+                    <strong>Navigate to Project &amp; Workspaces</strong>
+                    <p>Open the AstraGIS console → click <strong>Project</strong> in sidebar → select your Project → click the <strong>Workspaces</strong> tab.</p>
+                  </div>
+                </div>
+                <div className="doc-step">
+                  <span className="doc-step-num">2</span>
+                  <div>
+                    <strong>Copy Workspace ID directly</strong>
+                    <p>Each workspace row displays a <strong>Workspace ID</strong> badge (e.g., <code>bM7xK2pL9q...</code>) with a one-click copy button. You can also open any workspace to see its ID badge directly in the header.</p>
+                  </div>
+                </div>
+                <div className="doc-step">
+                  <span className="doc-step-num">3</span>
+                  <div>
+                    <strong>Configure in Client Environment (.env)</strong>
+                    <p>Save the copied Workspace ID in your external system (e.g., in Laravel <code>.env</code> as <code>ASTRAGIS_WORKSPACE_ID=bM7xK2pL9q...</code>).</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="doc-info-box">
+                <strong>Supported Formats:</strong>
+                <p className="text-xs text-slate-600 mt-1">
+                  The <code>workspace_id</code> parameter accepts both the <strong>Hashed ID string</strong> (recommended, e.g. <code>"bM7xK2pL9q..."</code>) and legacy numeric ID.
+                </p>
+              </div>
+            </Section>
+
             {/* Endpoint 1: POST /s2s/publish-from-url */}
             <Section id="publish-url" icon={FiUploadCloud} title="POST /s2s/publish-from-url" badge="Recommended (GEE Ready)">
               <p className="doc-p">
@@ -732,11 +773,14 @@ const Documentation = () => {
               </div>
               <CodeBlock code={CURL_GET_GROUPS} language="bash" />
 
-              <h3 className="doc-subtitle">3. Delete Layer Group (DELETE /s2s/layer-groups/:id)</h3>
+              <h3 className="doc-subtitle">3. Delete Layer Group (DELETE /s2s/layer-groups/:hashed_id)</h3>
               <div className="doc-endpoint-card">
                 <span className="doc-method-badge" style={{ background: '#da3633', borderColor: '#f85149' }}>DELETE</span>
-                <code className="doc-endpoint-path">{apiBase}/s2s/layer-groups/12</code>
+                <code className="doc-endpoint-path">{apiBase}/s2s/layer-groups/bM7xK2pL9qAaBbCc</code>
               </div>
+              <p className="text-xs text-slate-500 mt-2">
+                Use the <code>hashed_id</code> returned when the layer group was created or listed.
+              </p>
             </Section>
 
             {/* Style */}

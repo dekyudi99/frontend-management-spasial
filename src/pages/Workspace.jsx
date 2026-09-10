@@ -28,6 +28,7 @@ import {
   Plus,
   Trash2,
   Check,
+  Copy,
   ExternalLink,
   Sliders,
   Image as ImageIcon,
@@ -223,9 +224,20 @@ const Workspace = () => {
                 <h1 className="text-2xl font-bold text-slate-800 m-0">
                   {workspace?.name}
                 </h1>
-                <Tag color="blue" className="font-mono text-xs px-2.5 py-0.5 rounded-full">
-                  GeoServer: {workspace?.ws_name || "ws_default"}
-                </Tag>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-mono font-medium shadow-2xs">
+                  <span className="text-slate-500 font-sans font-normal">Workspace ID:</span>
+                  <span className="font-semibold">{workspace?.id || id_workspace}</span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(workspace?.id || id_workspace);
+                      message.success("Workspace ID copied to clipboard!");
+                    }}
+                    title="Copy Workspace ID"
+                    className="hover:text-blue-900 text-blue-600 transition-colors cursor-pointer p-0.5 rounded hover:bg-blue-100"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
               <div className="flex items-center gap-4 text-xs text-slate-400 mt-2">
                 <span className="flex items-center gap-1">
@@ -283,14 +295,10 @@ const Workspace = () => {
                     </h2>
                     <p className="text-xs text-slate-500 mt-1">
                       Every new 1-band raster layer published to workspace{" "}
-                      <span className="font-semibold text-slate-700 font-mono">
-                        {workspace?.ws_name}
+                      <span className="font-semibold text-slate-700">
+                        {workspace?.name}
                       </span>{" "}
-                      will automatically use this color scheme (saved as style{" "}
-                      <code className="text-blue-600 bg-blue-50 px-1 py-0.5 rounded">
-                        default_{workspace?.ws_name}
-                      </code>{" "}
-                      in GeoServer).
+                      will automatically use this color scheme.
                     </p>
                   </div>
 
