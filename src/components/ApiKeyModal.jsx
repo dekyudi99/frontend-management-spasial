@@ -14,7 +14,7 @@ const ApiKeyModal = ({ id, open, onClose }) => {
   const createApiKey = useMutation({
     mutationFn: (data) => keyApi.create(id, data),
     onSuccess: (response) => {
-      message.success("API Key berhasil dibuat!");
+      message.success("API Key created successfully!");
 
       const newKey = response?.data?.api_key || response?.data?.data?.api_key;
       setGeneratedApiKey(newKey);
@@ -28,7 +28,7 @@ const ApiKeyModal = ({ id, open, onClose }) => {
       setShowKeyModal(true);
     },
     onError: (error) => {
-      message.error(error.response?.data?.detail || "Gagal membuat API Key!");
+      message.error(error.response?.data?.detail || "Failed to create API Key!");
     }
   });
 

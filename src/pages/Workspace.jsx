@@ -68,12 +68,12 @@ const Workspace = () => {
   const deleteLayerMutation = useMutation({
     mutationFn: (layerId) => layerApi.delete(layerId),
     onSuccess: (res) => {
-      message.success(res?.data?.detail || "Layer berhasil dihapus!");
+      message.success(res?.data?.detail || "Layer deleted successfully!");
       refetchLayers();
       queryClient.invalidateQueries({ queryKey: ["layers"] });
     },
     onError: (err) => {
-      message.error(err.response?.data?.detail || "Gagal menghapus layer");
+      message.error(err.response?.data?.detail || "Failed to delete layer");
     },
   });
 
@@ -115,7 +115,7 @@ const Workspace = () => {
   const handleApplyPreset = (preset) => {
     setStyleType(preset.styleType);
     setClasses(JSON.parse(JSON.stringify(preset.classes)));
-    message.info(`Preset "${preset.name}" diterapkan ke editor`);
+    message.info(`Preset "${preset.name}" applied to editor`);
   };
 
   const updateClass = (index, field, value) => {
@@ -134,14 +134,14 @@ const Workspace = () => {
         quantity: lastQty + 1,
         color: "#3b82f6",
         opacity: 1.0,
-        label: `Kelas ${lastQty + 1}`,
+        label: `Class ${lastQty + 1}`,
       },
     ]);
   };
 
   const removeClass = (index) => {
     if (classes.length <= 1) {
-      message.warning("Minimal harus ada 1 kelas warna!");
+      message.warning("At least 1 color class is required!");
       return;
     }
     setClasses((prev) => prev.filter((_, i) => i !== index));
@@ -152,7 +152,7 @@ const Workspace = () => {
     mutationFn: (payload) => workspaceApi.saveDefaultStyle(id_workspace, payload),
     onSuccess: (res) => {
       message.success(
-        res?.data?.detail || "Palet default workspace berhasil disimpan ke GeoServer!"
+        res?.data?.detail || "Workspace default palette saved to GeoServer successfully!"
       );
       if (applyToExisting) {
         refetchLayers();
@@ -161,7 +161,7 @@ const Workspace = () => {
     },
     onError: (err) => {
       message.error(
-        err.response?.data?.detail || "Gagal menyimpan palet default workspace"
+        err.response?.data?.detail || "Failed to save workspace default palette"
       );
     },
   });
@@ -707,7 +707,7 @@ const Workspace = () => {
           layer={selectedLayerForStyle}
           onStyleApplied={() => {
             refetchLayers();
-            message.success("Style individual layer berhasil diperbarui!");
+            message.success("Individual layer style updated successfully!");
           }}
         />
       )}

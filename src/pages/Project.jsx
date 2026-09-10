@@ -52,13 +52,13 @@ const Project = () => {
   const deleteProject = useMutation({
     mutationFn: (id) => projectApi.delete(id),
     onSuccess: () => {
-      message.success("Project berhasil dihapus!")
+      message.success("Project deleted successfully!")
       queryClient.invalidateQueries({
         queryKey: ["project"]
       })
     },
     onError: (err) => {
-      message.error(err.response?.data?.detail || "Gagal menghapus data!")
+      message.error(err.response?.data?.detail || "Failed to delete project!")
     }
   })
 

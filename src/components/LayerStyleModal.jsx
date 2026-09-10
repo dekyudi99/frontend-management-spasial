@@ -128,7 +128,7 @@ const LayerStyleModal = ({ open, onClose, layer, onStyleApplied }) => {
 
   const removeClass = (index) => {
     if (classes.length <= 1) {
-      message.warning("Minimal harus ada 1 kelas warna!");
+      message.warning("At least 1 color class is required!");
       return;
     }
     setClasses((prev) => prev.filter((_, i) => i !== index));
@@ -137,14 +137,14 @@ const LayerStyleModal = ({ open, onClose, layer, onStyleApplied }) => {
   const mutation = useMutation({
     mutationFn: (data) => layerApi.updateStyle(data),
     onSuccess: (res) => {
-      message.success(res?.data?.detail || "Style layer berhasil diperbarui!");
+      message.success(res?.data?.detail || "Layer style updated successfully!");
       if (onStyleApplied && layer) {
         onStyleApplied(layer.id);
       }
       onClose();
     },
     onError: (err) => {
-      message.error(err.response?.data?.detail || "Gagal menerapkan style ke GeoServer");
+      message.error(err.response?.data?.detail || "Failed to apply style to GeoServer");
     },
   });
 

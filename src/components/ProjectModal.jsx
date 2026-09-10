@@ -32,7 +32,7 @@ const ProjectModal = ({ open, onClose, mode, project })=>{
             projectApi.update(id,data),
 
         onSuccess: (_, variables) => {
-            message.success("Project berhasil diperbarui");
+            message.success("Project updated successfully");
             onClose();
 
             form.resetFields();

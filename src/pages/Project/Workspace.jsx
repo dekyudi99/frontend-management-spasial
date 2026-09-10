@@ -31,13 +31,13 @@ const Workspace = (props) => {
   const deleteWorkspace = useMutation({
     mutationFn: (id) => workspaceApi.delete(id),
     onSuccess: (response) => {
-      message.success(response?.data?.detail || "Workspace berhasil dihapus!")
+      message.success(response?.data?.detail || "Workspace deleted successfully!")
       queryClient.invalidateQueries({
         queryKey: ["workspaces", props.id],
       })
     },
     onError: (err) => {
-      message.error(err?.response?.data?.detail || "Failed delete workspace!")
+      message.error(err?.response?.data?.detail || "Failed to delete workspace!")
     }
   })
 
@@ -103,7 +103,7 @@ const Workspace = (props) => {
   if (isError) {
     return (
       <div className="p-8 text-red-500">
-        {error?.response?.data?.detail || "Gagal memuat workspace"}
+        {error?.response?.data?.detail || "Failed to load workspace"}
       </div>
     )
   }

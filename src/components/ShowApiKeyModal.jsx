@@ -9,7 +9,7 @@ const ShowApiKeyModal = ({ show, onHide, apiKey }) => {
   const handleCopy = () => {
     if (!apiKey) return;
     navigator.clipboard.writeText(apiKey);
-    message.success("API Key berhasil dicopy ke clipboard!");
+    message.success("API Key copied to clipboard!");
   };
 
   return (
@@ -17,18 +17,18 @@ const ShowApiKeyModal = ({ show, onHide, apiKey }) => {
       open={show}
       onCancel={onHide}
       footer={null}
-      title="API Key Berhasil Dibuat"
+      title="API Key Created Successfully"
       closable={false}
       maskClosable={false}
     >
       <div className="space-y-4 text-center">
         <p className="text-amber-600 bg-amber-50 p-2.5 rounded border border-amber-200 text-sm font-medium">
-          ⚠️ Perhatian! API Key ini <b>hanya ditampilkan sekali</b>. Silakan simpan key ini dengan aman!
+          ⚠️ Warning! This API Key is <b>only displayed once</b>. Please store it safely!
         </p>
 
         <div className="bg-slate-100 p-3 rounded-lg border font-mono text-sm break-all flex items-center justify-between gap-2">
           <Text copyable={{ text: apiKey }} className="font-mono text-blue-600 font-bold">
-            {apiKey || "Key tidak ditemukan"}
+            {apiKey || "Key not found"}
           </Text>
         </div>
 

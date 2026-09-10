@@ -19,7 +19,7 @@ const WorkspaceModal = ({ id, open, onClose }) => {
       onClose(); 
     },
     onError: (error) => {
-      message.error(error.response?.data?.detail || "Gagal membuat Workspace!");
+      message.error(error.response?.data?.detail || "Failed to create Workspace!");
     }
   });
 

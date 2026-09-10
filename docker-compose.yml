@@ -1,4 +1,7 @@
 services:
+  # ---------------------------------------------------------------------------
+  # [MODE 1: DEVELOPMENT LOKAL] - Menggunakan Vite Dev Server ('npm run dev')
+  # ---------------------------------------------------------------------------
   react-management-spatial:
     build: 
       context: .
@@ -16,6 +19,23 @@ services:
       - WATCHPACK_POLLING=true
     networks:
       - shared_db_net
+
+  # ---------------------------------------------------------------------------
+  # [MODE 2: PRODUCTION SERVER / PROXMOX] - Menggunakan Dockerfile.prod & Nginx
+  # Untuk mengaktifkannya di server/Proxmox:
+  # 1. Nonaktifkan (comment) service 'react-management-spatial' di atas.
+  # 2. Aktifkan (uncomment) service 'react_management_spatial_prod' di bawah ini.
+  # ---------------------------------------------------------------------------
+  # react_management_spatial_prod:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.prod
+  #   container_name: react_management_spatial_prod
+  #   restart: always
+  #   ports:
+  #     - "5173:80"   # Port 80 Nginx di-mapping ke port 5173 host
+  #   networks:
+  #     - shared_db_net
 
 networks:
   shared_db_net:

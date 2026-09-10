@@ -65,7 +65,7 @@ const LayerModal = ({
   const createLayer = useMutation({
     mutationFn: (formData) => layerApi.create(formData),
     onSuccess: (response) => {
-      message.success(response?.data?.detail || "Layer berhasil dipublikasikan!");
+      message.success(response?.data?.detail || "Layer published successfully!");
       handleClose();
       queryClient.invalidateQueries({ queryKey: ["layers"] });
       queryClient.invalidateQueries({ queryKey: ["workspace-layers"] });
@@ -75,7 +75,7 @@ const LayerModal = ({
       const errDetail = error.response?.data?.detail;
       const errMsg = Array.isArray(errDetail)
         ? errDetail.map((e) => e.msg).join(", ")
-        : errDetail || "Gagal membuat Layer!";
+        : errDetail || "Failed to create Layer!";
       message.error(errMsg);
     },
   });
