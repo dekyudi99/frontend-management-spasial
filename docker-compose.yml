@@ -2,23 +2,23 @@ services:
   # ---------------------------------------------------------------------------
   # [MODE 1: DEVELOPMENT LOKAL] - Menggunakan Vite Dev Server ('npm run dev')
   # ---------------------------------------------------------------------------
-  react-management-spatial:
-    build: 
-      context: .
-      dockerfile: Dockerfile
-    container_name: react-management-spatial
-    ports:
-      - "5173:5173"
-    volumes:
-      - .:/app
-      - /app/node_modules
-    env_file:
-      - .env
-    environment:
-      - CHOKIDAR_USEPOLLING=true
-      - WATCHPACK_POLLING=true
-    networks:
-      - shared_db_net
+  # react-management-spatial:
+  #   build: 
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: react-management-spatial
+  #   ports:
+  #     - "5173:5173"
+  #   volumes:
+  #     - .:/app
+  #     - /app/node_modules
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     - CHOKIDAR_USEPOLLING=true
+  #     - WATCHPACK_POLLING=true
+  #   networks:
+  #     - shared_db_net
 
   # ---------------------------------------------------------------------------
   # [MODE 2: PRODUCTION SERVER / PROXMOX] - Menggunakan Dockerfile.prod & Nginx
@@ -26,16 +26,16 @@ services:
   # 1. Nonaktifkan (comment) service 'react-management-spatial' di atas.
   # 2. Aktifkan (uncomment) service 'react_management_spatial_prod' di bawah ini.
   # ---------------------------------------------------------------------------
-  # react_management_spatial_prod:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile.prod
-  #   container_name: react_management_spatial_prod
-  #   restart: always
-  #   ports:
-  #     - "5173:80"   # Port 80 Nginx di-mapping ke port 5173 host
-  #   networks:
-  #     - shared_db_net
+  react_management_spatial_prod:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: react_management_spatial_prod
+    restart: always
+    ports:
+      - "5173:80"   # Port 80 Nginx di-mapping ke port 5173 host
+    networks:
+      - shared_db_net
 
 networks:
   shared_db_net:
