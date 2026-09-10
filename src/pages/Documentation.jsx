@@ -14,8 +14,9 @@ const FiChevronUp  = ({ size = 16 }) => <svg width={size} height={size} viewBox=
 const FiGlobe      = ({ size = 16 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
 
 
-const appName = import.meta.env.VITE_APP_NAME || 'Management Spatial'
-const apiBase = import.meta.env.VITE_API_URL || 'https://api-astragis.ikya.my.id'
+const appName = import.meta.env.VITE_APP_NAME || 'AstraGIS'
+const apiBase = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const geoserverWms = import.meta.env.VITE_GEOSERVER_WMS_URL || 'http://localhost:8080/geoserver/wms'
 
 // ── Helpers ────────────────────────────────────────────────
 function CopyButton({ text }) {
@@ -323,7 +324,7 @@ const SUCCESS_RESPONSE_URL = `{
     "workspace": "ws_flowgis_project",
     "workspace_display_name": "FlowGIS Workspace",
     "client_user_id": "42",
-    "wms_url": "https://geoserver.ikya.my.id/geoserver/ws_flowgis_project/wms",
+    "wms_url": "${geoserverWms}",
     "wms_layers_param": "ws_flowgis_project:s2s_7f8a9b0c...",
     "epsg": 4326,
     "bbox": [100.45, 13.68, 100.65, 13.88],
@@ -352,7 +353,7 @@ const SUCCESS_RESPONSE_LAYERS = `{
       "data_type": "GeoTiff",
       "epsg": 4326,
       "bbox": [100.45, 13.68, 100.65, 13.88],
-      "wms_url": "https://geoserver.ikya.my.id/geoserver/ws_flowgis_project/wms",
+      "wms_url": "${geoserverWms}",
       "wms_layers_param": "ws_flowgis_project:s2s_7f8a9b0c...",
       "metadata": {
         "statistics": { "avg_elevation_m": 18.01 },
@@ -392,7 +393,7 @@ const SUCCESS_RESPONSE_GROUPS = `{
     "workspace_id": 7,
     "workspace_name": "ws_flowgis_project",
     "client_user_id": "42",
-    "wms_url": "https://geoserver.ikya.my.id/geoserver/ws_flowgis_project/wms",
+    "wms_url": "${geoserverWms}",
     "wms_layers_param": "ws_flowgis_project:Combined Flood & Rainfall",
     "layers_count": 2,
     "layers": [
@@ -405,10 +406,10 @@ const SUCCESS_RESPONSE_GROUPS = `{
 }`
 
 const WMS_USAGE = `# After publishing successfully, use wms_url & wms_layers_param from response for Leaflet:
-# URL: https://geoserver.ikya.my.id/geoserver/<workspace>/wms
+# URL: \${geoserverWms}
 
 # Leaflet Javascript Example:
-L.tileLayer.wms("https://geoserver.ikya.my.id/geoserver/ws_flowgis/wms", {
+L.tileLayer.wms("\${geoserverWms}", {
   layers: "ws_flowgis:s2s_7f8a9b0c...",
   format: "image/png",
   transparent: true,
