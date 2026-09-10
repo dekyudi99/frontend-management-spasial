@@ -26,11 +26,11 @@ services:
   # 1. Nonaktifkan (comment) service 'react-management-spatial' di atas.
   # 2. Aktifkan (uncomment) service 'react_management_spatial_prod' di bawah ini.
   # ---------------------------------------------------------------------------
-  react_management_spatial_prod:
+  react_management_spatial:
     build:
       context: .
       dockerfile: Dockerfile.prod
-    container_name: react_management_spatial_prod
+    container_name: react_management_spatial
     restart: always
     ports:
       - "5173:80"   # Port 80 Nginx di-mapping ke port 5173 host
