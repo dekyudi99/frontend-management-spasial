@@ -130,11 +130,11 @@ const LayerGroupEditModal = ({
     if (toAdd.length > 0) {
       setMemberLayers((prev) => [...prev, ...toAdd]);
       setSelectedLayersToAdd([]);
-      message.success(`${toAdd.length} layer ditambahkan ke grup`);
+      message.success(`${toAdd.length} layers added to group`);
     }
   };
 
-  // Layer yang tersedia untuk ditambahkan (dalam workspace yang sama tapi belum ada di grup)
+  // Layers available to add (in the same workspace but not yet in the group)
   const currentMemberIds = memberLayers.map((l) => l.layer_id || l.id);
   const availableLayersToAdd = availableSourcePool.filter(
     (l) =>
@@ -159,7 +159,7 @@ const LayerGroupEditModal = ({
           <div>
             <h3 className="font-semibold text-base">Edit Layer Group</h3>
             <p className="text-xs text-slate-400 font-normal">
-              Ubah judul, susunan urutan, serta tambah/hapus layer anggota
+              Modify title, arrangement order, and add/remove member layers
             </p>
           </div>
         </div>
@@ -168,50 +168,50 @@ const LayerGroupEditModal = ({
     >
       {isLoadingDetail ? (
         <div className="py-12 flex justify-center">
-          <Spin tip="Memuat detail Layer Group..." />
+          <Spin tip="Loading Layer Group details..." />
         </div>
       ) : (
         <Form form={form} layout="vertical" onFinish={onFinish} className="mt-4">
-          {/* Judul Tampilan */}
+          {/* Display Title */}
           <Form.Item
-            label={<span className="text-xs font-semibold text-slate-700">Judul Layer Group</span>}
+            label={<span className="text-xs font-semibold text-slate-700">Layer Group Title</span>}
             name="title"
-            rules={[{ required: true, message: "Judul tidak boleh kosong!" }]}
+            rules={[{ required: true, message: "Title is required!" }]}
           >
-            <Input placeholder="Judul Layer Group" />
+            <Input placeholder="Layer Group Title" />
           </Form.Item>
 
-          {/* Mode WMS */}
+          {/* GeoServer WMS Mode */}
           <Form.Item
-            label={<span className="text-xs font-semibold text-slate-700">Mode GeoServer WMS</span>}
+            label={<span className="text-xs font-semibold text-slate-700">GeoServer WMS Mode</span>}
             name="mode"
           >
             <Select>
-              <Select.Option value="single">Single (Satu visual gabungan WMS)</Select.Option>
-              <Select.Option value="named">Named (Grup dengan sublayer)</Select.Option>
-              <Select.Option value="container">Container (Pengelompokan)</Select.Option>
+              <Select.Option value="single">Single (Combined WMS visualization)</Select.Option>
+              <Select.Option value="named">Named (Group with sublayers)</Select.Option>
+              <Select.Option value="container">Container (Logical grouping)</Select.Option>
             </Select>
           </Form.Item>
 
-          {/* Deskripsi */}
+          {/* Description */}
           <Form.Item
-            label={<span className="text-xs font-semibold text-slate-700">Deskripsi / Abstract</span>}
+            label={<span className="text-xs font-semibold text-slate-700">Description / Abstract</span>}
             name="abstract_text"
           >
-            <Input.TextArea rows={2} placeholder="Keterangan layer group..." />
+            <Input.TextArea rows={2} placeholder="Layer group description..." />
           </Form.Item>
 
-          {/* Daftar Layer Anggota & Pengaturan Urutan */}
+          {/* Member Layers List & Reordering */}
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-slate-700">
-                Layer Anggota ({memberLayers.length})
+                Member Layers ({memberLayers.length})
               </span>
             </div>
 
             <div className="border border-slate-200 rounded-xl p-2 bg-slate-50/60 max-h-[220px] overflow-y-auto space-y-1.5">
               {memberLayers.length === 0 ? (
-                <Empty description="Tidak ada layer anggota" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                <Empty description="No member layers" image={Empty.PRESENTED_IMAGE_SIMPLE} />
               ) : (
                 memberLayers.map((layer, idx) => {
                   const lid = layer.layer_id || layer.id;
@@ -239,7 +239,7 @@ const LayerGroupEditModal = ({
                           disabled={idx === 0}
                           onClick={() => moveMember(idx, -1)}
                           className="px-1.5 py-0.5 rounded text-slate-400 hover:text-blue-600 disabled:opacity-30 cursor-pointer"
-                          title="Pindah ke atas"
+                          title="Move up"
                         >
                           ▲
                         </button>
@@ -249,7 +249,7 @@ const LayerGroupEditModal = ({
                           disabled={idx === memberLayers.length - 1}
                           onClick={() => moveMember(idx, 1)}
                           className="px-1.5 py-0.5 rounded text-slate-400 hover:text-blue-600 disabled:opacity-30 cursor-pointer"
-                          title="Pindah ke bawah"
+                          title="Move down"
                         >
                           ▼
                         </button>
@@ -258,7 +258,7 @@ const LayerGroupEditModal = ({
                           type="button"
                           onClick={() => handleRemoveMember(lid)}
                           className="p-1 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 cursor-pointer"
-                          title="Hapus dari grup"
+                          title="Remove from group"
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
@@ -270,12 +270,12 @@ const LayerGroupEditModal = ({
             </div>
           </div>
 
-          {/* Tambah Layer ke Group (Multi-select) */}
+          {/* Add Layer to Group (Multi-select) */}
           {availableLayersToAdd.length > 0 ? (
             <div className="mb-5 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-xs font-semibold text-slate-700">
-                  Tambahkan Layer Lain ke Grup Ini ({availableLayersToAdd.length} tersedia)
+                  Add Other Layers to This Group ({availableLayersToAdd.length} available)
                 </span>
                 {availableLayersToAdd.length > 1 && (
                   <button
@@ -283,7 +283,7 @@ const LayerGroupEditModal = ({
                     onClick={handleSelectAllAvailable}
                     className="text-[11px] text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
                   >
-                    Pilih Semua ({availableLayersToAdd.length})
+                    Select All ({availableLayersToAdd.length})
                   </button>
                 )}
               </div>
@@ -293,7 +293,7 @@ const LayerGroupEditModal = ({
                   loading={isLoadingWsLayers}
                   value={selectedLayersToAdd}
                   onChange={setSelectedLayersToAdd}
-                  placeholder="Pilih satu atau beberapa layer untuk ditambahkan..."
+                  placeholder="Select one or more layers to add..."
                   className="flex-1 min-w-0"
                   allowClear
                   maxTagCount="responsive"
@@ -312,26 +312,26 @@ const LayerGroupEditModal = ({
                   disabled={selectedLayersToAdd.length === 0}
                   className="flex items-center justify-center gap-1 shrink-0 !bg-white hover:!bg-slate-50"
                 >
-                  Tambah {selectedLayersToAdd.length > 0 ? `(${selectedLayersToAdd.length})` : ""}
+                  Add {selectedLayersToAdd.length > 0 ? `(${selectedLayersToAdd.length})` : ""}
                 </Button>
               </div>
             </div>
           ) : (
             <div className="mb-4 p-2.5 rounded-xl bg-slate-50 border border-slate-200/70 text-center text-xs text-slate-400">
-              Semua layer di workspace ini sudah menjadi anggota grup.
+              All layers in this workspace are already members of this group.
             </div>
           )}
 
-          {/* Tombol Simpan */}
+          {/* Action Buttons */}
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-            <Button onClick={onClose}>Batal</Button>
+            <Button onClick={onClose}>Cancel</Button>
             <Button
               type="primary"
               htmlType="submit"
               loading={updateMutation.isPending}
               className="!bg-blue-600 hover:!bg-blue-500"
             >
-              Simpan Perubahan
+              Save Changes
             </Button>
           </div>
         </Form>

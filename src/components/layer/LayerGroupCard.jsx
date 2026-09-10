@@ -30,7 +30,7 @@ const LayerGroupCard = ({
     e.stopPropagation();
     navigator.clipboard.writeText(`${group.wms_url}?service=WMS&version=1.1.1&request=GetMap&layers=${group.wms_layers_param}`);
     setCopied(true);
-    message.success("URL WMS Layer Group disalin!");
+    message.success("Layer Group WMS URL copied!");
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -83,9 +83,9 @@ const LayerGroupCard = ({
 
           {/* Action Buttons */}
           <div className="flex items-center gap-1 flex-shrink-0">
-            {/* Fly-to indicator saat group dipilih */}
+            {/* Fly-to indicator when group is selected */}
             {isSelected && group.bbox && (
-              <span title="Peta fokus pada layer teratas grup ini" className="p-1.5 text-indigo-600">
+              <span title="Map focused on top layer of this group" className="p-1.5 text-indigo-600">
                 <Navigation2 className="w-3.5 h-3.5" />
               </span>
             )}
@@ -94,7 +94,7 @@ const LayerGroupCard = ({
             <button
               onClick={handleCopyWms}
               className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition"
-              title="Salin parameter WMS Layer Group"
+              title="Copy Layer Group WMS parameters"
             >
               {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
             </button>
@@ -106,7 +106,7 @@ const LayerGroupCard = ({
                 setShowDetail((p) => !p);
               }}
               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
-              title="Detail"
+              title="Details"
             >
               {showDetail ? <ChevronUp className="w-4 h-4" /> : <Info className="w-4 h-4" />}
             </button>
@@ -120,7 +120,7 @@ const LayerGroupCard = ({
               className={`p-1.5 rounded-lg transition ${
                 isVisible ? "text-indigo-600 hover:bg-indigo-50" : "text-slate-400 hover:bg-slate-100"
               }`}
-              title={isVisible ? "Sembunyikan dari Peta" : "Tampilkan di Peta"}
+              title={isVisible ? "Hide from Map" : "Show on Map"}
             >
               {isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
             </button>
@@ -132,27 +132,27 @@ const LayerGroupCard = ({
                 onEdit?.(group.id);
               }}
               className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition"
-              title="Edit Layer Group & Anggota"
+              title="Edit Layer Group & Members"
             >
               <Pencil className="w-4 h-4" />
             </button>
 
             {/* Delete button */}
             <Popconfirm
-              title="Hapus Layer Group?"
-              description={`Yakin ingin menghapus Layer Group "${group.title}"?`}
+              title="Delete Layer Group?"
+              description={`Are you sure you want to delete Layer Group "${group.title}"?`}
               onConfirm={(e) => {
                 e?.stopPropagation();
                 onDelete?.(group.id);
               }}
-              okText="Hapus"
-              cancelText="Batal"
+              okText="Delete"
+              cancelText="Cancel"
               okButtonProps={{ danger: true }}
             >
               <button
                 onClick={(e) => e.stopPropagation()}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
-                title="Hapus Group"
+                title="Delete Group"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -165,7 +165,7 @@ const LayerGroupCard = ({
           <div className="mt-3 pt-3 border-t border-slate-100 text-xs space-y-2">
             <div>
               <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
-                Nama Teknis (WMS Layer Param)
+                Technical Name (WMS Layer Param)
               </span>
               <p className="font-mono text-slate-700 bg-slate-50 p-1 rounded mt-0.5 border border-slate-100 break-all">
                 {group.wms_layers_param}
@@ -174,7 +174,7 @@ const LayerGroupCard = ({
             {group.abstract_text && (
               <div>
                 <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
-                  Deskripsi
+                  Description
                 </span>
                 <p className="text-slate-600 mt-0.5">{group.abstract_text}</p>
               </div>

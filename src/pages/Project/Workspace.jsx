@@ -133,7 +133,7 @@ const Workspace = (props) => {
           total: paginationData?.total-1 || 0,
           showSizeChanger: true,
           pageSizeOptions: ['5', '10', '20', '50'],
-          showTotal: (total, range) => `${range[0]}-${range[1]} dari ${total} workspace`,
+          showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} workspaces`,
           onChange: (newPage, newPageSize) => {
             setPage(newPage)
             setPageSize(newPageSize)

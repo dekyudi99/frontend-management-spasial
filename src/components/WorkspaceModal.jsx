@@ -47,7 +47,7 @@ const WorkspaceModal = ({ id, open, onClose }) => {
             name="name"
             rules={[{ required: true, message: "Workspace name is required!" }]}
           >
-            <Input placeholder="Contoh: Flood" />
+            <Input placeholder="e.g. Flood" />
           </Form.Item>
 
           <Button

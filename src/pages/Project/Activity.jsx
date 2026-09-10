@@ -12,16 +12,16 @@ const Activity = () => {
         <Timeline
             items={[
                 {
-                    children:"API Key dibuat"
+                    children:"API Key created"
                 },
                 {
-                    children:"Workspace dibuat"
+                    children:"Workspace created"
                 },
                 {
-                    children:"Layer dipublish"
+                    children:"Layer published"
                 },
                 {
-                    children:"Project diperbarui"
+                    children:"Project updated"
                 }
             ]}
         />

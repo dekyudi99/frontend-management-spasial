@@ -92,7 +92,7 @@ const LayerModal = ({
 
   const onFinish = (values) => {
     if (fileList.length === 0) {
-      message.error("Silakan unggah file GeoTIFF (.tif / .tiff) terlebih dahulu!");
+      message.error("Please upload a GeoTIFF (.tif / .tiff) file first!");
       return;
     }
 
@@ -116,7 +116,7 @@ const LayerModal = ({
       const ext = getFileExtension(file.name);
       if (!ACCEPTED_EXTENSIONS.includes(ext)) {
         message.error(
-          `Format tidak didukung: "${ext}". Hanya GeoTIFF (.tif / .tiff) yang diterima.`
+          `Unsupported format: "${ext}". Only GeoTIFF (.tif / .tiff) is accepted.`
         );
         return Upload.LIST_IGNORE;
       }
@@ -136,7 +136,7 @@ const LayerModal = ({
       open={open}
       onCancel={handleClose}
       footer={null}
-      title={<span className="text-base font-semibold">Tambah Layer Baru</span>}
+      title={<span className="text-base font-semibold">Add New Layer</span>}
       width={520}
       destroyOnClose
     >
@@ -146,12 +146,12 @@ const LayerModal = ({
         <Form.Item
           label="Project"
           name="project_id"
-          rules={[{ required: true, message: "Pilih project terlebih dahulu!" }]}
+          rules={[{ required: true, message: "Please select a project first!" }]}
         >
           <Select
             showSearch
             disabled={lockWorkspace}
-            placeholder="Cari & pilih project..."
+            placeholder="Search & select project..."
             loading={isLoadingProjects}
             optionFilterProp="label"
             filterOption={(input, option) =>
@@ -159,7 +159,7 @@ const LayerModal = ({
             }
             options={
               lockWorkspace && defaultProjectId && !projects.some((p) => p.id === defaultProjectId)
-                ? [{ value: defaultProjectId, label: "Project Terpilih" }, ...projects.map((proj) => ({ value: proj.id, label: proj.project_name }))]
+                ? [{ value: defaultProjectId, label: "Selected Project" }, ...projects.map((proj) => ({ value: proj.id, label: proj.project_name }))]
                 : projects.map((proj) => ({ value: proj.id, label: proj.project_name }))
             }
             onChange={(val) => {
@@ -173,15 +173,15 @@ const LayerModal = ({
         <Form.Item
           label="Workspace"
           name="workspace_id"
-          rules={[{ required: true, message: "Pilih workspace tujuan!" }]}
+          rules={[{ required: true, message: "Please select target workspace!" }]}
         >
           <Select
             showSearch
             disabled={lockWorkspace || !selectedProjectId}
             placeholder={
               !selectedProjectId
-                ? "Pilih project terlebih dahulu..."
-                : "Cari & pilih workspace..."
+                ? "Select a project first..."
+                : "Search & select workspace..."
             }
             loading={isLoadingWorkspaces}
             optionFilterProp="label"
@@ -190,7 +190,7 @@ const LayerModal = ({
             }
             options={
               lockWorkspace && defaultWorkspaceId && !workspaces.some((w) => w.id === defaultWorkspaceId)
-                ? [{ value: defaultWorkspaceId, label: "Workspace Terpilih" }, ...workspaces.map((ws) => ({ value: ws.id, label: ws.name }))]
+                ? [{ value: defaultWorkspaceId, label: "Selected Workspace" }, ...workspaces.map((ws) => ({ value: ws.id, label: ws.name }))]
                 : workspaces.map((ws) => ({ value: ws.id, label: ws.name }))
             }
           />
@@ -198,35 +198,35 @@ const LayerModal = ({
 
         {/* Layer Name */}
         <Form.Item
-          label="Nama Layer"
+          label="Layer Name"
           name="layer_name"
-          rules={[{ required: true, message: "Nama layer wajib diisi!" }]}
+          rules={[{ required: true, message: "Layer name is required!" }]}
         >
-          <Input placeholder="Contoh: Titik Rawan Banjir 2026" />
+          <Input placeholder="e.g.: Flood Risk Points 2026" />
         </Form.Item>
 
         {/* Description */}
-        <Form.Item label="Deskripsi" name="description">
-          <Input.TextArea rows={2} placeholder="Deskripsi singkat layer (opsional)" />
+        <Form.Item label="Description" name="description">
+          <Input.TextArea rows={2} placeholder="Short layer description (optional)" />
         </Form.Item>
 
         {/* Upload */}
-        <Form.Item label="Upload File GeoTIFF" required>
+        <Form.Item label="Upload GeoTIFF File" required>
           {fileList.length === 0 ? (
-            /* --- Belum ada file: tampilkan area drop --- */
+            /* --- No file yet: show drop area --- */
             <Dragger {...uploadProps}>
               <p className="ant-upload-drag-icon">
                 <InboxOutlined className="text-amber-500 text-3xl" />
               </p>
               <p className="ant-upload-text text-sm font-medium">
-                Klik atau seret file GeoTIFF ke area ini
+                Click or drag GeoTIFF file to this area
               </p>
               <p className="ant-upload-hint text-xs text-slate-400">
-                Hanya mendukung format <strong>.tif</strong> / <strong>.tiff</strong> (GeoTIFF Raster)
+                Supports <strong>.tif</strong> / <strong>.tiff</strong> formats only (GeoTIFF Raster)
               </p>
             </Dragger>
           ) : (
-            /* --- File sudah dipilih: tampilkan chip + tombol hapus --- */
+            /* --- File selected: show chip + remove button --- */
             <div
               className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border"
               style={{
@@ -253,7 +253,7 @@ const LayerModal = ({
                 }}
                 className="flex-shrink-0 text-xs text-slate-400 hover:text-red-500 transition px-2 py-1 rounded hover:bg-red-50"
               >
-                Hapus &times;
+                Remove &times;
               </button>
             </div>
           )}
@@ -267,7 +267,7 @@ const LayerModal = ({
           loading={createLayer.isPending}
           className="mt-1"
         >
-          Publikasikan Layer
+          Publish Layer
         </Button>
       </Form>
     </Modal>

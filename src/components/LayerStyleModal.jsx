@@ -12,63 +12,63 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import layerApi from "../api/LayerApi";
 
-// Preset palet warna populer untuk analisis GIS
+// Popular color palette presets for GIS analysis
 export const PRESETS = [
   {
     id: "flood_risk",
-    name: "Risiko Banjir (5 Kelas)",
-    description: "Biru ke Merah standar penilaian risiko",
+    name: "Flood Risk (5 Classes)",
+    description: "Blue to Red standard risk assessment",
     styleType: "values",
     classes: [
       { quantity: 0, color: "#000000", opacity: 0.0, label: "No Data" },
-      { quantity: 1, color: "#2b83ba", opacity: 1.0, label: "Sangat Rendah" },
-      { quantity: 2, color: "#abdda4", opacity: 1.0, label: "Rendah" },
-      { quantity: 3, color: "#ffffbf", opacity: 1.0, label: "Sedang" },
-      { quantity: 4, color: "#fdae61", opacity: 1.0, label: "Tinggi" },
-      { quantity: 5, color: "#d7191c", opacity: 1.0, label: "Sangat Tinggi" },
+      { quantity: 1, color: "#2b83ba", opacity: 1.0, label: "Very Low" },
+      { quantity: 2, color: "#abdda4", opacity: 1.0, label: "Low" },
+      { quantity: 3, color: "#ffffbf", opacity: 1.0, label: "Moderate" },
+      { quantity: 4, color: "#fdae61", opacity: 1.0, label: "High" },
+      { quantity: 5, color: "#d7191c", opacity: 1.0, label: "Very High" },
     ],
   },
   {
     id: "flood_event",
-    name: "Deteksi Genangan / Banjir",
-    description: "Highlight area terdampak banjir",
+    name: "Inundation / Flood Detection",
+    description: "Highlight flood-affected areas",
     styleType: "values",
     classes: [
-      { quantity: 0, color: "#000000", opacity: 0.0, label: "Bukan Banjir" },
-      { quantity: 1, color: "#e31a1c", opacity: 1.0, label: "Area Tergenang" },
+      { quantity: 0, color: "#000000", opacity: 0.0, label: "Non-Flooded" },
+      { quantity: 1, color: "#e31a1c", opacity: 1.0, label: "Inundated Area" },
     ],
   },
   {
     id: "rainfall",
-    name: "Curah Hujan (Blues)",
-    description: "Gradasi intensitas hujan dari rendah ke ekstrim",
+    name: "Precipitation / Rainfall (Blues)",
+    description: "Rainfall intensity gradation from light to extreme",
     styleType: "intervals",
     classes: [
       { quantity: 0, color: "#000000", opacity: 0.0, label: "0 mm" },
-      { quantity: 20, color: "#c6dbef", opacity: 0.8, label: "Ringan (<20)" },
-      { quantity: 50, color: "#6baed6", opacity: 0.85, label: "Sedang (20-50)" },
-      { quantity: 100, color: "#2171b5", opacity: 0.9, label: "Lebat (50-100)" },
-      { quantity: 150, color: "#08306b", opacity: 1.0, label: "Sangat Lebat (>100)" },
+      { quantity: 20, color: "#c6dbef", opacity: 0.8, label: "Light (<20)" },
+      { quantity: 50, color: "#6baed6", opacity: 0.85, label: "Moderate (20-50)" },
+      { quantity: 100, color: "#2171b5", opacity: 0.9, label: "Heavy (50-100)" },
+      { quantity: 150, color: "#08306b", opacity: 1.0, label: "Very Heavy (>100)" },
     ],
   },
   {
     id: "traffic_light",
-    name: "Traffic Light (Hijau - Merah)",
-    description: "Skema peringatan bahaya",
+    name: "Traffic Light (Green - Red)",
+    description: "Hazard alert scheme",
     styleType: "values",
     classes: [
-      { quantity: 0, color: "#000000", opacity: 0.0, label: "Aman" },
-      { quantity: 1, color: "#1a9641", opacity: 1.0, label: "Aman / Hijau" },
-      { quantity: 2, color: "#a6d96a", opacity: 1.0, label: "Waspada Ringan" },
-      { quantity: 3, color: "#ffffbf", opacity: 1.0, label: "Waspada" },
-      { quantity: 4, color: "#fdae61", opacity: 1.0, label: "Siaga" },
-      { quantity: 5, color: "#d7191c", opacity: 1.0, label: "Awas / Kritis" },
+      { quantity: 0, color: "#000000", opacity: 0.0, label: "Safe" },
+      { quantity: 1, color: "#1a9641", opacity: 1.0, label: "Safe / Green" },
+      { quantity: 2, color: "#a6d96a", opacity: 1.0, label: "Low Alert" },
+      { quantity: 3, color: "#ffffbf", opacity: 1.0, label: "Alert" },
+      { quantity: 4, color: "#fdae61", opacity: 1.0, label: "Warning" },
+      { quantity: 5, color: "#d7191c", opacity: 1.0, label: "Critical" },
     ],
   },
   {
     id: "viridis",
-    name: "Viridis (Saintifik)",
-    description: "Perseptual seragam, ramah buta warna",
+    name: "Viridis (Scientific)",
+    description: "Perceptually uniform, colorblind-friendly",
     styleType: "ramp",
     classes: [
       { quantity: 0, color: "#000000", opacity: 0.0, label: "0" },
@@ -121,7 +121,7 @@ const LayerStyleModal = ({ open, onClose, layer, onStyleApplied }) => {
         quantity: lastQty + 1,
         color: "#3b82f6",
         opacity: 1.0,
-        label: `Kelas ${lastQty + 1}`,
+        label: `Class ${lastQty + 1}`,
       },
     ]);
   };
@@ -179,7 +179,7 @@ const LayerStyleModal = ({ open, onClose, layer, onStyleApplied }) => {
           </div>
           <div>
             <h2 className="text-base font-bold text-slate-800">
-              Pengaturan Warna &amp; Simbologi Layer
+              Layer Symbology &amp; Color Settings
             </h2>
             <p className="text-xs text-slate-500">
               Layer: <span className="font-semibold text-slate-700">{layer?.layer_name}</span> ({layer?.workspace_name})
@@ -191,7 +191,7 @@ const LayerStyleModal = ({ open, onClose, layer, onStyleApplied }) => {
         <div className="mt-4">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 mb-2">
             <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            Pilih Preset Palet Warna Populer:
+            Select Popular Color Palette Preset:
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {PRESETS.map((p) => (
@@ -228,21 +228,21 @@ const LayerStyleModal = ({ open, onClose, layer, onStyleApplied }) => {
         {/* Pengaturan Tipe Style */}
         <div className="mt-4 flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
           <div>
-            <span className="text-xs font-semibold text-slate-700 block">Metode Pewarnaan SLD</span>
+            <span className="text-xs font-semibold text-slate-700 block">SLD Color Method</span>
             <span className="text-[11px] text-slate-400">
-              {styleType === "values" && "Nilai eksak / kategori diskrit (sangat pas untuk kelas 1-5)"}
-              {styleType === "intervals" && "Rentang interval bertahap (kurang dari / sama dengan)"}
-              {styleType === "ramp" && "Gradien mulus berkelanjutan antar nilai piksel"}
+              {styleType === "values" && "Exact values / discrete categories (ideal for classes 1-5)"}
+              {styleType === "intervals" && "Stepped intervals (less than or equal to)"}
+              {styleType === "ramp" && "Smooth continuous gradient between pixel values"}
             </span>
           </div>
           <Select
             value={styleType}
             onChange={setStyleType}
-            className="w-36"
+            className="w-40"
             options={[
-              { value: "values", label: "Diskrit (Values)" },
-              { value: "intervals", label: "Interval (Rentang)" },
-              { value: "ramp", label: "Gradien (Ramp)" },
+              { value: "values", label: "Discrete (Values)" },
+              { value: "intervals", label: "Interval (Range)" },
+              { value: "ramp", label: "Gradient (Ramp)" },
             ]}
           />
         </div>
@@ -251,7 +251,7 @@ const LayerStyleModal = ({ open, onClose, layer, onStyleApplied }) => {
         <div className="mt-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-slate-700">
-              Kustomisasi Kelas &amp; Warna ({classes.length} kelas):
+              Customize Classes &amp; Colors ({classes.length} classes):
             </span>
             <Button
               type="dashed"
@@ -260,7 +260,7 @@ const LayerStyleModal = ({ open, onClose, layer, onStyleApplied }) => {
               onClick={addClass}
               className="text-xs flex items-center"
             >
-              Tambah Kelas
+              Add Class
             </Button>
           </div>
 
@@ -278,7 +278,7 @@ const LayerStyleModal = ({ open, onClose, layer, onStyleApplied }) => {
                     value={cls.color}
                     onChange={(e) => updateClass(idx, "color", e.target.value)}
                     className="w-7 h-7 rounded border border-slate-200 cursor-pointer p-0 bg-transparent"
-                    title="Pilih Warna"
+                    title="Pick Color"
                   />
                   <input
                     type="text"
@@ -290,7 +290,7 @@ const LayerStyleModal = ({ open, onClose, layer, onStyleApplied }) => {
 
                 {/* Nilai Piksel / Quantity */}
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  <span className="text-[10px] text-slate-400 font-medium">Nilai:</span>
+                  <span className="text-[10px] text-slate-400 font-medium">Value:</span>
                   <input
                     type="number"
                     value={cls.quantity}
@@ -304,7 +304,7 @@ const LayerStyleModal = ({ open, onClose, layer, onStyleApplied }) => {
                   <input
                     type="text"
                     value={cls.label}
-                    placeholder="Keterangan (opsional)..."
+                    placeholder="Label (optional)..."
                     onChange={(e) => updateClass(idx, "label", e.target.value)}
                     className="w-full px-2 py-1 text-xs border border-slate-200 rounded text-slate-700"
                   />
@@ -332,7 +332,7 @@ const LayerStyleModal = ({ open, onClose, layer, onStyleApplied }) => {
                   type="button"
                   onClick={() => removeClass(idx)}
                   className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition"
-                  title="Hapus Kelas"
+                  title="Remove Class"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -345,7 +345,7 @@ const LayerStyleModal = ({ open, onClose, layer, onStyleApplied }) => {
         {/* Live Preview Legenda Bar */}
         <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
           <span className="text-[11px] font-semibold text-slate-600 block mb-1.5">
-            Pratinjau Legenda WMS:
+            WMS Legend Preview:
           </span>
           <div className="flex flex-wrap gap-2">
             {classes.map((cls, idx) => (
@@ -367,7 +367,7 @@ const LayerStyleModal = ({ open, onClose, layer, onStyleApplied }) => {
         {/* Footer Buttons */}
         <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
           <Button onClick={onClose} disabled={mutation.isPending}>
-            Batal
+            Cancel
           </Button>
           <Button
             type="primary"
@@ -376,7 +376,7 @@ const LayerStyleModal = ({ open, onClose, layer, onStyleApplied }) => {
             icon={<Check className="w-4 h-4" />}
             className="flex items-center gap-1"
           >
-            Terapkan ke GeoServer
+            Apply to GeoServer
           </Button>
         </div>
       </div>

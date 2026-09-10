@@ -24,7 +24,7 @@ const Login = () => {
             navigate('/dashboard')
         },
         onError: (error) => {
-            message.error(error.response?.data?.detail || "Terjadi kesalahan")
+            message.error(error.response?.data?.detail || "An error occurred")
         }
     })
 

@@ -73,7 +73,7 @@ const Project = () => {
   if (isError) {
     return (
       <div className="p-8 text-red-500">
-        {error.response?.data?.detail || "Terjadi kesalahan saat memuat data"}
+        {error.response?.data?.detail || "An error occurred while loading data"}
       </div>
     )
   }
@@ -91,7 +91,7 @@ const Project = () => {
         <div>
           <Title level={2} className="!mb-1">Project</Title>
           <Text type="secondary">
-            Kelola seluruh project integrasi.
+            Manage all your integration projects.
           </Text>
         </div>
 
@@ -111,7 +111,7 @@ const Project = () => {
 
       <Input
         prefix={<SearchOutlined />}
-        placeholder="Cari project..."
+        placeholder="Search projects..."
         className="mb-6"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
@@ -156,7 +156,7 @@ const Project = () => {
             total={pagination.total}
             showSizeChanger
             pageSizeOptions={["6", "12", "24"]}
-            showTotal={(total, range) => `${range[0]}-${range[1]} dari ${total} project`}
+            showTotal={(total, range) => `${range[0]}-${range[1]} of ${total} projects`}
             onChange={(newPage, newPageSize) => {
               setPage(newPage)
               setPageSize(newPageSize)

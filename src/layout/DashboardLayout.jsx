@@ -23,7 +23,7 @@ const DashboardLayout = () => {
         <button
           onClick={() => setSidebarOpen(true)}
           className="p-1.5 rounded-lg bg-blue-800 hover:bg-blue-700 text-white focus:outline-none transition active:scale-95 cursor-pointer"
-          aria-label="Buka Menu"
+          aria-label="Open Menu"
         >
           <Bars3Icon className="w-5 h-5" />
         </button>

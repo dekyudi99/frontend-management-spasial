@@ -54,9 +54,9 @@ const ApiKeyModal = ({ id, open, onClose }) => {
           <Form.Item
             label="Name"
             name="name"
-            rules={[{ required: true, message: "Nama API Key wajib diisi!" }]}
+            rules={[{ required: true, message: "API Key name is required!" }]}
           >
-            <Input placeholder="Contoh: Production Key" />
+            <Input placeholder="e.g. Production Key" />
           </Form.Item>
 
           <Button

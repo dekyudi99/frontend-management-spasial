@@ -19,9 +19,9 @@ const Header = () => {
         Modal.confirm({
             title: "Logout",
             icon: <ExclamationTriangleIcon className="w-5 h-5 text-red-500" />,
-            content: "Apakah Anda yakin ingin keluar?",
-            okText: "Keluar",
-            cancelText: "Batal",
+            content: "Are you sure you want to log out?",
+            okText: "Logout",
+            cancelText: "Cancel",
             okType: "danger",
             onOk() {
                 localStorage.removeItem("JWT_TOKEN");
@@ -34,7 +34,7 @@ const Header = () => {
         {
             key: "profile",
             icon: <UserIcon className="w-4 h-4" />,
-            label: "Profil",
+            label: "Profile",
             onClick: () => navigate("/profile"),
         },
         {
@@ -44,7 +44,7 @@ const Header = () => {
             key: "logout",
             danger: true,
             icon: <ArrowRightOnRectangleIcon className="w-4 h-4" />,
-            label: "Keluar",
+            label: "Logout",
             onClick: handleLogout,
         },
     ];

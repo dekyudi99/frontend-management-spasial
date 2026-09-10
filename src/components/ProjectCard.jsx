@@ -41,11 +41,11 @@ const ProjectCard = ({project, onManage, onEdit, onDelete})=>{
             danger:true,
             icon:<DeleteOutlined/>,
             onClick: () => Modal.confirm({
-                title: "Hapus Project!",
+                title: "Delete Project!",
                 icon: <ExclamationTriangleIcon className="w-5 h-5 text-red-500" />,
-                content: `Apakah Anda yakin ingin menghapus project ${project.project_name}?`,
-                okText: "Hapus",
-                cancelText: "Batal",
+                content: `Are you sure you want to delete project ${project.project_name}?`,
+                okText: "Delete",
+                cancelText: "Cancel",
                 okType: "danger",
                 onOk() {
                     onDelete()

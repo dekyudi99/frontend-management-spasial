@@ -110,9 +110,9 @@ const LayerGroupModal = ({
             <Layers className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-semibold text-base">Buat Layer Group Baru</h3>
+            <h3 className="font-semibold text-base">Create New Layer Group</h3>
             <p className="text-xs text-slate-400 font-normal">
-              Gabungkan beberapa layer GeoServer menjadi satu kesatuan visual WMS
+              Combine multiple GeoServer layers into a unified WMS visual
             </p>
           </div>
         </div>
@@ -122,11 +122,11 @@ const LayerGroupModal = ({
       <Form form={form} layout="vertical" onFinish={onFinish} className="mt-4">
         {/* Workspace info / select */}
         <Form.Item
-          label={<span className="text-xs font-semibold text-slate-700">Workspace Target</span>}
+          label={<span className="text-xs font-semibold text-slate-700">Target Workspace</span>}
           name="workspace_id"
-          rules={[{ required: true, message: "Workspace wajib dipilih!" }]}
+          rules={[{ required: true, message: "Workspace is required!" }]}
         >
-          <Select placeholder="Pilih Workspace">
+          <Select placeholder="Select Workspace">
             {Array.from(new Set(allLayers.map((l) => l.workspace_id))).map((wsId) => {
               const wsLayer = allLayers.find((l) => l.workspace_id === wsId);
               return (
@@ -138,47 +138,47 @@ const LayerGroupModal = ({
           </Select>
         </Form.Item>
 
-        {/* Judul Tampilan */}
+        {/* Display Title */}
         <Form.Item
-          label={<span className="text-xs font-semibold text-slate-700">Judul Layer Group (Display Title)</span>}
+          label={<span className="text-xs font-semibold text-slate-700">Layer Group Title (Display Title)</span>}
           name="title"
-          rules={[{ required: true, message: "Judul Layer Group wajib diisi!" }]}
+          rules={[{ required: true, message: "Layer Group Title is required!" }]}
         >
           <Input
-            placeholder="Contoh: Analisis Risiko Banjir & Kontur"
+            placeholder="e.g.: Flood Risk Analysis & Contours"
             onChange={handleTitleChange}
           />
         </Form.Item>
 
-        {/* Nama Teknis GeoServer */}
+        {/* GeoServer Technical Name */}
         <Form.Item
           label={
             <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-              <span>Nama Teknis GeoServer (WMS Machine Name)</span>
-              <span className="text-[10px] text-slate-400 font-normal">(otomatis)</span>
+              <span>GeoServer Technical Name (WMS Machine Name)</span>
+              <span className="text-[10px] text-slate-400 font-normal">(automatic)</span>
             </span>
           }
           name="name"
           rules={[
-            { required: true, message: "Nama teknis wajib diisi!" },
-            { pattern: /^[a-zA-Z0-9_-]+$/, message: "Hanya boleh huruf, angka, underscore (_), atau dash (-)" },
+            { required: true, message: "Technical name is required!" },
+            { pattern: /^[a-zA-Z0-9_-]+$/, message: "Only letters, numbers, underscore (_), or dash (-) allowed" },
           ]}
         >
-          <Input placeholder="Contoh: lg_analisis_banjir" />
+          <Input placeholder="e.g.: lg_flood_risk" />
         </Form.Item>
 
-        {/* Daftar Layer Anggota (Urutan Rendering) */}
+        {/* Member Layers List (Rendering Order) */}
         <div className="mb-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-slate-700">
-              Layer Anggota ({chosenLayers.length})
+              Member Layers ({chosenLayers.length})
             </span>
           </div>
 
           <div className="border border-slate-200 rounded-xl p-2 bg-slate-50/60 max-h-[180px] overflow-y-auto space-y-1.5">
             {chosenLayers.length === 0 ? (
               <p className="text-xs text-center py-4 text-slate-400">
-                Belum ada layer yang dipilih. Checklist layer terlebih dahulu pada daftar.
+                No layers selected yet. Check layers in the list first.
               </p>
             ) : (
               chosenLayers.map((l, idx) => (
@@ -203,7 +203,7 @@ const LayerGroupModal = ({
                       disabled={idx === 0}
                       onClick={() => moveLayer(idx, -1)}
                       className="px-1.5 py-0.5 rounded text-slate-400 hover:text-blue-600 disabled:opacity-30 cursor-pointer"
-                      title="Pindah ke atas"
+                      title="Move up"
                     >
                       ▲
                     </button>
@@ -213,7 +213,7 @@ const LayerGroupModal = ({
                       disabled={idx === chosenLayers.length - 1}
                       onClick={() => moveLayer(idx, 1)}
                       className="px-1.5 py-0.5 rounded text-slate-400 hover:text-blue-600 disabled:opacity-30 cursor-pointer"
-                      title="Pindah ke bawah"
+                      title="Move down"
                     >
                       ▼
                     </button>
@@ -222,7 +222,7 @@ const LayerGroupModal = ({
                       type="button"
                       onClick={() => handleRemoveLayer(l.id)}
                       className="p-1 rounded text-slate-400 hover:text-red-600 hover:bg-red-50"
-                      title="Hapus dari grup"
+                      title="Remove from group"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -233,30 +233,30 @@ const LayerGroupModal = ({
           </div>
         </div>
 
-        {/* Mode WMS */}
+        {/* WMS Mode */}
         <Form.Item
-          label={<span className="text-xs font-semibold text-slate-700">Mode GeoServer WMS</span>}
+          label={<span className="text-xs font-semibold text-slate-700">GeoServer WMS Mode</span>}
           name="mode"
           initialValue="single"
         >
           <Select>
-            <Select.Option value="single">Single (Satu Layer WMS Gabungan - Rekomendasi)</Select.Option>
-            <Select.Option value="named">Named (Grup beserta sublayer ditampilkan)</Select.Option>
-            <Select.Option value="container">Container (Pengelompokan struktur)</Select.Option>
+            <Select.Option value="single">Single (Single Combined WMS Layer - Recommended)</Select.Option>
+            <Select.Option value="named">Named (Group with visible sublayers)</Select.Option>
+            <Select.Option value="container">Container (Structural grouping)</Select.Option>
           </Select>
         </Form.Item>
 
-        {/* Deskripsi */}
+        {/* Description */}
         <Form.Item
-          label={<span className="text-xs font-semibold text-slate-700">Deskripsi / Abstract (Opsional)</span>}
+          label={<span className="text-xs font-semibold text-slate-700">Description / Abstract (Optional)</span>}
           name="abstract_text"
         >
-          <Input.TextArea rows={2} placeholder="Keterangan mengenai layer group..." />
+          <Input.TextArea rows={2} placeholder="Description about the layer group..." />
         </Form.Item>
 
-        {/* Tombol Aksi */}
+        {/* Action Buttons */}
         <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-          <Button onClick={onClose}>Batal</Button>
+          <Button onClick={onClose}>Cancel</Button>
           <Button
             type="primary"
             htmlType="submit"
@@ -264,7 +264,7 @@ const LayerGroupModal = ({
             disabled={chosenLayers.length === 0}
             className="!bg-blue-600 hover:!bg-blue-500"
           >
-            Simpan Layer Group
+            Save Layer Group
           </Button>
         </div>
       </Form>

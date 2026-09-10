@@ -23,7 +23,7 @@ const Register = () => {
             navigate('/auth/login')
         },
         onError: (error) => {
-            message.error(error.response?.data?.detail || "Terjadi kesalahan")
+            message.error(error.response?.data?.detail || "An error occurred")
         }
     })
 
@@ -74,7 +74,7 @@ const Register = () => {
                     name="password"
                     label="Password"
                     rules={[
-                        { required: true, message: 'Masukkan kata sandi' },
+                        { required: true, message: 'Insert Password' },
                         { min: 8, message: "Password Minimum 8 Characters"}
                     ]}
                     className='w-full'
@@ -94,7 +94,7 @@ const Register = () => {
                                 if (!value || getFieldValue('password') === value) {
                                     return Promise.resolve()
                                 }
-                                return Promise.reject(new Error('Your Password is Not Safe!'))
+                                return Promise.reject(new Error('The two passwords do not match!'))
                             },
                         }),
                         { min: 8, message: "Password Minimum 8 Characters"}

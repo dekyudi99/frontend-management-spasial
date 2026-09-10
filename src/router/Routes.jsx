@@ -18,13 +18,13 @@ import DetailProject from "../pages/DetailProject";
 const routes = createBrowserRouter([
     {
         path: "/",
+        element: <Landing/>,
+        errorElement: <NotFound/>
+    },
+    {
         element: <MainLayout/>,
-        errorElement:<NotFound/>,
+        errorElement: <NotFound/>,
         children:[
-            {
-                index: true,
-                element: <Landing/>
-            },
             {
                 path: "/dashboard",
                 element: <DashboardLayout/>,

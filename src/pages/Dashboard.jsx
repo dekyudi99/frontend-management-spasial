@@ -150,7 +150,7 @@ const Dashboard = () => {
         dot: <CheckCircle2 className="w-4 h-4 text-emerald-500" />,
         content: (
           <div className="text-xs sm:text-sm">
-            <span className="font-semibold text-slate-800">{l.layer_name}</span> dipublish pada workspace{' '}
+            <span className="font-semibold text-slate-800">{l.layer_name}</span> published to workspace{' '}
             <Tag color="blue" className="!text-xs">{l.workspace_name}</Tag>
             <div className="text-slate-400 text-xs mt-0.5">{formatTanggal(l.created_at)}</div>
           </div>
@@ -164,7 +164,7 @@ const Dashboard = () => {
         dot: <FolderKanban className="w-4 h-4 text-blue-500" />,
         content: (
           <div className="text-xs sm:text-sm">
-            <span className="font-semibold text-slate-800">{p.project_name}</span> dibuat
+            <span className="font-semibold text-slate-800">{p.project_name}</span> created
             <div className="text-slate-400 text-xs mt-0.5">{formatTanggal(p.created_at)}</div>
           </div>
         ),
@@ -185,7 +185,7 @@ const Dashboard = () => {
     <div className="p-4 sm:p-6 md:p-8 space-y-6 text-slate-800">
       {/* ── 1. HEADER & WELCOME BANNER ────────────────────────────────────────── */}
       <div className="bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-900 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
-        {/* Dekorasi background */}
+        {/* Background decoration */}
         <div className="absolute right-0 -bottom-10 opacity-10 pointer-events-none">
           <Globe className="w-64 h-64 text-white" />
         </div>
@@ -194,18 +194,18 @@ const Dashboard = () => {
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-xs font-medium text-blue-200 mb-3 border border-white/15">
               <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>Spatial Command Center & API Gateway</span>
+              <span>Spatial Command Center &amp; API Gateway</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white mb-2">
-              Selamat Datang di {appName}
+              Welcome to {appName}
             </h1>
             <p className="text-blue-100 text-sm sm:text-base max-w-2xl leading-relaxed">
-              Pusat kendali manajemen spasial: kelola project, workspace GeoServer, publikasi layer raster/vektor,
-              serta integrasi System-to-System (S2S) otomatis.
+              Spatial management command center: manage projects, GeoServer workspaces, publish raster/vector layers,
+              and automate System-to-System (S2S) integrations.
             </p>
           </div>
 
-          {/* Action buttons di Header */}
+          {/* Action buttons in Header */}
           <div className="flex flex-wrap items-center gap-3">
             <Button
               type="primary"
@@ -238,7 +238,7 @@ const Dashboard = () => {
           >
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Total Project
+                Total Projects
               </span>
               <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
                 <FolderKanban className="w-5 h-5" />
@@ -251,7 +251,7 @@ const Dashboard = () => {
               <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
             </div>
             <p className="text-xs text-slate-500 mt-2">
-              Project integrasi aktif terdaftar
+              Active registered integration projects
             </p>
           </div>
         </Col>
@@ -277,7 +277,7 @@ const Dashboard = () => {
               <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
             </div>
             <p className="text-xs text-slate-500 mt-2">
-              Workspace terhubung ke GeoServer
+              Workspaces connected to GeoServer
             </p>
           </div>
         </Col>
@@ -303,7 +303,7 @@ const Dashboard = () => {
               <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
             </div>
             <p className="text-xs text-slate-500 mt-2">
-              GeoTIFF & Layer WMS terpublikasi
+              Published GeoTIFF &amp; WMS layers
             </p>
           </div>
         </Col>
@@ -329,7 +329,7 @@ const Dashboard = () => {
               <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-amber-600 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
             </div>
             <p className="text-xs text-slate-500 mt-2">
-              Kredensial aktif integrasi FlowGIS
+              Active S2S integration credentials
             </p>
           </div>
         </Col>
@@ -350,7 +350,7 @@ const Dashboard = () => {
                   to="/dashboard/layer"
                   className="text-xs font-medium text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
                 >
-                  Lihat Semua Layer <ArrowUpRight className="w-3.5 h-3.5" />
+                  View All Layers <ArrowUpRight className="w-3.5 h-3.5" />
                 </Link>
               }
               items={[
@@ -359,28 +359,25 @@ const Dashboard = () => {
                   label: (
                     <span className="flex items-center gap-2 font-medium">
                       <Globe className="w-4 h-4 text-emerald-600" />
-                      Layer Terbaru
-                      {/* {recentLayers.length > 0 && (
-                        <Badge count={recentLayers.length} className="!bg-emerald-100 !text-emerald-700 font-semibold" />
-                      )} */}
+                      Recent Layers
                     </span>
                   ),
                   children: (
                     <div className="pt-2">
                       {isLoadingLayers ? (
                         <div className="py-12 flex justify-center">
-                          <Spin tip="Memuat layer terbaru..." />
+                          <Spin tip="Loading recent layers..." />
                         </div>
                       ) : recentLayers.length === 0 ? (
                         <div className="py-10 text-center">
-                          <Empty description="Belum ada layer yang dipublish">
+                          <Empty description="No layers published yet">
                             <Button
                               type="primary"
                               icon={<Plus className="w-4 h-4" />}
                               onClick={() => setLayerModalOpen(true)}
                               className="!bg-blue-600 mt-2"
                             >
-                              Publish Layer Pertama
+                              Publish First Layer
                             </Button>
                           </Empty>
                         </div>
@@ -426,7 +423,7 @@ const Dashboard = () => {
                                 onClick={() => navigate('/dashboard/layer')}
                                 className="!text-xs !font-medium self-start sm:self-auto hover:!border-blue-500 hover:!text-blue-600"
                               >
-                                Lihat di Peta
+                                View on Map
                               </Button>
                             </div>
                           ))}
@@ -440,25 +437,25 @@ const Dashboard = () => {
                   label: (
                     <span className="flex items-center gap-2 font-medium">
                       <FolderKanban className="w-4 h-4 text-blue-600" />
-                      Project Terbaru
+                      Recent Projects
                     </span>
                   ),
                   children: (
                     <div className="pt-2">
                       {isLoadingProjects ? (
                         <div className="py-12 flex justify-center">
-                          <Spin tip="Memuat project..." />
+                          <Spin tip="Loading projects..." />
                         </div>
                       ) : recentProjects.length === 0 ? (
                         <div className="py-10 text-center">
-                          <Empty description="Belum ada project dibuat">
+                          <Empty description="No projects created yet">
                             <Button
                               type="primary"
                               icon={<Plus className="w-4 h-4" />}
                               onClick={() => setProjectModalOpen(true)}
                               className="!bg-blue-600 mt-2"
                             >
-                              Buat Project Sekarang
+                              Create Project Now
                             </Button>
                           </Empty>
                         </div>
@@ -478,7 +475,7 @@ const Dashboard = () => {
                                     {proj.project_name}
                                   </h4>
                                   <p className="text-xs text-slate-500 line-clamp-1 max-w-md">
-                                    {proj.description || 'Tidak ada deskripsi'}
+                                    {proj.description || 'No description'}
                                   </p>
                                   <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                                     <Tag color="cyan" className="!text-xs">
@@ -501,7 +498,7 @@ const Dashboard = () => {
                                 onClick={() => navigate(`/dashboard/project/detail/${proj.id}`)}
                                 className="!text-xs !font-medium self-start sm:self-auto"
                               >
-                                Kelola
+                                Manage
                               </Button>
                             </div>
                           ))}
@@ -515,13 +512,13 @@ const Dashboard = () => {
                   label: (
                     <span className="flex items-center gap-2 font-medium">
                       <Activity className="w-4 h-4 text-purple-600" />
-                      Log Aktivitas
+                      Activity Log
                     </span>
                   ),
                   children: (
                     <div className="pt-4 px-2">
                       {activityItems.length === 0 ? (
-                        <Empty description="Belum ada aktivitas terekam" />
+                        <Empty description="No activity recorded yet" />
                       ) : (
                         <Timeline items={activityItems} />
                       )}
@@ -541,7 +538,7 @@ const Dashboard = () => {
               title={
                 <span className="font-bold text-slate-800 text-base flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-blue-600" />
-                  Aksi Cepat
+                  Quick Actions
                 </span>
               }
               className="!rounded-2xl !border-slate-200/80 !shadow-xs"
@@ -558,9 +555,9 @@ const Dashboard = () => {
                     </div>
                     <div>
                       <div className="text-sm font-semibold text-slate-800 group-hover:text-blue-600">
-                        Buat Project Baru
+                        Create New Project
                       </div>
-                      <div className="text-xs text-slate-400">Kelola workspace & API Key</div>
+                      <div className="text-xs text-slate-400">Manage workspaces &amp; API keys</div>
                     </div>
                   </div>
                   <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
@@ -576,9 +573,9 @@ const Dashboard = () => {
                     </div>
                     <div>
                       <div className="text-sm font-semibold text-slate-800 group-hover:text-emerald-600">
-                        Publish Layer GeoTIFF
+                        Publish GeoTIFF Layer
                       </div>
-                      <div className="text-xs text-slate-400">Upload raster 1-band langsung</div>
+                      <div className="text-xs text-slate-400">Upload 1-band raster directly</div>
                     </div>
                   </div>
                   <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
@@ -594,9 +591,9 @@ const Dashboard = () => {
                     </div>
                     <div>
                       <div className="text-sm font-semibold text-slate-800 group-hover:text-purple-600">
-                        Buka Visualisasi Peta
+                        Open Map Visualization
                       </div>
-                      <div className="text-xs text-slate-400">Preview WMS & atur SLD style</div>
+                      <div className="text-xs text-slate-400">Preview WMS &amp; configure SLD styles</div>
                     </div>
                   </div>
                   <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-purple-600 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
@@ -612,9 +609,9 @@ const Dashboard = () => {
                     </div>
                     <div>
                       <div className="text-sm font-semibold text-slate-800 group-hover:text-amber-700">
-                        Dokumentasi Integrasi S2S
+                        S2S Integration Documentation
                       </div>
-                      <div className="text-xs text-slate-400">Spesifikasi API & contoh kode</div>
+                      <div className="text-xs text-slate-400">API specs &amp; code examples</div>
                     </div>
                   </div>
                   <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-amber-700 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
@@ -622,41 +619,6 @@ const Dashboard = () => {
               </div>
             </Card>
 
-            {/* S2S Quick Snippet Widget */}
-            {/* <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-sm border border-slate-800">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-blue-400 flex items-center gap-1.5 uppercase tracking-wide">
-                  <Terminal className="w-3.5 h-3.5" /> S2S Endpoint (FlowGIS)
-                </span>
-                <button
-                  onClick={handleCopySnippet}
-                  className="text-xs text-slate-400 hover:text-white flex items-center gap-1 px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded transition cursor-pointer"
-                >
-                  {copiedSnippet ? (
-                    <>
-                      <Check className="w-3 h-3 text-emerald-400" /> Tersalin
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3 h-3" /> Salin cURL
-                    </>
-                  )}
-                </button>
-              </div>
-
-              <div className="bg-slate-950 p-2.5 rounded-lg font-mono text-[11px] text-slate-300 overflow-x-auto border border-slate-800/80">
-                <span className="text-emerald-400 font-bold">POST</span> /s2s/publish
-                <br />
-                <span className="text-slate-500">Header:</span> X-API-Key: agis_sk_...
-                <br />
-                <span className="text-slate-500">Body:</span> workspace_id, layer_name, file
-              </div>
-
-              <div className="mt-2.5 flex items-center gap-1.5 text-xs text-amber-400/90">
-                <Info className="w-3.5 h-3.5 shrink-0" />
-                <span>Wajib file GeoTIFF 1-band untuk publish otomatis.</span>
-              </div>
-            </div> */}
           </div>
         </Col>
       </Row>
@@ -669,7 +631,7 @@ const Dashboard = () => {
             title={
               <span className="font-bold text-slate-800 text-base flex items-center gap-2">
                 <Server className="w-4.5 h-4.5 text-blue-600" />
-                Status Sistem & Layanan
+                System &amp; Service Status
               </span>
             }
             className="!rounded-2xl !border-slate-200/80 !shadow-xs h-full"
@@ -697,7 +659,7 @@ const Dashboard = () => {
                   <div>
                     <div className="text-sm font-semibold text-slate-800">GeoServer Spatial Engine</div>
                     <div className="text-xs text-slate-400">
-                      {geoVersion ? `Versi ${geoVersion}` : 'WMS & WFS Service Active'}
+                      {geoVersion ? `Version ${geoVersion}` : 'WMS & WFS Service Active'}
                     </div>
                   </div>
                 </div>
@@ -743,7 +705,7 @@ const Dashboard = () => {
             title={
               <span className="font-bold text-slate-800 text-base flex items-center gap-2">
                 <FileCode className="w-4.5 h-4.5 text-indigo-600" />
-                Panduan Integrasi & API
+                Integration Guide &amp; API
               </span>
             }
             extra={
@@ -751,7 +713,7 @@ const Dashboard = () => {
                 to="/documentation"
                 className="text-xs font-medium text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
               >
-                Dokumentasi Lengkap <ArrowUpRight className="w-3.5 h-3.5" />
+                Full Documentation <ArrowUpRight className="w-3.5 h-3.5" />
               </Link>
             }
             className="!rounded-2xl !border-slate-200/80 !shadow-xs h-full"
@@ -763,12 +725,12 @@ const Dashboard = () => {
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                    1. Autentikasi API Key
+                    1. API Key Authentication
                   </span>
                   <Tag color="default" className="!text-[11px]">Header</Tag>
                 </div>
                 <p className="text-xs text-slate-500 mt-1">
-                  Kirim header <code className="bg-slate-100 text-slate-800 px-1 py-0.5 rounded font-mono">X-API-Key: agis_sk_...</code> pada setiap request endpoint S2S tanpa perlu login email & password.
+                  Send header <code className="bg-slate-100 text-slate-800 px-1 py-0.5 rounded font-mono">X-API-Key: agis_sk_...</code> on every S2S endpoint request without needing email &amp; password login.
                 </p>
               </div>
 
@@ -777,12 +739,12 @@ const Dashboard = () => {
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                     <UploadCloud className="w-4 h-4 text-blue-600" />
-                    2. Validasi Single-Band GeoTIFF
+                    2. Single-Band GeoTIFF Validation
                   </span>
-                  <Tag color="amber" className="!text-[11px]">Wajib 1-Band</Tag>
+                  <Tag color="amber" className="!text-[11px]">1-Band Required</Tag>
                 </div>
                 <p className="text-xs text-slate-500 mt-1">
-                  File raster wajib berupa 1 band (grayscale / continuous value seperti DEM, NDVI, Slope) agar GeoServer dapat melakukan styling SLD secara optimal.
+                  Raster files must be single-band (grayscale / continuous values like DEM, NDVI, Slope) for optimal SLD styling on GeoServer.
                 </p>
               </div>
 
@@ -791,7 +753,7 @@ const Dashboard = () => {
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                     <Globe className="w-4 h-4 text-purple-600" />
-                    3. Format URL WMS GeoServer
+                    3. GeoServer WMS URL Format
                   </span>
                   <a
                     href={apiDocsUrl}
@@ -815,7 +777,7 @@ const Dashboard = () => {
                   className="!bg-blue-600 hover:!bg-blue-500 !font-medium"
                   onClick={() => navigate('/documentation')}
                 >
-                  Buka Portal Dokumentasi & Playground
+                  Open Documentation &amp; Playground
                 </Button>
               </div>
             </div>

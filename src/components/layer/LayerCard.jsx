@@ -67,16 +67,16 @@ const LayerCard = ({
         {/* Header Bar: Drag Handle + Checkbox + Info + Controls */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
-            {/* Grip Handle untuk Drag & Drop */}
+            {/* Grip Handle for Drag & Drop */}
             <div
               className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-600 p-0.5 rounded transition"
-              title="Tahan dan geser untuk ubah urutan layer (stacking order)"
+              title="Drag to change layer rendering order"
               onClick={(e) => e.stopPropagation()}
             >
               <GripVertical className="w-4 h-4" />
             </div>
 
-            {/* Checkbox Checklist untuk Layer Group */}
+            {/* Checkbox Checklist for Layer Group */}
             <div onClick={(e) => e.stopPropagation()} className="flex items-center">
               <Checkbox
                 checked={isChecked}
@@ -85,19 +85,19 @@ const LayerCard = ({
               />
             </div>
 
-            {/* Ikon Tipe File */}
+            {/* File Type Icon */}
             <div className={`p-2 rounded-lg flex-shrink-0 ${cfg.bgColor} ${cfg.textColor}`}>
               <ImageIcon className="w-4 h-4" />
             </div>
 
-            {/* Judul dan Tag */}
+            {/* Title and Tags */}
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
                 <h3 className="font-semibold text-slate-800 text-sm truncate max-w-[170px] sm:max-w-[220px]">
                   {layer.layer_name}
                 </h3>
                 {index !== undefined && (
-                  <span className="text-[10px] text-slate-400 font-mono" title="Urutan rendering">
+                  <span className="text-[10px] text-slate-400 font-mono" title="Rendering order">
                     #{index + 1}
                   </span>
                 )}
@@ -132,9 +132,9 @@ const LayerCard = ({
 
           {/* Action Buttons */}
           <div className="flex items-center gap-1 flex-shrink-0">
-            {/* Fly-to indicator saat dipilih */}
+            {/* Fly-to indicator when selected */}
             {isSelected && layer.bbox && (
-              <span title="Peta aktif pada layer ini" className="p-1.5 text-blue-500">
+              <span title="Map focused on this layer" className="p-1.5 text-blue-500">
                 <Navigation2 className="w-3.5 h-3.5" />
               </span>
             )}
@@ -145,7 +145,7 @@ const LayerCard = ({
                 onOpenStyle?.(layer);
               }}
               className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition"
-              title="Atur Warna & SLD Style Layer"
+              title="Configure Color & SLD Style"
             >
               <Palette className="w-4 h-4" />
             </button>
@@ -156,7 +156,7 @@ const LayerCard = ({
                 setShowDetail((p) => !p);
               }}
               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
-              title="Detail Metadata"
+              title="Metadata Details"
             >
               {showDetail ? <ChevronUp className="w-4 h-4" /> : <Info className="w-4 h-4" />}
             </button>
@@ -169,26 +169,26 @@ const LayerCard = ({
               className={`p-1.5 rounded-lg transition ${
                 layer.visible ? "text-blue-600 hover:bg-blue-50" : "text-slate-400 hover:bg-slate-100"
               }`}
-              title={layer.visible ? "Sembunyikan dari Peta" : "Tampilkan di Peta"}
+              title={layer.visible ? "Hide from Map" : "Show on Map"}
             >
               {layer.visible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
             </button>
             {/* Delete button */}
             <Popconfirm
-              title="Hapus Layer?"
-              description={`Yakin ingin menghapus layer "${layer.layer_name}"?`}
+              title="Delete Layer?"
+              description={`Are you sure you want to delete layer "${layer.layer_name}"?`}
               onConfirm={(e) => {
                 e?.stopPropagation();
                 onDelete?.(layer.id);
               }}
-              okText="Hapus"
-              cancelText="Batal"
+              okText="Delete"
+              cancelText="Cancel"
               okButtonProps={{ danger: true }}
             >
               <button
                 onClick={(e) => e.stopPropagation()}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
-                title="Hapus Layer"
+                title="Delete Layer"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -209,7 +209,7 @@ const LayerCard = ({
             />
             <InfoRow label="Format" value={layer.data_type} />
             {layer.layer_type === "raster" && layer.width && (
-              <InfoRow label="Dimensi" value={`${layer.width} × ${layer.height} px`} />
+              <InfoRow label="Dimensions" value={`${layer.width} × ${layer.height} px`} />
             )}
             {layer.bbox && (
               <div className="col-span-2">
@@ -221,7 +221,7 @@ const LayerCard = ({
             )}
             {layer.description && (
               <div className="col-span-2">
-                <InfoRow label="Deskripsi" value={layer.description} />
+                <InfoRow label="Description" value={layer.description} />
               </div>
             )}
           </div>

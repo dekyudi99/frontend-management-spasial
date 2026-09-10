@@ -85,11 +85,11 @@ const ApiKeys = ({id}) => {
                         danger
                         onClick={
                             () => Modal.confirm({
-                                title: "Delete Api Key!!",
+                                title: "Delete API Key!",
                                 icon: <ExclamationTriangleIcon className="w-5 h-5 text-red-500" />,
-                                content: `Apakah Anda yakin ingin menghapus Api Key ini ${record.name}?`,
-                                okText: "Hapus",
-                                cancelText: "Batal",
+                                content: `Are you sure you want to delete API Key "${record.name}"?`,
+                                okText: "Delete",
+                                cancelText: "Cancel",
                                 okType: "danger",
                                 onOk() {
                                     deleteApiKey.mutate(record.id)

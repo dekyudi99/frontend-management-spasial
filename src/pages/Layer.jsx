@@ -216,7 +216,7 @@ const Layer = () => {
 
     setCustomOrderIds(newOrder);
     setDraggedIndex(null);
-    message.info("Urutan layer diperbarui (tumpukan rendering berubah)");
+    message.info("Layer order updated (rendering stack changed)");
   };
 
   const handleDragEnd = () => {
@@ -297,7 +297,7 @@ const Layer = () => {
             Layer &amp; Group Management
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Kelola, atur urutan layer (drag &amp; drop), buat Layer Group, dan preview via GeoServer WMS.
+            Manage, reorder layers (drag &amp; drop), create Layer Groups, and preview via GeoServer WMS.
           </p>
         </div>
 
@@ -308,7 +308,7 @@ const Layer = () => {
             icon={<Plus className="w-4 h-4" />}
             className="flex items-center gap-1.5 !bg-blue-600 hover:!bg-blue-500"
           >
-            Tambah Layer Baru
+            Add New Layer
           </Button>
         </div>
       </div>
@@ -318,7 +318,7 @@ const Layer = () => {
         {/* LEFT COLUMN: Layer & Group List (col-span-5) */}
         <div className="order-2 lg:order-1 lg:col-span-5 space-y-3">
           <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
-            {/* Tab Navigation: Layer Tunggal vs Layer Group */}
+            {/* Tab Navigation: Single Layers vs Layer Groups */}
             <div className="px-4 pt-3 border-b border-slate-100 bg-white">
               <Tabs
                 activeKey={activeTab}
@@ -328,7 +328,7 @@ const Layer = () => {
                     key: "layers",
                     label: (
                       <span className="flex items-center gap-2 text-sm font-medium">
-                        Layer Tunggal
+                        Single Layers
                         <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-semibold">
                           {layers.length}
                         </span>
@@ -339,7 +339,7 @@ const Layer = () => {
                     key: "groups",
                     label: (
                       <span className="flex items-center gap-2 text-sm font-medium">
-                        Layer Group
+                        Layer Groups
                         <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-semibold">
                           {layerGroups.length}
                         </span>
@@ -355,7 +355,7 @@ const Layer = () => {
               {/* Workspace Filter Dropdown */}
               <Select
                 allowClear
-                placeholder="Semua Workspace"
+                placeholder="All Workspaces"
                 value={selectedWorkspaceId}
                 onChange={(val) => {
                   setSelectedWorkspaceId(val || null);
@@ -377,8 +377,8 @@ const Layer = () => {
                   type="text"
                   placeholder={
                     activeTab === "layers"
-                      ? "Cari nama layer..."
-                      : "Cari nama layer group..."
+                      ? "Search layer name..."
+                      : "Search layer group name..."
                   }
                   value={searchQuery}
                   onChange={(e) => {
@@ -390,10 +390,10 @@ const Layer = () => {
               </div>
             </div>
 
-            {/* TAB CONTENT: Layer Tunggal */}
+            {/* TAB CONTENT: Single Layers */}
             {activeTab === "layers" && (
               <>
-                {/* Floating Checklist Toolbar saat ada layer dipilih */}
+                {/* Floating Checklist Toolbar when layers are selected */}
                 <div className="px-4 py-2 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between text-xs text-slate-600">
                   <div className="flex items-center gap-2">
                     <button
@@ -405,22 +405,22 @@ const Layer = () => {
                       ) : (
                         <Square className="w-4 h-4 text-slate-400" />
                       )}
-                      <span>Pilih Semua ({checkedLayerIds.length}/{filteredLayers.length})</span>
+                      <span>Select All ({checkedLayerIds.length}/{filteredLayers.length})</span>
                     </button>
                   </div>
 
                   <div className="flex items-center gap-1.5 text-slate-400 text-[11px]">
                     <ArrowDownUp className="w-3.5 h-3.5" />
-                    <span>Drag handle untuk ubah urutan</span>
+                    <span>Drag handle to reorder</span>
                   </div>
                 </div>
 
-                {/* Banner CTA saat ada layer yang dicheck */}
+                {/* Banner CTA when layers are checked */}
                 {checkedLayerIds.length > 0 && (
                   <div className="mx-3 mt-3 p-2.5 bg-indigo-50 border border-indigo-200/80 rounded-xl flex items-center justify-between gap-2 animate-in fade-in duration-200">
                     <div className="flex items-center gap-2 text-xs font-semibold text-indigo-900">
                       <CheckCircle2 className="w-4 h-4 text-indigo-600" />
-                      <span>{checkedLayerIds.length} layer dipilih</span>
+                      <span>{checkedLayerIds.length} layers selected</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Button
@@ -429,13 +429,13 @@ const Layer = () => {
                         onClick={() => setOpenGroupModal(true)}
                         className="!bg-indigo-600 hover:!bg-indigo-500 !text-xs !font-medium"
                       >
-                        Simpan ke Group
+                        Save to Group
                       </Button>
                       <button
                         onClick={() => setCheckedLayerIds([])}
                         className="text-xs text-slate-500 hover:text-slate-700 px-2 py-1"
                       >
-                        Batal
+                        Cancel
                       </button>
                     </div>
                   </div>
@@ -445,13 +445,13 @@ const Layer = () => {
                 <div className="p-3 space-y-2.5 max-h-[520px] overflow-y-auto">
                   {isLoadingLayers ? (
                     <div className="text-center py-10">
-                      <Spin tip="Memuat daftar layer..." />
+                      <Spin tip="Loading layers list..." />
                     </div>
                   ) : filteredLayers.length === 0 ? (
                     <div className="text-center py-10 text-slate-400">
                       <Layers className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                      <p className="text-sm">Tidak ada layer ditemukan</p>
-                      <p className="text-xs mt-1">Klik "Tambah Layer Baru" untuk upload data GIS</p>
+                      <p className="text-sm">No layers found</p>
+                      <p className="text-xs mt-1">Click "Add New Layer" to upload GIS data</p>
                     </div>
                   ) : (
                     filteredLayers.map((layer, idx) => (
@@ -486,7 +486,7 @@ const Layer = () => {
                         showSizeChanger
                         pageSizeOptions={["3", "6", "12"]}
                         size="small"
-                        showTotal={(total) => `${total} layer`}
+                        showTotal={(total) => `${total} layers`}
                         onChange={(newPage, newPageSize) => {
                           setPage(newPage);
                           setPageSize(newPageSize);
@@ -503,7 +503,7 @@ const Layer = () => {
               <div className="p-3 space-y-2.5 max-h-[540px] overflow-y-auto">
                 <div className="flex items-center justify-between px-1 pb-1">
                   <span className="text-xs text-slate-400">
-                    Layer Group menggabungkan multi-layer menjadi 1 request WMS
+                    Layer Group combines multi-layers into a single WMS request
                   </span>
                   <Button
                     size="small"
@@ -511,7 +511,7 @@ const Layer = () => {
                     icon={<Plus className="w-3.5 h-3.5" />}
                     onClick={() => {
                       if (checkedLayerIds.length === 0) {
-                        message.info("Centang beberapa layer di tab 'Layer Tunggal' untuk membuat group");
+                        message.info("Check layers in the 'Single Layers' tab to create a group");
                         setActiveTab("layers");
                       } else {
                         setOpenGroupModal(true);
@@ -519,20 +519,20 @@ const Layer = () => {
                     }}
                     className="!p-0 !text-xs text-blue-600"
                   >
-                    Group Baru
+                    New Group
                   </Button>
                 </div>
 
                 {isLoadingGroups ? (
                   <div className="text-center py-10">
-                    <Spin tip="Memuat layer group..." />
+                    <Spin tip="Loading layer groups..." />
                   </div>
                 ) : filteredGroups.length === 0 ? (
                   <div className="text-center py-10 text-slate-400">
                     <FolderPlus className="w-10 h-10 mx-auto mb-2 opacity-40 text-indigo-400" />
-                    <p className="text-sm font-medium">Belum ada Layer Group</p>
+                    <p className="text-sm font-medium">No Layer Groups Yet</p>
                     <p className="text-xs mt-1 max-w-xs mx-auto">
-                      Centang checkbox pada layer di tab "Layer Tunggal", lalu klik tombol "Buat Layer Group".
+                      Check layers in the "Single Layers" tab, then click "Save to Group".
                     </p>
                   </div>
                 ) : (
@@ -581,20 +581,20 @@ const Layer = () => {
                 )}
               </div>
 
-              {/* Status Layer & Group yang aktif */}
+              {/* Active Layer & Group Status */}
               <div className="flex items-center gap-2">
                 {visibleLayerCount > 0 && (
                   <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
-                    {visibleLayerCount} Layer aktif
+                    {visibleLayerCount} Active Layers
                   </span>
                 )}
                 {visibleGroupCount > 0 && (
                   <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
-                    {visibleGroupCount} Group aktif
+                    {visibleGroupCount} Active Groups
                   </span>
                 )}
                 {visibleLayerCount === 0 && visibleGroupCount === 0 && (
-                  <span className="text-xs text-slate-400">Peta standby</span>
+                  <span className="text-xs text-slate-400">Map standby</span>
                 )}
               </div>
             </div>

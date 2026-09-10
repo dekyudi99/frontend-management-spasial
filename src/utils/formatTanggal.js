@@ -1,7 +1,7 @@
 const formatTanggal = (dateString) => {
-  return new Intl.DateTimeFormat('id-ID', {
+  return new Intl.DateTimeFormat('en-US', {
     day: '2-digit',
-    month: 'long',
+    month: 'short',
     year: 'numeric'
   }).format(new Date(dateString));
 };

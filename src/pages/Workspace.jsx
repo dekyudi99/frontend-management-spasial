@@ -183,7 +183,7 @@ const Workspace = () => {
   if (isLoadingWorkspace) {
     return (
       <div className="min-h-screen flex justify-center items-center">
-        <Spin size="large" tip="Memuat data workspace..." />
+        <Spin size="large" tip="Loading workspace data..." />
       </div>
     );
   }
@@ -191,10 +191,10 @@ const Workspace = () => {
   if (isError) {
     return (
       <div className="p-8 text-red-500">
-        <p className="font-semibold">Terjadi Kesalahan</p>
-        <p className="text-sm">{error?.response?.data?.detail || "Workspace tidak ditemukan"}</p>
+        <p className="font-semibold">An Error Occurred</p>
+        <p className="text-sm">{error?.response?.data?.detail || "Workspace not found"}</p>
         <Button onClick={() => navigate(-1)} className="mt-4" icon={<ArrowLeftOutlined />}>
-          Kembali
+          Back
         </Button>
       </div>
     );
@@ -202,16 +202,16 @@ const Workspace = () => {
 
   return (
     <div className="p-3 sm:p-5 md:p-8 bg-slate-50 min-h-screen font-sans">
-      {/* Tombol Kembali */}
+      {/* Back Button */}
       <button
         onClick={() => navigate(-1)}
         className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 transition mb-3 sm:mb-4 group"
       >
         <ArrowLeftOutlined className="group-hover:-translate-x-1 transition-transform" />
-        <span>Kembali ke Daftar Workspace</span>
+        <span>Back to Workspaces</span>
       </button>
 
-      {/* Header Workspace */}
+      {/* Workspace Header */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm mb-4 sm:mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-start gap-3 sm:gap-4">
@@ -229,10 +229,10 @@ const Workspace = () => {
               </div>
               <div className="flex items-center gap-4 text-xs text-slate-400 mt-2">
                 <span className="flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5" /> Dibuat {formatTanggal(workspace?.created_at)}
+                  <Clock className="w-3.5 h-3.5" /> Created {formatTanggal(workspace?.created_at)}
                 </span>
                 <span className="flex items-center gap-1">
-                  <DatabaseOutlined /> {layerPagination?.total ?? 0} Layer Tersedia
+                  <DatabaseOutlined /> {layerPagination?.total ?? 0} Layers Available
                 </span>
               </div>
             </div>
@@ -245,7 +245,7 @@ const Workspace = () => {
               onClick={() => setOpenUploadModal(true)}
               className="flex items-center gap-1.5"
             >
-              Upload Layer Baru
+              Upload New Layer
             </Button>
           </div>
         </div>
@@ -254,7 +254,7 @@ const Workspace = () => {
         <div className="mt-5 p-3.5 bg-blue-50/60 border border-blue-100 rounded-xl flex items-center gap-3 text-xs text-blue-800">
           <Info className="w-4 h-4 text-blue-600 flex-shrink-0" />
           <span>
-            Workspace ini terintegrasi langsung dengan GeoServer. Semua layer di bawah workspace ini dapat diatur palet warna defaultnya di sini.
+            This workspace is directly integrated with GeoServer. All layers under this workspace can have their default color palette configured here.
           </span>
         </div>
       </div>
@@ -271,34 +271,34 @@ const Workspace = () => {
               label: (
                 <span className="flex items-center gap-2 py-1 font-semibold">
                   <Palette className="w-4 h-4 text-amber-500" />
-                  Pengaturan Palet Default (Template Style)
+                  Default Palette Settings (Style Template)
                 </span>
               ),
               children: (
                 <div className="p-6">
-                  {/* Penjelasan Palet Default */}
+                  {/* Default Palette Description */}
                   <div className="mb-6">
                     <h2 className="text-base font-bold text-slate-800">
-                      Palet Warna Default untuk Raster Baru
+                      Default Color Palette for New Rasters
                     </h2>
                     <p className="text-xs text-slate-500 mt-1">
-                      Setiap layer raster 1-band baru yang dipublikasikan ke workspace{" "}
+                      Every new 1-band raster layer published to workspace{" "}
                       <span className="font-semibold text-slate-700 font-mono">
                         {workspace?.ws_name}
                       </span>{" "}
-                      akan otomatis menggunakan skema warna ini (tersimpan sebagai style{" "}
+                      will automatically use this color scheme (saved as style{" "}
                       <code className="text-blue-600 bg-blue-50 px-1 py-0.5 rounded">
                         default_{workspace?.ws_name}
                       </code>{" "}
-                      di GeoServer).
+                      in GeoServer).
                     </p>
                   </div>
 
-                  {/* Preset Populer */}
+                  {/* Popular Presets */}
                   <div className="mb-6">
                     <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 mb-3">
                       <Sparkles className="w-4 h-4 text-amber-500" />
-                      <span>Pilih Cepat dari Preset Palet Populer:</span>
+                      <span>Quick Select from Popular Palette Presets:</span>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       {PRESETS.map((p) => (
@@ -314,7 +314,7 @@ const Workspace = () => {
                               </span>
                               <Tag className="text-[10px] m-0">{p.styleType}</Tag>
                             </div>
-                            {/* Bar warna preview */}
+                            {/* Color preview bar */}
                             <div className="flex h-3 w-full rounded overflow-hidden shadow-inner my-2">
                               {p.classes.map((c, i) => (
                                 <div
@@ -338,19 +338,19 @@ const Workspace = () => {
                     </div>
                   </div>
 
-                  {/* Mode Pewarnaan SLD */}
+                  {/* GeoServer SLD Color Method */}
                   <div className="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <span className="text-xs font-semibold text-slate-800 block">
-                        Metode Pewarnaan SLD GeoServer
+                        GeoServer SLD Color Method
                       </span>
                       <span className="text-[11px] text-slate-500">
                         {styleType === "values" &&
-                          "Nilai eksak diskrit (Sangat pas untuk data klasifikasi risiko kelas 1, 2, 3, 4, 5)"}
+                          "Exact discrete values (Ideal for risk classification classes 1, 2, 3, 4, 5)"}
                         {styleType === "intervals" &&
-                          "Rentang interval bertahap (Piksel diwarnai berdasarkan batas interval kuantitas)"}
+                          "Gradual intervals (Pixels styled based on quantity interval boundaries)"}
                         {styleType === "ramp" &&
-                          "Gradien interpolasi mulus berkelanjutan antar nilai piksel"}
+                          "Continuous smooth gradient interpolation between pixel values"}
                       </span>
                     </div>
                     <Select
@@ -358,18 +358,18 @@ const Workspace = () => {
                       onChange={setStyleType}
                       className="w-44"
                       options={[
-                        { value: "values", label: "Diskrit (Values)" },
-                        { value: "intervals", label: "Interval (Rentang)" },
-                        { value: "ramp", label: "Gradien (Ramp)" },
+                        { value: "values", label: "Discrete (Values)" },
+                        { value: "intervals", label: "Intervals" },
+                        { value: "ramp", label: "Gradient (Ramp)" },
                       ]}
                     />
                   </div>
 
-                  {/* Editor Kelas & Warna */}
+                  {/* Classes & Color Editor */}
                   <div className="mb-6">
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-xs font-semibold text-slate-700">
-                        Daftar Kelas &amp; Warna ({classes.length} kelas):
+                        Classes &amp; Color List ({classes.length} classes):
                       </span>
                       <Button
                         type="dashed"
@@ -378,7 +378,7 @@ const Workspace = () => {
                         onClick={addClass}
                         className="text-xs flex items-center"
                       >
-                        Tambah Kelas
+                        Add Class
                       </Button>
                     </div>
 
@@ -396,7 +396,7 @@ const Workspace = () => {
                                 value={cls.color}
                                 onChange={(e) => updateClass(idx, "color", e.target.value)}
                                 className="w-8 h-8 rounded border border-slate-200 cursor-pointer p-0 bg-transparent"
-                                title="Pilih Warna"
+                                title="Choose Color"
                               />
                               <input
                                 type="text"
@@ -406,9 +406,9 @@ const Workspace = () => {
                               />
                             </div>
 
-                            {/* Nilai Piksel */}
+                            {/* Pixel Value */}
                             <div className="flex items-center gap-1 flex-shrink-0">
-                              <span className="text-[10px] text-slate-400 font-medium">Nilai:</span>
+                              <span className="text-[10px] text-slate-400 font-medium">Value:</span>
                               <input
                                 type="number"
                                 value={cls.quantity}
@@ -417,12 +417,12 @@ const Workspace = () => {
                               />
                             </div>
 
-                            {/* Label Keterangan */}
+                            {/* Label Description */}
                             <div className="flex-1 min-w-0">
                               <input
                                 type="text"
                                 value={cls.label}
-                                placeholder="Label keterangan (misal: Sangat Tinggi)..."
+                                placeholder="Description label (e.g. Critical High)..."
                                 onChange={(e) => updateClass(idx, "label", e.target.value)}
                                 className="w-full px-2.5 py-1 text-xs border border-slate-200 rounded text-slate-700"
                               />
@@ -447,12 +447,12 @@ const Workspace = () => {
                               </span>
                             </div>
 
-                            {/* Tombol Hapus */}
+                            {/* Delete Class Button */}
                             <button
                               type="button"
                               onClick={() => removeClass(idx)}
                               className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition"
-                              title="Hapus Kelas"
+                              title="Delete Class"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -465,7 +465,7 @@ const Workspace = () => {
                   {/* Preview Legenda Bar */}
                   <div className="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
                     <span className="text-xs font-semibold text-slate-700 block mb-2">
-                      Pratinjau Legenda WMS:
+                      WMS Legend Preview:
                     </span>
                     <div className="flex flex-wrap gap-2">
                       {classes.map((cls, idx) => (
@@ -492,19 +492,19 @@ const Workspace = () => {
                     </div>
                   </div>
 
-                  {/* Checkbox Terapkan ke Layer yang Ada */}
+                  {/* Checkbox Apply to Existing */}
                   <div className="mb-6">
                     <Checkbox
                       checked={applyToExisting}
                       onChange={(e) => setApplyToExisting(e.target.checked)}
                       className="text-xs text-slate-700 font-medium"
                     >
-                      Terapkan juga palet ini ke semua layer raster yang saat ini sudah ada di
-                      workspace ini ({layerPagination?.total ?? 0} layer)
+                      Also apply this palette to all existing raster layers currently in this
+                      workspace ({layerPagination?.total ?? 0} layers)
                     </Checkbox>
                   </div>
 
-                  {/* Tombol Simpan */}
+                  {/* Save Button */}
                   <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
                     <Button
                       type="primary"
@@ -514,7 +514,7 @@ const Workspace = () => {
                       icon={<Check className="w-4 h-4" />}
                       className="flex items-center gap-2"
                     >
-                      Simpan Palet Default Workspace
+                      Save Workspace Default Palette
                     </Button>
                   </div>
                 </div>
@@ -525,7 +525,7 @@ const Workspace = () => {
               label: (
                 <span className="flex items-center gap-2 py-1 font-semibold">
                   <Layers className="w-4 h-4 text-blue-600" />
-                  Daftar Layer di Workspace ({layerPagination?.total ?? 0})
+                  Layers in Workspace ({layerPagination?.total ?? 0})
                 </span>
               ),
               children: (
@@ -536,7 +536,7 @@ const Workspace = () => {
                       <SearchOutlined className="text-slate-400 absolute left-3 top-2.5" />
                       <input
                         type="text"
-                        placeholder="Cari layer di workspace ini..."
+                        placeholder="Search layers in this workspace..."
                         value={searchLayer}
                         onChange={(e) => {
                           setSearchLayer(e.target.value);
@@ -562,7 +562,7 @@ const Workspace = () => {
                         onClick={() => setOpenUploadModal(true)}
                         className="text-xs flex items-center"
                       >
-                        Tambah Layer
+                        Add Layer
                       </Button>
                     </div>
                   </div>
@@ -570,16 +570,16 @@ const Workspace = () => {
                   {/* List Layers */}
                   {isLoadingLayers ? (
                     <div className="py-16 text-center">
-                      <Spin tip="Memuat layer di workspace..." />
+                      <Spin tip="Loading workspace layers..." />
                     </div>
                   ) : layersList.length === 0 ? (
                     <div className="py-16 text-center text-slate-400 border border-dashed border-slate-200 rounded-2xl">
                       <Layers className="w-12 h-12 mx-auto mb-2 opacity-30 text-slate-500" />
                       <p className="text-sm font-semibold text-slate-700">
-                        Belum ada layer di workspace ini
+                        No layers in this workspace yet
                       </p>
                       <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-                        Unggah file GeoTIFF ke workspace "{workspace?.name}".
+                        Upload GeoTIFF files to workspace "{workspace?.name}".
                       </p>
                       <Button
                         type="primary"
@@ -587,7 +587,7 @@ const Workspace = () => {
                         icon={<PlusOutlined />}
                         onClick={() => setOpenUploadModal(true)}
                       >
-                        Unggah Layer Sekarang
+                        Upload Layer Now
                       </Button>
                     </div>
                   ) : (
@@ -620,11 +620,11 @@ const Workspace = () => {
                             {/* Info dimensions / bbox */}
                             <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-slate-500 bg-slate-50 p-2 rounded-lg">
                               <div>
-                                <span className="text-slate-400 block text-[10px]">Tipe:</span>
+                                <span className="text-slate-400 block text-[10px]">Type:</span>
                                 <span className="font-semibold">{layer.layer_type}</span>
                               </div>
                               <div>
-                                <span className="text-slate-400 block text-[10px]">Dimensi:</span>
+                                <span className="text-slate-400 block text-[10px]">Dimensions:</span>
                                 <span className="font-semibold">
                                   {layer.width ? `${layer.width}x${layer.height} px` : "-"}
                                 </span>
@@ -640,30 +640,30 @@ const Workspace = () => {
                                 className="text-xs font-semibold text-amber-600 hover:text-amber-700 flex items-center gap-1 hover:underline"
                               >
                                 <Palette className="w-3.5 h-3.5" />
-                                <span>Kustom Warna</span>
+                                <span>Custom Style</span>
                               </button>
 
                               <Link
                                 to="/dashboard/layer"
                                 className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 hover:underline"
                               >
-                                <span>Lihat di Peta</span>
+                                <span>View on Map</span>
                                 <ExternalLink className="w-3.5 h-3.5" />
                               </Link>
                             </div>
 
-                            {/* Tombol Hapus Layer */}
+                            {/* Delete Layer Button */}
                             <Popconfirm
-                              title="Hapus Layer?"
-                              description={`Apakah Anda yakin ingin menghapus layer "${layer.layer_name}"?`}
+                              title="Delete Layer?"
+                              description={`Are you sure you want to delete layer "${layer.layer_name}"?`}
                               onConfirm={() => deleteLayerMutation.mutate(layer.id)}
-                              okText="Hapus"
-                              cancelText="Batal"
+                              okText="Delete"
+                              cancelText="Cancel"
                               okButtonProps={{ danger: true, loading: deleteLayerMutation.isPending }}
                             >
                               <button
                                 className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                                title="Hapus Layer dari Workspace"
+                                title="Delete Layer from Workspace"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -684,7 +684,7 @@ const Workspace = () => {
                         showSizeChanger
                         pageSizeOptions={["6", "12", "24"]}
                         size="small"
-                        showTotal={(total) => `${total} layer ditemukan`}
+                        showTotal={(total) => `${total} layers found`}
                         onChange={(newPage, newPageSize) => {
                           setLayerPage(newPage);
                           setLayerPageSize(newPageSize);

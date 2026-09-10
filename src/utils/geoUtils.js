@@ -22,10 +22,10 @@ export async function bboxToWGS84(bbox, epsg) {
   if (!epsgCache[epsg]) {
     try {
       const res = await fetch(`https://epsg.io/${epsg}.proj4`);
-      if (!res.ok) throw new Error(`EPSG:${epsg} tidak ditemukan`);
+      if (!res.ok) throw new Error(`EPSG:${epsg} not found`);
       epsgCache[epsg] = await res.text();
     } catch (e) {
-      console.warn(`Gagal mengambil definisi EPSG:${epsg}:`, e);
+      console.warn(`Failed to fetch definition for EPSG:${epsg}:`, e);
       return { minLng: minx, minLat: miny, maxLng: maxx, maxLat: maxy };
     }
   }
