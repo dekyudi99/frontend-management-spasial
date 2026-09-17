@@ -24,12 +24,11 @@ const Workspace = (props) => {
   // 2. Query dengan Dependency page & pageSize
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['workspace', props.id, page, pageSize],
-    queryFn: () => workspaceApi.getall({
-      id: props.id,
+    queryFn: () => workspaceApi.list(props.id, {
       page: page,
       size: pageSize
     }),
-    keepPreviousData: true
+    placeholderData: (previousData) => previousData
   })
 
   const deleteWorkspace = useMutation({
@@ -155,7 +154,7 @@ const Workspace = (props) => {
         pagination={{
           current: paginationData?.page || page,
           pageSize: paginationData?.size || pageSize,
-          total: paginationData?.total-1 || 0,
+          total: paginationData?.total || 0,
           showSizeChanger: true,
           pageSizeOptions: ['5', '10', '20', '50'],
           showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} workspaces`,
