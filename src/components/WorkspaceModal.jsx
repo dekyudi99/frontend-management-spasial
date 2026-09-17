@@ -13,7 +13,7 @@ const WorkspaceModal = ({ id, open, onClose }) => {
 
       form.resetFields();
       queryClient.invalidateQueries({
-        queryKey: ["workspaces", id]
+        queryKey: ["workspace", id]
       });
 
       onClose(); 
