@@ -1,6 +1,12 @@
 import { useState, useEffect } from "react";
 import { Modal, Form, Input, Button, Upload, Select, message } from "antd";
-import { InboxOutlined, FileImageOutlined } from "@ant-design/icons";
+import { 
+  InboxOutlined, 
+  FileImageOutlined, 
+  FileTextOutlined, 
+  FileZipOutlined, 
+  ThunderboltOutlined 
+} from "@ant-design/icons";
 import layerApi from "../api/LayerApi";
 import projectApi from "../api/ProjectApi";
 import workspaceApi from "../api/WorkspaceApi";
@@ -8,16 +14,25 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 const { Dragger } = Upload;
 
-// Hanya GeoTIFF yang diterima
-const ACCEPTED_EXTENSIONS = [".tif", ".tiff"];
+// Format yang diterima: Raster GeoTIFF dan Vektor (Shapefile zip, GeoJSON, GeoPackage, CSV)
+const ACCEPTED_EXTENSIONS = [".tif", ".tiff", ".geojson", ".json", ".zip", ".shp", ".gpkg", ".csv"];
 
 const getFileExtension = (filename = "") =>
   filename.toLowerCase().slice(filename.lastIndexOf("."));
 
 const FILE_TYPE_INFO = {
-  ".tif":  { label: "GeoTIFF (Raster)", color: "#f59e0b", icon: <FileImageOutlined /> },
-  ".tiff": { label: "GeoTIFF (Raster)", color: "#f59e0b", icon: <FileImageOutlined /> },
+  ".tif":     { label: "GeoTIFF (Raster)", color: "#f59e0b", icon: <FileImageOutlined /> },
+  ".tiff":    { label: "GeoTIFF (Raster)", color: "#f59e0b", icon: <FileImageOutlined /> },
+  ".geojson": { label: "GeoJSON (Vektor)", color: "#10b981", icon: <FileTextOutlined /> },
+  ".json":    { label: "GeoJSON (Vektor)", color: "#10b981", icon: <FileTextOutlined /> },
+  ".zip":     { label: "Shapefile Archive (.zip)", color: "#06b6d4", icon: <FileZipOutlined /> },
+  ".shp":     { label: "ESRI Shapefile (.shp)", color: "#06b6d4", icon: <FileZipOutlined /> },
+  ".gpkg":    { label: "GeoPackage (.gpkg)", color: "#8b5cf6", icon: <FileTextOutlined /> },
+  ".csv":     { label: "CSV Koordinat (Vektor)", color: "#ec4899", icon: <FileTextOutlined /> },
 };
+
+const isVectorExtension = (ext) =>
+  [".geojson", ".json", ".zip", ".shp", ".gpkg", ".csv"].includes(ext);
 
 const LayerModal = ({
   open,
@@ -92,7 +107,7 @@ const LayerModal = ({
 
   const onFinish = (values) => {
     if (fileList.length === 0) {
-      message.error("Please upload a GeoTIFF (.tif / .tiff) file first!");
+      message.error("Please upload a spatial file (.tif, .geojson, .zip, .shp, .gpkg, .csv) first!");
       return;
     }
 
@@ -116,17 +131,24 @@ const LayerModal = ({
       const ext = getFileExtension(file.name);
       if (!ACCEPTED_EXTENSIONS.includes(ext)) {
         message.error(
-          `Unsupported format: "${ext}". Only GeoTIFF (.tif / .tiff) is accepted.`
+          `Unsupported format: "${ext}". Please upload GeoTIFF (.tif/.tiff) or Vector (.geojson, .zip, .shp, .gpkg, .csv).`
         );
         return Upload.LIST_IGNORE;
       }
       setFileList([file]);
       setSelectedExt(ext);
+
+      // Auto-suggest layer name if empty
+      const currentName = form.getFieldValue("layer_name");
+      if (!currentName) {
+        const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+        form.setFieldValue("layer_name", cleanName.charAt(0).toUpperCase() + cleanName.slice(1));
+      }
       return false;
     },
     fileList,
     maxCount: 1,
-    accept: ".tif,.tiff",
+    accept: ".tif,.tiff,.geojson,.json,.zip,.shp,.gpkg,.csv",
   };
 
   const fileTypeInfo = selectedExt ? FILE_TYPE_INFO[selectedExt] : null;
@@ -136,8 +158,8 @@ const LayerModal = ({
       open={open}
       onCancel={handleClose}
       footer={null}
-      title={<span className="text-base font-semibold">Add New Layer</span>}
-      width={520}
+      title={<span className="text-base font-semibold">Add New Spatial Layer</span>}
+      width={540}
       destroyOnClose
     >
       <Form layout="vertical" form={form} onFinish={onFinish} className="pt-2">
@@ -211,18 +233,18 @@ const LayerModal = ({
         </Form.Item>
 
         {/* Upload */}
-        <Form.Item label="Upload GeoTIFF File" required>
+        <Form.Item label="Upload Spatial File (Raster / Vektor)" required>
           {fileList.length === 0 ? (
             /* --- No file yet: show drop area --- */
             <Dragger {...uploadProps}>
               <p className="ant-upload-drag-icon">
-                <InboxOutlined className="text-amber-500 text-3xl" />
+                <InboxOutlined className="text-teal-600 text-3xl" />
               </p>
               <p className="ant-upload-text text-sm font-medium">
-                Click or drag GeoTIFF file to this area
+                Click or drag spatial file to this area
               </p>
               <p className="ant-upload-hint text-xs text-slate-400">
-                Supports <strong>.tif</strong> / <strong>.tiff</strong> formats only (GeoTIFF Raster)
+                Supports GeoTIFF (<strong>.tif</strong>), Shapefile (<strong>.zip</strong> / <strong>.shp</strong>), <strong>.geojson</strong>, <strong>.gpkg</strong>, <strong>.csv</strong>
               </p>
             </Dragger>
           ) : (
@@ -230,18 +252,20 @@ const LayerModal = ({
             <div
               className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border"
               style={{
-                backgroundColor: "#f59e0b12",
-                borderColor: "#f59e0b55",
+                backgroundColor: `${fileTypeInfo?.color || "#10b981"}12`,
+                borderColor: `${fileTypeInfo?.color || "#10b981"}55`,
               }}
             >
               <div className="flex items-center gap-2 min-w-0">
-                <FileImageOutlined style={{ color: "#f59e0b", fontSize: 18 }} />
+                <span style={{ color: fileTypeInfo?.color || "#10b981", fontSize: 20 }}>
+                  {fileTypeInfo?.icon || <FileTextOutlined />}
+                </span>
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-amber-700 truncate">
+                  <p className="text-sm font-medium text-slate-800 truncate">
                     {fileList[0]?.name}
                   </p>
-                  <p className="text-xs text-amber-500">
-                    GeoTIFF Raster &middot; {(fileList[0]?.size / 1024 / 1024).toFixed(2)} MB
+                  <p className="text-xs text-slate-500">
+                    {fileTypeInfo?.label || "Spatial Layer"} &middot; {(fileList[0]?.size / 1024 / 1024).toFixed(2)} MB
                   </p>
                 </div>
               </div>
@@ -258,6 +282,17 @@ const LayerModal = ({
             </div>
           )}
         </Form.Item>
+
+        {/* Informative notice for vector optimization (default & automated, no user input) */}
+        {selectedExt && isVectorExtension(selectedExt) && (
+          <div className="p-3 mb-4 rounded-lg bg-teal-50 border border-teal-200/80 flex items-start gap-2.5">
+            <ThunderboltOutlined className="text-teal-600 text-sm mt-0.5 flex-shrink-0" />
+            <div className="text-[11px] text-teal-800 leading-snug">
+              <span className="font-semibold block text-teal-900 mb-0.5">Optimasi Geometri Otomatis Aktif</span>
+              Sistem secara otomatis menerapkan simplifikasi topologi vektor bawaan untuk mempercepat rendering peta tanpa merusak batas spasial.
+            </div>
+          </div>
+        )}
 
 
         <Button

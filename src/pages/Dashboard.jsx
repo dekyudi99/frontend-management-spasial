@@ -400,8 +400,17 @@ const Dashboard = () => {
                                     <Tag color="blue" className="!text-xs !rounded-md">
                                       {layer.workspace_display_name || layer.workspace_name}
                                     </Tag>
-                                    <Tag color="amber" className="!text-xs !rounded-md">
-                                      {layer.data_type || 'GeoTIFF'}
+                                    <Tag
+                                      color={
+                                        layer.data_type?.toLowerCase().includes("shapefile") || layer.data_type?.toLowerCase().includes("shp") ? "green" :
+                                        layer.data_type?.toLowerCase().includes("geojson") ? "blue" :
+                                        layer.data_type?.toLowerCase().includes("geopackage") ? "purple" :
+                                        layer.data_type?.toLowerCase().includes("csv") ? "magenta" :
+                                        layer.layer_type === "vector" ? "cyan" : "gold"
+                                      }
+                                      className="!text-xs !rounded-md"
+                                    >
+                                      {layer.data_type || (layer.layer_type === "vector" ? "Vector" : "GeoTIFF")}
                                     </Tag>
                                     {layer.epsg && (
                                       <Tag className="!text-xs !rounded-md text-slate-600 bg-slate-100">

@@ -1,6 +1,6 @@
 import React from "react";
 import { NavLink, Link } from "react-router-dom";
-import { XMarkIcon } from "@heroicons/react/24/outline";
+import { XMarkIcon, ChevronLeftIcon } from "@heroicons/react/24/outline";
 import ProjectLogo from "../assets/project.png";
 import LayerLogo from "../assets/layer.png";
 import DocumentationLogo from "../assets/open-book.png";
@@ -35,7 +35,12 @@ const menus = [
   },
 ];
 
-const Sidebar = ({ isOpen = false, onClose }) => {
+const Sidebar = ({
+  isOpen = false,
+  onClose,
+  isDesktopOpen = true,
+  onCloseDesktop,
+}) => {
   return (
     <>
       {/* ============================================================ */}
@@ -90,25 +95,39 @@ const Sidebar = ({ isOpen = false, onClose }) => {
       {/* ============================================================ */}
       {/* 2. DESKTOP SIDEBAR (Hanya aktif di layar desktop >= md)      */}
       {/* ============================================================ */}
-      <aside className="hidden md:flex flex-col w-64 bg-blue-900 text-white flex-shrink-0 h-full">
-        {/* Header Desktop (Tanpa tombol close X) */}
-        <div className="flex items-center justify-between p-5 border-b border-blue-800">
+      <aside
+        className={`hidden md:flex flex-col bg-blue-900 text-white flex-shrink-0 h-full transition-all duration-300 ease-in-out relative border-r border-blue-800 ${
+          isDesktopOpen ? "w-64" : "w-0 overflow-hidden border-none opacity-0 pointer-events-none"
+        }`}
+      >
+        {/* Header Desktop dengan tombol Tutup (X) */}
+        <div className="flex items-center justify-between p-5 border-b border-blue-800 min-w-[16rem]">
           <Link
             to="/dashboard"
             className="text-xl font-bold tracking-wider text-white hover:text-blue-200 transition"
           >
             Dashboard
           </Link>
+
+          {/* Tombol Tutup Sidebar Desktop */}
+          <button
+            onClick={onCloseDesktop}
+            className="p-1.5 text-blue-300 hover:text-white hover:bg-blue-800 rounded-lg transition cursor-pointer"
+            title="Tutup Sidebar"
+            aria-label="Tutup Sidebar"
+          >
+            <ChevronLeftIcon className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Menus */}
-        <nav className="flex-1 flex flex-col py-3 overflow-y-auto space-y-1">
+        <nav className="flex-1 flex flex-col py-3 overflow-y-auto space-y-1 min-w-[16rem]">
           {menus.map((menu) => (
             <SideMenu key={menu.to} {...menu} />
           ))}
         </nav>
 
-        <div className="p-4 border-t border-blue-800 text-xs text-blue-300 text-center">
+        <div className="p-4 border-t border-blue-800 text-xs text-blue-300 text-center min-w-[16rem]">
           &copy; 2026 AstraGIS
         </div>
       </aside>

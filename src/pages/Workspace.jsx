@@ -32,10 +32,12 @@ import {
   ExternalLink,
   Sliders,
   Image as ImageIcon,
+  Shapes,
   Clock,
   Info,
 } from "lucide-react";
 import formatTanggal from "../utils/formatTanggal";
+import { getTypeConfig } from "../utils/geoUtils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import workspaceApi from "../api/WorkspaceApi";
 import layerApi from "../api/LayerApi";
@@ -606,24 +608,29 @@ const Workspace = () => {
                           className="p-4 bg-white rounded-xl border border-slate-200 hover:border-blue-400 hover:shadow-sm transition flex flex-col justify-between"
                         >
                           <div>
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-center gap-2.5">
-                                <div className="p-2 bg-amber-50 text-amber-600 rounded-lg flex-shrink-0">
-                                  <ImageIcon className="w-4 h-4" />
+                            {(() => {
+                              const cfg = getTypeConfig(layer.data_type, layer.layer_type);
+                              return (
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className={`p-2 ${cfg.bgColor} ${cfg.textColor} rounded-lg flex-shrink-0`}>
+                                      {cfg.isVector ? <Shapes className="w-4 h-4" /> : <ImageIcon className="w-4 h-4" />}
+                                    </div>
+                                    <div>
+                                      <h3 className="text-sm font-bold text-slate-800 truncate max-w-[200px]">
+                                        {layer.layer_name}
+                                      </h3>
+                                      <span className="text-[11px] font-mono text-slate-400">
+                                        EPSG:{layer.epsg} • {cfg.label}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <Tag color="green" className="text-[10px] m-0">
+                                    {layer.status}
+                                  </Tag>
                                 </div>
-                                <div>
-                                  <h3 className="text-sm font-bold text-slate-800 truncate max-w-[200px]">
-                                    {layer.layer_name}
-                                  </h3>
-                                  <span className="text-[11px] font-mono text-slate-400">
-                                    EPSG:{layer.epsg} • {layer.data_type}
-                                  </span>
-                                </div>
-                              </div>
-                              <Tag color="green" className="text-[10px] m-0">
-                                {layer.status}
-                              </Tag>
-                            </div>
+                              );
+                            })()}
 
                             {/* Info dimensions / bbox */}
                             <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-slate-500 bg-slate-50 p-2 rounded-lg">

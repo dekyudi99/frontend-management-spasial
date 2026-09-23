@@ -11,6 +11,7 @@ import {
   Folder,
   Trash2,
   GripVertical,
+  Shapes,
 } from "lucide-react";
 import { Popconfirm, Checkbox } from "antd";
 import { getTypeConfig } from "../../utils/geoUtils";
@@ -40,7 +41,7 @@ const LayerCard = ({
   isDragging,
 }) => {
   const [showDetail, setShowDetail] = useState(false);
-  const cfg = getTypeConfig(layer.data_type);
+  const cfg = getTypeConfig(layer.data_type, layer.layer_type);
 
   return (
     <div
@@ -87,7 +88,7 @@ const LayerCard = ({
 
             {/* File Type Icon */}
             <div className={`p-2 rounded-lg flex-shrink-0 ${cfg.bgColor} ${cfg.textColor}`}>
-              <ImageIcon className="w-4 h-4" />
+              {cfg.isVector ? <Shapes className="w-4 h-4" /> : <ImageIcon className="w-4 h-4" />}
             </div>
 
             {/* Title and Tags */}

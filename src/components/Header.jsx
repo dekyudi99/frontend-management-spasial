@@ -1,17 +1,22 @@
 import React from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import Logo from "../assets/logo.png";
 
 import {
     UserIcon,
     ArrowRightOnRectangleIcon,
     ExclamationTriangleIcon,
+    Bars3Icon,
 } from "@heroicons/react/24/outline";
 
 import { Dropdown, Modal } from "antd";
+import { useSidebar } from "../context/SidebarContext";
 
 const Header = () => {
     const navigate = useNavigate();
+    const location = useLocation();
+    const isDashboard = location.pathname.startsWith("/dashboard");
+    const { isDesktopOpen, toggleDesktopSidebar, toggleMobileSidebar } = useSidebar();
 
     const isAuthenticated = Boolean(localStorage.getItem("JWT_TOKEN"));
 
@@ -50,24 +55,43 @@ const Header = () => {
     ];
 
     return (
-        <header className="bg-blue-950 shadow-md">
-            <div className="flex items-center justify-between px-6 py-4">
+        <header className="bg-blue-950 shadow-md z-30 relative">
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3.5">
 
-                {/* Logo */}
-                <Link
-                    to="/"
-                    className="flex items-center gap-3"
-                >
-                    <img
-                        src={Logo}
-                        alt="Logo"
-                        className="h-9"
-                    />
+                {/* Left Section: Sidebar Toggle + Logo */}
+                <div className="flex items-center gap-2 sm:gap-3">
+                    {isDashboard && (
+                        <button
+                            onClick={() => {
+                                if (window.innerWidth < 768) {
+                                    toggleMobileSidebar();
+                                } else {
+                                    toggleDesktopSidebar();
+                                }
+                            }}
+                            className="p-1.5 -ml-1 text-blue-200 hover:text-white hover:bg-blue-900 rounded-lg transition active:scale-95 cursor-pointer focus:outline-none"
+                            title={isDesktopOpen ? "Tutup Sidebar" : "Buka Sidebar"}
+                            aria-label="Toggle Sidebar"
+                        >
+                            <Bars3Icon className="w-6 h-6" />
+                        </button>
+                    )}
 
-                    <h1 className="text-2xl font-bold text-white">
-                        AstraGIS
-                    </h1>
-                </Link>
+                    <Link
+                        to="/"
+                        className="flex items-center gap-2.5 sm:gap-3 group"
+                    >
+                        <img
+                            src={Logo}
+                            alt="Logo"
+                            className="h-8 sm:h-9 transition-transform group-hover:scale-105"
+                        />
+
+                        <h1 className="text-xl sm:text-2xl font-bold text-white tracking-wide">
+                            AstraGIS
+                        </h1>
+                    </Link>
+                </div>
 
                 {/* Right Menu */}
                 <div className="flex items-center">
