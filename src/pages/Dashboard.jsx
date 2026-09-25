@@ -406,6 +406,7 @@ const Dashboard = () => {
                                         layer.data_type?.toLowerCase().includes("geojson") ? "blue" :
                                         layer.data_type?.toLowerCase().includes("geopackage") ? "purple" :
                                         layer.data_type?.toLowerCase().includes("csv") ? "magenta" :
+                                        layer.data_type?.toLowerCase().includes("kml") || layer.data_type?.toLowerCase().includes("kmz") ? "geekblue" :
                                         layer.layer_type === "vector" ? "cyan" : "gold"
                                       }
                                       className="!text-xs !rounded-md"

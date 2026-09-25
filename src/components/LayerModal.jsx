@@ -14,8 +14,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 const { Dragger } = Upload;
 
-// Format yang diterima: Raster GeoTIFF dan Vektor (Shapefile zip, GeoJSON, GeoPackage, CSV)
-const ACCEPTED_EXTENSIONS = [".tif", ".tiff", ".geojson", ".json", ".zip", ".shp", ".gpkg", ".csv"];
+// Format yang diterima: Raster GeoTIFF dan Vektor (Shapefile zip, GeoJSON, GeoPackage, CSV, KML, KMZ)
+const ACCEPTED_EXTENSIONS = [".tif", ".tiff", ".geojson", ".json", ".zip", ".shp", ".gpkg", ".csv", ".kml", ".kmz"];
 
 const getFileExtension = (filename = "") =>
   filename.toLowerCase().slice(filename.lastIndexOf("."));
@@ -29,10 +29,12 @@ const FILE_TYPE_INFO = {
   ".shp":     { label: "ESRI Shapefile (.shp)", color: "#06b6d4", icon: <FileZipOutlined /> },
   ".gpkg":    { label: "GeoPackage (.gpkg)", color: "#8b5cf6", icon: <FileTextOutlined /> },
   ".csv":     { label: "CSV Koordinat (Vektor)", color: "#ec4899", icon: <FileTextOutlined /> },
+  ".kml":     { label: "Keyhole Markup Language (.kml)", color: "#0284c7", icon: <FileTextOutlined /> },
+  ".kmz":     { label: "Compressed KML (.kmz)", color: "#0284c7", icon: <FileZipOutlined /> },
 };
 
 const isVectorExtension = (ext) =>
-  [".geojson", ".json", ".zip", ".shp", ".gpkg", ".csv"].includes(ext);
+  [".geojson", ".json", ".zip", ".shp", ".gpkg", ".csv", ".kml", ".kmz"].includes(ext);
 
 const LayerModal = ({
   open,
@@ -111,7 +113,7 @@ const LayerModal = ({
 
   const onFinish = (values) => {
     if (fileList.length === 0) {
-      message.error("Please upload a spatial file (.tif, .geojson, .zip, .shp, .gpkg, .csv) first!");
+      message.error("Please upload a spatial file (.tif, .geojson, .zip, .shp, .gpkg, .csv, .kml, .kmz) first!");
       return;
     }
 
@@ -135,7 +137,7 @@ const LayerModal = ({
       const ext = getFileExtension(file.name);
       if (!ACCEPTED_EXTENSIONS.includes(ext)) {
         message.error(
-          `Unsupported format: "${ext}". Please upload GeoTIFF (.tif/.tiff) or Vector (.geojson, .zip, .shp, .gpkg, .csv).`
+          `Unsupported format: "${ext}". Please upload GeoTIFF (.tif/.tiff) or Vector (.geojson, .zip, .shp, .gpkg, .csv, .kml, .kmz).`
         );
         return Upload.LIST_IGNORE;
       }
@@ -152,7 +154,7 @@ const LayerModal = ({
     },
     fileList,
     maxCount: 1,
-    accept: ".tif,.tiff,.geojson,.json,.zip,.shp,.gpkg,.csv",
+    accept: ".tif,.tiff,.geojson,.json,.zip,.shp,.gpkg,.csv,.kml,.kmz",
   };
 
   const fileTypeInfo = selectedExt ? FILE_TYPE_INFO[selectedExt] : null;
@@ -248,7 +250,7 @@ const LayerModal = ({
                 Click or drag spatial file to this area
               </p>
               <p className="ant-upload-hint text-xs text-slate-400">
-                Supports GeoTIFF (<strong>.tif</strong>), Shapefile (<strong>.zip</strong> / <strong>.shp</strong>), <strong>.geojson</strong>, <strong>.gpkg</strong>, <strong>.csv</strong>
+                Supports GeoTIFF (<strong>.tif</strong>), Shapefile (<strong>.zip</strong> / <strong>.shp</strong>), <strong>.geojson</strong>, <strong>.gpkg</strong>, <strong>.csv</strong>, KML (<strong>.kml</strong>), KMZ (<strong>.kmz</strong>)
               </p>
             </Dragger>
           ) : (

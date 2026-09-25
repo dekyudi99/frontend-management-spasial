@@ -93,6 +93,28 @@ export const CSV_CONFIG = {
   isVector: true,
 };
 
+export const KML_CONFIG = {
+  bgColor: "bg-sky-50",
+  textColor: "text-sky-700",
+  borderColor: "border-sky-200",
+  badgeBg: "bg-sky-100",
+  badgeText: "text-sky-800",
+  dotColor: "bg-sky-500",
+  label: "KML",
+  isVector: true,
+};
+
+export const KMZ_CONFIG = {
+  bgColor: "bg-cyan-50",
+  textColor: "text-cyan-700",
+  borderColor: "border-cyan-200",
+  badgeBg: "bg-cyan-100",
+  badgeText: "text-cyan-800",
+  dotColor: "bg-cyan-500",
+  label: "KMZ",
+  isVector: true,
+};
+
 export const VECTOR_GENERIC_CONFIG = {
   bgColor: "bg-teal-50",
   textColor: "text-teal-700",
@@ -116,6 +138,12 @@ export const getTypeConfig = (dataType = "", layerType = "") => {
   }
   if (normData.includes("geopackage") || normData.includes("gpkg")) {
     return GEOPACKAGE_CONFIG;
+  }
+  if (normData.includes("kmz")) {
+    return KMZ_CONFIG;
+  }
+  if (normData.includes("kml")) {
+    return KML_CONFIG;
   }
   if (normData.includes("csv")) {
     return CSV_CONFIG;
