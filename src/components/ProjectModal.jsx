@@ -18,9 +18,8 @@ const ProjectModal = ({ open, onClose, mode, project })=>{
 
             onClose();
 
-            queryClient.invalidateQueries({
-                queryKey: ["project"]
-            });
+            queryClient.invalidateQueries({ queryKey: ["project"] });
+            queryClient.invalidateQueries({ queryKey: ["dashboard-projects"] });
         },
         onError: (error) => {
             message.error(error.response?.data?.detail || "Something went wrong!")
@@ -37,13 +36,10 @@ const ProjectModal = ({ open, onClose, mode, project })=>{
 
             form.resetFields();
 
-            queryClient.invalidateQueries({
-                queryKey: ["project"],
-            });
-
-            queryClient.invalidateQueries({
-                queryKey: ["project", variables.id],
-            });
+            queryClient.invalidateQueries({ queryKey: ["project"] });
+            queryClient.invalidateQueries({ queryKey: ["project", variables.id] });
+            queryClient.invalidateQueries({ queryKey: ["projectLogs", variables.id] });
+            queryClient.invalidateQueries({ queryKey: ["dashboard-projects"] });
         },
         onError: (error) => {
             message.error(error.response?.data?.detail || "Failed update project!");

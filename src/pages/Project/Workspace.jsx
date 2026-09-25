@@ -5,7 +5,7 @@ import workspaceApi from '../../api/WorkspaceApi'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import WorkspaceModal from '../../components/WorkspaceModal'
 import formatTanggal from '../../utils/formatTanggal'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 
 const appName = import.meta.env.VITE_APP_NAME
 
@@ -16,10 +16,30 @@ const Workspace = (props) => {
 
   const [open, setOpen] = useState(false)
   const queryClient = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
 
-  // 1. State Pagination
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(5)
+  // 1. State Pagination Disinkronkan dengan URL SearchParams
+  const page = parseInt(searchParams.get('wsPage')) || 1
+  const pageSize = parseInt(searchParams.get('wsPageSize')) || 5
+
+  const setPage = (newPage) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('tab', 'workspace')
+      next.set('wsPage', newPage)
+      return next
+    }, { replace: true })
+  }
+
+  const setPageSize = (newPageSize) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('tab', 'workspace')
+      next.set('wsPageSize', newPageSize)
+      next.set('wsPage', 1)
+      return next
+    }, { replace: true })
+  }
 
   // 2. Query dengan Dependency page & pageSize
   const { data, isLoading, isError, error } = useQuery({
@@ -36,6 +56,11 @@ const Workspace = (props) => {
     onSuccess: (response) => {
       message.success(response?.data?.detail || "Workspace deleted successfully!")
       queryClient.invalidateQueries({ queryKey: ['workspace', props.id] })
+      queryClient.invalidateQueries({ queryKey: ['recentlyWorkspace', props.id] })
+      queryClient.invalidateQueries({ queryKey: ['project', props.id] })
+      queryClient.invalidateQueries({ queryKey: ['projectLogs', props.id] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard-projects'] })
+      queryClient.invalidateQueries({ queryKey: ['user-workspaces'] })
     },
     onError: (err) => {
       message.error(err?.response?.data?.detail || "Failed to delete workspace!")
@@ -96,7 +121,8 @@ const Workspace = (props) => {
 
           <Button 
             danger
-            loading={deleteWorkspace.isPending}
+            loading={deleteWorkspace.isPending && deleteWorkspace.variables === record.id}
+            disabled={deleteWorkspace.isPending && deleteWorkspace.variables !== record.id}
             onClick={() => Modal.confirm({
               title: "Delete Workspace!",
               icon: <ExclamationCircleOutlined className="text-red-500" />,
@@ -105,7 +131,12 @@ const Workspace = (props) => {
               cancelText: "Cancel",
               okType: "danger",
               onOk() {
-                deleteWorkspace.mutate(record.id)
+                return new Promise((resolve, reject) => {
+                  deleteWorkspace.mutate(record.id, {
+                    onSuccess: () => resolve(),
+                    onError: (err) => reject(err),
+                  })
+                })
               },
             })}
           >

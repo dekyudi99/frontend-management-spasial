@@ -47,8 +47,8 @@ const ProjectCard = ({project, onManage, onEdit, onDelete})=>{
                 okText: "Delete",
                 cancelText: "Cancel",
                 okType: "danger",
-                onOk() {
-                    onDelete()
+                async onOk() {
+                    await onDelete()
                 },
             })
         }

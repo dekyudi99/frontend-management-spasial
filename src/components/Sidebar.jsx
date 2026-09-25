@@ -5,35 +5,9 @@ import ProjectLogo from "../assets/project.png";
 import LayerLogo from "../assets/layer.png";
 import DocumentationLogo from "../assets/open-book.png";
 import ApiLogo from "../assets/notes.png";
+import { useLanguage } from "../context/LanguageContext";
 
 const docs = import.meta.env.VITE_API_DOCS;
-
-const menus = [
-  {
-    text: "Project",
-    to: "/dashboard/project",
-    image: ProjectLogo,
-    target: "",
-  },
-  {
-    text: "Layer",
-    to: "/dashboard/layer",
-    image: LayerLogo,
-    target: "",
-  },
-  {
-    text: "Documentation",
-    to: "/documentation",
-    image: DocumentationLogo,
-    target: "_blank",
-  },
-  {
-    text: "Endpoint List",
-    to: docs,
-    image: ApiLogo,
-    target: "_blank",
-  },
-];
 
 const Sidebar = ({
   isOpen = false,
@@ -41,6 +15,35 @@ const Sidebar = ({
   isDesktopOpen = true,
   onCloseDesktop,
 }) => {
+  const { t } = useLanguage();
+
+  const menus = [
+    {
+      text: t('menuProject', "Project"),
+      to: "/dashboard/project",
+      image: ProjectLogo,
+      target: "",
+    },
+    {
+      text: t('menuLayer', "Layer"),
+      to: "/dashboard/layer",
+      image: LayerLogo,
+      target: "",
+    },
+    {
+      text: t('menuDocumentation', "Documentation"),
+      to: "/documentation",
+      image: DocumentationLogo,
+      target: "_blank",
+    },
+    {
+      text: t('menuEndpointList', "Endpoint List"),
+      to: docs,
+      image: ApiLogo,
+      target: "_blank",
+    },
+  ];
+
   return (
     <>
       {/* ============================================================ */}
@@ -66,7 +69,7 @@ const Sidebar = ({
                 onClick={() => onClose?.()}
                 className="text-xl font-bold tracking-wider text-white hover:text-blue-200 transition"
               >
-                Dashboard
+                {t('menuDashboard', 'Dashboard')}
               </Link>
 
               <button
@@ -106,7 +109,7 @@ const Sidebar = ({
             to="/dashboard"
             className="text-xl font-bold tracking-wider text-white hover:text-blue-200 transition"
           >
-            Dashboard
+            {t('menuDashboard', 'Dashboard')}
           </Link>
 
           {/* Tombol Tutup Sidebar Desktop */}

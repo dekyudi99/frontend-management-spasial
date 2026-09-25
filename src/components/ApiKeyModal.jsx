@@ -20,9 +20,9 @@ const ApiKeyModal = ({ id, open, onClose }) => {
       setGeneratedApiKey(newKey);
 
       form.resetFields();
-      queryClient.invalidateQueries({
-        queryKey: ["api-key", id]
-      });
+      queryClient.invalidateQueries({ queryKey: ["api-key", id] });
+      queryClient.invalidateQueries({ queryKey: ["project", id] });
+      queryClient.invalidateQueries({ queryKey: ["projectLogs", id] });
 
       onClose(); 
       setShowKeyModal(true);

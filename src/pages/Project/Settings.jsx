@@ -19,9 +19,9 @@ const Settings = ({ id, projectName, description }) => {
         onSuccess: (response) => {
             message.success(response?.data?.detail)
 
-            queryClient.invalidateQueries({
-                queryKey: ["project"]
-            })
+            queryClient.invalidateQueries({ queryKey: ["project"] })
+            queryClient.invalidateQueries({ queryKey: ["project", id] })
+            queryClient.invalidateQueries({ queryKey: ["projectLogs", id] })
         },
         onError: (err) => {
             message.error(err?.response?.data?.detail)

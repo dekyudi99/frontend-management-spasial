@@ -6,6 +6,7 @@ import NotFound from "../pages/NotFound";
 import Register from "../pages/auth/Register";
 import AuthLayout from "../layout/AuthLayout";
 import Login from "../pages/auth/Login";
+import ForgotPassword from "../pages/auth/ForgotPassword";
 import Dashboard from "../pages/Dashboard";
 import Profile from "../pages/Profile";
 import DashboardLayout from "../layout/DashboardLayout";
@@ -58,7 +59,8 @@ const routes = createBrowserRouter([
             },
             {
                 path: "profile",
-                element: <Profile/>
+                element: <Profile/>,
+                loader: authGuard
             }
         ]
     },
@@ -74,6 +76,10 @@ const routes = createBrowserRouter([
             {
                 path: "login",
                 element: <Login/>
+            },
+            {
+                path: "forgot-password",
+                element: <ForgotPassword/>
             },
         ]
     },

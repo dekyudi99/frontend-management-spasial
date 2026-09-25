@@ -29,6 +29,9 @@ const projectApi = {
     },
     delete: (id) => {
         return axiosClient.delete(`/project/${id}`)
+    },
+    getLogs: (id, params) => {
+        return axiosClient.get(`/project/${id}/logs`, { params })
     }
 }
 

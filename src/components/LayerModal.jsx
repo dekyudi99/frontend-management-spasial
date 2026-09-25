@@ -84,6 +84,10 @@ const LayerModal = ({
       handleClose();
       queryClient.invalidateQueries({ queryKey: ["layers"] });
       queryClient.invalidateQueries({ queryKey: ["workspace-layers"] });
+      queryClient.invalidateQueries({ queryKey: ["project"] });
+      queryClient.invalidateQueries({ queryKey: ["workspace"] });
+      queryClient.invalidateQueries({ queryKey: ["recentlyWorkspace"] });
+      queryClient.invalidateQueries({ queryKey: ["projectLogs"] });
       if (onSuccess) onSuccess();
     },
     onError: (error) => {

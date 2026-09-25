@@ -11,8 +11,10 @@ import {
 
 import { Dropdown, Modal } from "antd";
 import { useSidebar } from "../context/SidebarContext";
+import { useLanguage } from "../context/LanguageContext";
 
 const Header = () => {
+    const { t } = useLanguage();
     const navigate = useNavigate();
     const location = useLocation();
     const isDashboard = location.pathname.startsWith("/dashboard");
@@ -22,11 +24,11 @@ const Header = () => {
 
     const handleLogout = () => {
         Modal.confirm({
-            title: "Logout",
+            title: t('logout', 'Logout'),
             icon: <ExclamationTriangleIcon className="w-5 h-5 text-red-500" />,
-            content: "Are you sure you want to log out?",
-            okText: "Logout",
-            cancelText: "Cancel",
+            content: t('logoutConfirm', "Are you sure you want to log out?"),
+            okText: t('logout', "Logout"),
+            cancelText: t('cancel', "Cancel"),
             okType: "danger",
             onOk() {
                 localStorage.removeItem("JWT_TOKEN");
@@ -39,7 +41,7 @@ const Header = () => {
         {
             key: "profile",
             icon: <UserIcon className="w-4 h-4" />,
-            label: "Profile",
+            label: t('profile', "Profile"),
             onClick: () => navigate("/profile"),
         },
         {
@@ -49,7 +51,7 @@ const Header = () => {
             key: "logout",
             danger: true,
             icon: <ArrowRightOnRectangleIcon className="w-4 h-4" />,
-            label: "Logout",
+            label: t('logout', "Logout"),
             onClick: handleLogout,
         },
     ];
@@ -131,7 +133,7 @@ const Header = () => {
                                 font-medium
                             "
                         >
-                            Sign In
+                            {t('signIn', 'Sign In')}
                         </Link>
                     )}
 

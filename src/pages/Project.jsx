@@ -20,11 +20,15 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import projectApi from "../api/ProjectApi"
 import ProjectCard from "../components/ProjectCard"
 import ProjectModal from "../components/ProjectModal"
+import BackButton from "../components/common/BackButton"
+import { useLanguage } from "../context/LanguageContext"
 
 const { Title, Text } = Typography
 const appName = import.meta.env.VITE_APP_NAME
 
 const Project = () => {
+  const { t } = useLanguage()
+
   useEffect(() => {
     document.title = `Project | ${appName}`
   }, [])
@@ -52,13 +56,13 @@ const Project = () => {
   const deleteProject = useMutation({
     mutationFn: (id) => projectApi.delete(id),
     onSuccess: () => {
-      message.success("Project deleted successfully!")
+      message.success(t('deleteProjectSuccess', "Project deleted successfully!"))
       queryClient.invalidateQueries({
         queryKey: ["project"]
       })
     },
     onError: (err) => {
-      message.error(err.response?.data?.detail || "Failed to delete project!")
+      message.error(err.response?.data?.detail || t('deleteProjectFailed', "Failed to delete project!"))
     }
   })
 
@@ -87,11 +91,13 @@ const Project = () => {
 
   return (
     <div className="p-4 sm:p-6 md:p-8">
+      <BackButton fallbackTo="/dashboard" />
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <Title level={2} className="!mb-1">Project</Title>
+          <Title level={2} className="!mb-1">{t('projectsTitle', 'Project')}</Title>
           <Text type="secondary">
-            Manage all your integration projects.
+            {t('projectsSubtitle', 'Manage all your integration projects.')}
           </Text>
         </div>
 
@@ -105,13 +111,13 @@ const Project = () => {
             setOpen(true)
           }}
         >
-          New Project
+          {t('newProject', 'New Project')}
         </Button>
       </div>
 
       <Input
         prefix={<SearchOutlined />}
-        placeholder="Search projects..."
+        placeholder={t('searchProjectPlaceholder', 'Search project name...')}
         className="mb-6"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
@@ -120,7 +126,7 @@ const Project = () => {
       <Row gutter={[20, 20]}>
         {filtered.length === 0 ? (
           <Col span={24}>
-            <Empty />
+            <Empty description={t('noProjectsFound', 'No projects found')} />
           </Col>
         ) : (
           filtered.map(project => (
@@ -139,9 +145,7 @@ const Project = () => {
                   setSelectedProject(project)
                   setOpen(true)
                 }}
-                onDelete={() => {
-                  deleteProject.mutate(project.id)
-                }}
+                onDelete={() => deleteProject.mutateAsync(project.id)}
               />
             </Col>
           ))

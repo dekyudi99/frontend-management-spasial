@@ -29,9 +29,9 @@ const ApiKeys = ({id}) => {
         onSuccess: (response) => {
             message.success(response?.data?.detail)
 
-            queryClient.invalidateQueries({
-                queryKey: ["api-key", id],
-            })
+            queryClient.invalidateQueries({ queryKey: ["api-key", id] })
+            queryClient.invalidateQueries({ queryKey: ["project", id] })
+            queryClient.invalidateQueries({ queryKey: ["projectLogs", id] })
         },
         onError: (err) => {
             message.error(err?.response?.data?.detail || "Failed delete api key!")
@@ -83,6 +83,8 @@ const ApiKeys = ({id}) => {
 
                     <Button 
                         danger
+                        loading={deleteApiKey.isPending && deleteApiKey.variables === record.id}
+                        disabled={deleteApiKey.isPending && deleteApiKey.variables !== record.id}
                         onClick={
                             () => Modal.confirm({
                                 title: "Delete API Key!",
@@ -92,7 +94,12 @@ const ApiKeys = ({id}) => {
                                 cancelText: "Cancel",
                                 okType: "danger",
                                 onOk() {
-                                    deleteApiKey.mutate(record.id)
+                                    return new Promise((resolve, reject) => {
+                                        deleteApiKey.mutate(record.id, {
+                                            onSuccess: () => resolve(),
+                                            onError: (err) => reject(err),
+                                        })
+                                    })
                                 },                                                              
                             })
                         }

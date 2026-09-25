@@ -44,12 +44,13 @@ import layerApi from "../api/LayerApi";
 import { PRESETS } from "../components/LayerStyleModal";
 import LayerStyleModal from "../components/LayerStyleModal";
 import LayerModal from "../components/LayerModal";
+import BackButton from "../components/common/BackButton";
 
 const { Title, Text } = Typography;
 
 const Workspace = () => {
   const navigate = useNavigate();
-  const { id_workspace } = useParams();
+  const { id, id_workspace } = useParams();
   const queryClient = useQueryClient();
 
   // Tab State
@@ -74,6 +75,11 @@ const Workspace = () => {
       message.success(res?.data?.detail || "Layer deleted successfully!");
       refetchLayers();
       queryClient.invalidateQueries({ queryKey: ["layers"] });
+      queryClient.invalidateQueries({ queryKey: ["workspace-layers"] });
+      queryClient.invalidateQueries({ queryKey: ["workspace"] });
+      queryClient.invalidateQueries({ queryKey: ["project"] });
+      queryClient.invalidateQueries({ queryKey: ["recentlyWorkspace"] });
+      queryClient.invalidateQueries({ queryKey: ["projectLogs"] });
     },
     onError: (err) => {
       message.error(err.response?.data?.detail || "Failed to delete layer");
@@ -191,14 +197,14 @@ const Workspace = () => {
     );
   }
 
+  const projectId = id || workspace?.project_id;
+
   if (isError) {
     return (
       <div className="p-8 text-red-500">
         <p className="font-semibold">An Error Occurred</p>
         <p className="text-sm">{error?.response?.data?.detail || "Workspace not found"}</p>
-        <Button onClick={() => navigate(-1)} className="mt-4" icon={<ArrowLeftOutlined />}>
-          Back
-        </Button>
+        <BackButton fallbackTo={projectId ? `/dashboard/project/detail/${projectId}` : "/dashboard/project"} className="mt-4" />
       </div>
     );
   }
@@ -206,13 +212,7 @@ const Workspace = () => {
   return (
     <div className="p-3 sm:p-5 md:p-8 bg-slate-50 min-h-screen font-sans">
       {/* Back Button */}
-      <button
-        onClick={() => navigate(-1)}
-        className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 transition mb-3 sm:mb-4 group"
-      >
-        <ArrowLeftOutlined className="group-hover:-translate-x-1 transition-transform" />
-        <span>Back to Workspaces</span>
-      </button>
+      <BackButton fallbackTo={projectId ? `/dashboard/project/detail/${projectId}` : "/dashboard/project"} />
 
       {/* Workspace Header */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm mb-4 sm:mb-6">
@@ -674,7 +674,7 @@ const Workspace = () => {
                               onConfirm={() => deleteLayerMutation.mutate(layer.id)}
                               okText="Delete"
                               cancelText="Cancel"
-                              okButtonProps={{ danger: true, loading: deleteLayerMutation.isPending }}
+                              okButtonProps={{ danger: true, loading: deleteLayerMutation.isPending && deleteLayerMutation.variables === layer.id }}
                             >
                               <button
                                 className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"

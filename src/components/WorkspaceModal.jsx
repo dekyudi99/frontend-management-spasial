@@ -12,9 +12,12 @@ const WorkspaceModal = ({ id, open, onClose }) => {
       message.success(response?.data?.detail);
 
       form.resetFields();
-      queryClient.invalidateQueries({
-        queryKey: ["workspace", id]
-      });
+      queryClient.invalidateQueries({ queryKey: ["workspace", id] });
+      queryClient.invalidateQueries({ queryKey: ["recentlyWorkspace", id] });
+      queryClient.invalidateQueries({ queryKey: ["project", id] });
+      queryClient.invalidateQueries({ queryKey: ["projectLogs", id] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-projects"] });
+      queryClient.invalidateQueries({ queryKey: ["user-workspaces"] });
 
       onClose(); 
     },
