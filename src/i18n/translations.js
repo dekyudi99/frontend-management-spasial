@@ -307,6 +307,13 @@ export const translations = {
         diskUsage: 'Disk Usage',
         lastUsed: 'Last Used',
         neverUsed: 'Never Used',
+        generateApiKey: 'Generate Key',
+        generateApiKeyTooltip: 'Generate a new API Key for this user',
+        reissueApiKey: 'Reissue',
+        reissueKeyTooltip: 'Reissue a new API Key',
+        copyApiKey: 'Copy',
+        copyKeyTooltip: 'Copy Full API Key to Clipboard',
+        noApiKeyFound: 'No Key Assigned',
 
         // Layer & Ingest Management
         layerPageTitle: 'Layer & Group Management',
@@ -1181,6 +1188,13 @@ export const translations = {
         diskUsage: 'Disk Terpakai',
         lastUsed: 'Terakhir Digunakan',
         neverUsed: 'Belum Pernah Digunakan',
+        generateApiKey: 'Buatkan Kunci',
+        generateApiKeyTooltip: 'Buatkan API Key baru untuk pengguna ini',
+        reissueApiKey: 'Ganti',
+        reissueKeyTooltip: 'Terbitkan Kunci Baru',
+        copyApiKey: 'Salin',
+        copyKeyTooltip: 'Salin Full API Key ke Clipboard',
+        noApiKeyFound: 'Belum Ada Kunci',
 
         // Layer & Ingest Management
         layerPageTitle: 'Manajemen Layer & Grup',
@@ -2019,6 +2033,13 @@ export const translations = {
         diskUsage: 'พื้นที่ดิสก์ที่ใช้',
         createdDate: 'วันที่สร้าง',
         columnAction: 'การดำเนินการ',
+        generateApiKey: 'สร้างคีย์',
+        generateApiKeyTooltip: 'สร้าง API Key ใหม่สำหรับผู้ใช้นี้',
+        reissueApiKey: 'ออกคีย์ใหม่',
+        reissueKeyTooltip: 'ออก API Key ใหม่',
+        copyApiKey: 'คัดลอก',
+        copyKeyTooltip: 'คัดลอก API Key แบบเต็มไปยังคลิปบอร์ด',
+        noApiKeyFound: 'ยังไม่มีคีย์',
 
         // API Message Translations
         apiMessages: {

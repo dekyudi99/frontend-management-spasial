@@ -15,7 +15,9 @@ import {
   XCircleIcon,
   ShieldCheckIcon,
   CpuChipIcon,
-  SignalIcon
+  SignalIcon,
+  ClipboardDocumentIcon,
+  ClipboardDocumentCheckIcon
 } from "@heroicons/react/24/outline";
 import adminApi from "../api/AdminApi";
 import { formatDate } from "../utils/formatters";
@@ -52,8 +54,9 @@ const Admin = () => {
   const [logsTotal, setLogsTotal] = useState(0);
   const [logsPage, setLogsPage] = useState(1);
 
-  // State: Refreshed Key Display Modal
-  const [refreshedKeyModal, setRefreshedKeyModal] = useState({ open: false, key: "", username: "" });
+  // State: Refreshed / Generated Key Display Modal
+  const [refreshedKeyModal, setRefreshedKeyModal] = useState({ open: false, key: "", username: "", isNew: false });
+  const [copiedKeyModal, setCopiedKeyModal] = useState(false);
 
   // 1. Fetch Users
   const fetchUsers = async (page = 1) => {
@@ -181,28 +184,48 @@ const Admin = () => {
     }
   };
 
-  // Refresh User's Key Handler
-  const handleRefreshKey = async (user) => {
+  // Generate or Refresh User's Key Handler
+  const handleGenerateOrRefreshKey = async (user) => {
+    const hasKey = Boolean(user.api_key && user.api_key.id);
+    const title = hasKey 
+      ? `Terbitkan Ulang API Key untuk ${user.username}?`
+      : `Buatkan API Key untuk ${user.username}?`;
+    const content = hasKey
+      ? "API Key lama pengguna akan segera dinonaktifkan di GeoServer dan kunci baru akan diterbitkan."
+      : `Sistem akan membuatkan 1 API Key resmi (${user.role === 'admin' ? 'PRIMARY' : 'STANDARD'}) untuk ${user.username} di GeoServer dan database AstraGIS.`;
+
     Modal.confirm({
-      title: `Refresh API Key untuk ${user.username}?`,
-      content: "API Key lama pengguna akan segera nonaktif dan kunci baru akan diterbitkan.",
-      okText: "Ya, Terbitkan Kunci Baru",
-      okType: "danger",
+      title,
+      content,
+      okText: hasKey ? "Ya, Terbitkan Kunci Baru" : "Ya, Buatkan API Key",
+      okType: hasKey ? "danger" : "primary",
       onOk: async () => {
         try {
-          const res = await adminApi.refreshUserKey(user.id);
+          const res = await adminApi.generateUserKey(user.id);
+          const newKey = res.data.full_key || res.data.api_key;
           setRefreshedKeyModal({
             open: true,
-            key: res.data.api_key,
-            username: user.username
+            key: newKey,
+            username: user.username,
+            isNew: !hasKey
           });
-          message.success("API Key baru berhasil diterbitkan.");
+          message.success(res.data.detail || (hasKey ? "API Key baru berhasil diterbitkan." : "API Key baru berhasil dibuatkan."));
           fetchUsers(userPage);
+          if (activeTab === "geoserver") fetchGeoOverview();
         } catch (err) {
-          message.error(err.response?.data?.detail || "Gagal me-refresh key.");
+          message.error(err.response?.data?.detail || "Gagal membuat/me-refresh key.");
         }
       }
     });
+  };
+
+  const handleCopyExistingKey = (keyText, username) => {
+    if (!keyText) {
+      message.warning("Secret key tidak tersimpan atau terenkripsi. Silakan terbitkan kunci baru.");
+      return;
+    }
+    navigator.clipboard.writeText(keyText);
+    message.success(`API Key milik ${username} berhasil disalin ke clipboard!`);
   };
 
   // Columns: Users
@@ -246,6 +269,90 @@ const Admin = () => {
           {verified ? t('otpVerified', "Terverifikasi") : t('otpPending', "Belum OTP")}
         </Tag>
       )
+    },
+    {
+      title: "API Key",
+      key: "api_key",
+      minWidth: 230,
+      render: (_, r) => {
+        const keyInfo = r.api_key;
+        if (!keyInfo || !keyInfo.id) {
+          return (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Tag color="default" className="text-slate-500 bg-slate-100 border-dashed text-xs whitespace-nowrap m-0">
+                {t('noApiKeyFound', 'Belum Ada Kunci')}
+              </Tag>
+              <Tooltip title={t('generateApiKeyTooltip', 'Buatkan API Key baru untuk pengguna ini')}>
+                <Button
+                  size="small"
+                  type="primary"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-xs font-medium flex items-center gap-1 shadow-xs h-6 px-2"
+                  icon={<KeyIcon className="w-3.5 h-3.5" />}
+                  onClick={() => handleGenerateOrRefreshKey(r)}
+                >
+                  {t('generateApiKey', 'Buatkan Kunci')}
+                </Button>
+              </Tooltip>
+            </div>
+          );
+        }
+
+        return (
+          <div className="space-y-1 py-0.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <code className="text-[11px] bg-slate-100 text-slate-800 px-2 py-0.5 rounded font-mono font-bold tracking-tight border border-slate-200">
+                {keyInfo.masked_key || `${keyInfo.key_prefix || 'gsvc_'}...`}
+              </code>
+              <Tag color={keyInfo.is_active ? "green" : "red"} className="text-[10px] font-mono font-bold px-1.5 py-0 whitespace-nowrap m-0">
+                {keyInfo.is_active ? t('keyActive', 'AKTIF') : t('keyInactive', 'NONAKTIF')}
+              </Tag>
+            </div>
+            
+            <div className="flex items-center gap-1 pt-0.5 flex-wrap">
+              {keyInfo.full_key && (
+                <Tooltip title={t('copyKeyTooltip', 'Salin Full API Key ke Clipboard')}>
+                  <Button
+                    size="small"
+                    type="text"
+                    className="h-6 px-1.5 text-xs text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 flex items-center gap-1"
+                    icon={<ClipboardDocumentIcon className="w-3.5 h-3.5" />}
+                    onClick={() => handleCopyExistingKey(keyInfo.full_key, r.username)}
+                  >
+                    {t('copyApiKey', 'Salin')}
+                  </Button>
+                </Tooltip>
+              )}
+
+              <Tooltip title={keyInfo.is_active ? t('deactivateKey', 'Nonaktifkan Kunci') : t('activateKey', 'Aktifkan Kunci')}>
+                <Button
+                  size="small"
+                  type="text"
+                  className={`h-6 px-1.5 text-xs flex items-center gap-1 ${
+                    keyInfo.is_active
+                      ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                      : "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                  }`}
+                  onClick={() => handleToggleKey(r.id)}
+                >
+                  {keyInfo.is_active ? t('deactivateKey', 'Nonaktifkan') : t('activateKey', 'Aktifkan')}
+                </Button>
+              </Tooltip>
+
+              <Tooltip title={t('reissueKeyTooltip', 'Terbitkan Kunci Baru')}>
+                <Button
+                  size="small"
+                  type="text"
+                  className="h-6 px-1.5 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 flex items-center gap-1"
+                  icon={<ArrowPathIcon className="w-3.5 h-3.5" />}
+                  onClick={() => handleGenerateOrRefreshKey(r)}
+                >
+                  {t('reissueApiKey', 'Ganti')}
+                </Button>
+              </Tooltip>
+            </div>
+          </div>
+        );
+      }
     },
     {
       title: "Workspaces",
@@ -755,28 +862,66 @@ const Admin = () => {
         </Form>
       </Modal>
 
-      {/* Refreshed Key Display Modal */}
+      {/* Refreshed / Generated Key Display Modal */}
       <Modal
-        title="API Key Baru Berhasil Diterbitkan"
+        title={
+          <div className="flex items-center gap-2 text-slate-800">
+            <KeyIcon className="w-5 h-5 text-indigo-600" />
+            <span>
+              {refreshedKeyModal.isNew
+                ? `API Key Berhasil Dibuat untuk ${refreshedKeyModal.username}`
+                : `API Key Berhasil Diterbitkan Ulang untuk ${refreshedKeyModal.username}`}
+            </span>
+          </div>
+        }
         open={refreshedKeyModal.open}
-        onCancel={() => setRefreshedKeyModal({ open: false, key: "", username: "" })}
-        className="max-w-md w-full"
+        onCancel={() => {
+          setRefreshedKeyModal({ open: false, key: "", username: "", isNew: false });
+          setCopiedKeyModal(false);
+        }}
+        className="max-w-lg w-full"
         footer={[
-          <Button key="close" type="primary" onClick={() => setRefreshedKeyModal({ open: false, key: "", username: "" })}>
+          <Button 
+            key="copy" 
+            className="border-indigo-300 text-indigo-600 hover:bg-indigo-50 font-medium"
+            icon={copiedKeyModal ? <ClipboardDocumentCheckIcon className="w-4 h-4 text-emerald-600" /> : <ClipboardDocumentIcon className="w-4 h-4" />}
+            onClick={() => {
+              if (refreshedKeyModal.key) {
+                navigator.clipboard.writeText(refreshedKeyModal.key);
+                setCopiedKeyModal(true);
+                message.success("API Key berhasil disalin ke clipboard!");
+                setTimeout(() => setCopiedKeyModal(false), 3000);
+              }
+            }}
+          >
+            {copiedKeyModal ? "Tersalin!" : "Salin Kunci"}
+          </Button>,
+          <Button 
+            key="close" 
+            type="primary" 
+            className="bg-indigo-600 hover:bg-indigo-700"
+            onClick={() => {
+              setRefreshedKeyModal({ open: false, key: "", username: "", isNew: false });
+              setCopiedKeyModal(false);
+            }}
+          >
             Selesai
           </Button>
         ]}
       >
         <div className="space-y-4 pt-2">
           <p className="text-sm text-slate-600">
-            Kunci baru untuk pengguna <b>{refreshedKeyModal.username}</b>:
+            Berikut adalah API Key resmi untuk akun <b>{refreshedKeyModal.username}</b>. Kunci ini siap digunakan untuk otentikasi REST API dan GeoServer Service:
           </p>
-          <div className="bg-slate-900 text-emerald-400 p-4 rounded-xl font-mono text-xs select-all break-all">
-            {refreshedKeyModal.key}
+          <div className="bg-slate-900 text-emerald-400 p-4 rounded-xl font-mono text-xs select-all break-all border border-slate-800 shadow-inner flex items-center justify-between gap-2">
+            <span>{refreshedKeyModal.key}</span>
           </div>
-          <p className="text-xs text-amber-700">
-            ⚠️ Berikan kunci ini kepada pengguna yang bersangkutan. Kunci tidak dapat dilihat lagi setelah jendela ini ditutup.
-          </p>
+          <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg flex items-start gap-2">
+            <span className="text-amber-600 text-sm">⚠️</span>
+            <p className="text-xs text-amber-800 leading-relaxed m-0">
+              Salin dan berikan kunci ini secara aman kepada pengguna bersangkutan. Pengguna juga dapat melihat atau mengunduh kunci ini dari menu <b>API Key (S2S)</b> di akun mereka.
+            </p>
+          </div>
         </div>
       </Modal>
     </div>

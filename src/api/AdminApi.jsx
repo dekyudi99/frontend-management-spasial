@@ -15,6 +15,7 @@ const adminApi = {
     toggleUserKey: (userId) => axiosClient.post(`/admin/users/${userId}/api-key/toggle`),
     toggleKeyByMicroserviceId: (keyId) => axiosClient.post(`/admin/keys/${keyId}/toggle`),
     refreshUserKey: (userId) => axiosClient.post(`/admin/users/${userId}/api-key/refresh`),
+    generateUserKey: (userId) => axiosClient.post(`/admin/users/${userId}/api-key/generate`),
 
     // 3. System Logs (via Backend Admin Proxy)
     getLogs: (params) => axiosClient.get("/admin/logs", { params }),
