@@ -84,7 +84,7 @@ const Dashboard = () => {
     isLoading: isLoadingWorkspaces,
     isError: isErrorWorkspaces,
   } = useQuery({
-    queryKey: ['dashboard-workspaces', isApiKeyActive],
+    queryKey: ['dashboard-workspaces', keyData?.id, isApiKeyActive],
     queryFn: () => workspaceApi.list(),
     enabled: isApiKeyActive,
     staleTime: 1000 * 30,

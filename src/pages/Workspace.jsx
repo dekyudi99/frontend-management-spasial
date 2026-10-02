@@ -107,7 +107,7 @@ const Workspace = () => {
     isLoading: isLoadingList,
     refetch: refetchList
   } = useQuery({
-    queryKey: ["workspaces-list", wsPage, wsPageSize, isKeyActive],
+    queryKey: ["workspaces-list", keyData?.id, wsPage, wsPageSize, isKeyActive],
     queryFn: () => workspaceApi.list({ page: wsPage, size: wsPageSize }),
     enabled: !activeWsId && isKeyActive,
   });
@@ -127,7 +127,7 @@ const Workspace = () => {
     isError,
     error,
   } = useQuery({
-    queryKey: ["workspace-detail", activeWsId, isKeyActive],
+    queryKey: ["workspace-detail", keyData?.id, activeWsId, isKeyActive],
     queryFn: () => workspaceApi.detail(activeWsId),
     enabled: !!activeWsId && isKeyActive,
   });

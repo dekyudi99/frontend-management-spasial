@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Button, Form, Input, message, ConfigProvider } from 'antd'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import authApi from '../../api/AuthApi'
 import { useNavigate, Link } from 'react-router-dom'
 import OtpVerificationModal from '../../components/auth/OtpVerificationModal'
@@ -11,6 +11,7 @@ const appName = import.meta.env.VITE_APP_NAME
 const Login = () => {
     const { t, translateApi } = useLanguage()
     const navigate = useNavigate()
+    const queryClient = useQueryClient()
 
     useEffect(() => {
         document.title = `${t('authLoginButton', 'Login')} | ${appName}`
@@ -30,6 +31,7 @@ const Login = () => {
         mutationFn: authApi.login,
         onSuccess: (response) => {
             const data = response?.data
+            queryClient.clear()
             message.success(translateApi(data?.detail) || t('authLoginSuccess', "Login successful!"))
             localStorage.setItem("JWT_TOKEN", data?.access_token)
             if (data?.s2s_key && data?.is_active) {

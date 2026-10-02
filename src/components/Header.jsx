@@ -10,6 +10,7 @@ import {
 } from "@heroicons/react/24/outline";
 
 import { Dropdown, Modal } from "antd";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSidebar } from "../context/SidebarContext";
 import { useLanguage } from "../context/LanguageContext";
 import { availableLanguages } from "../i18n/translations";
@@ -18,6 +19,7 @@ const Header = () => {
     const { language, setLanguage, t } = useLanguage();
     const navigate = useNavigate();
     const location = useLocation();
+    const queryClient = useQueryClient();
     const isDashboard = location.pathname.startsWith("/dashboard");
     const { isDesktopOpen, toggleDesktopSidebar, toggleMobileSidebar } = useSidebar();
 
@@ -34,6 +36,7 @@ const Header = () => {
             onOk() {
                 localStorage.removeItem("JWT_TOKEN");
                 localStorage.removeItem("astragis_s2s_key");
+                queryClient.clear();
                 navigate("/auth/login");
             },
         });

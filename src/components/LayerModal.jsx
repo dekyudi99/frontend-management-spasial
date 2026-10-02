@@ -14,6 +14,7 @@ import workspaceApi from "../api/WorkspaceApi";
 import ingestApi from "../api/IngestApi";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLanguage } from "../context/LanguageContext";
+import keyApi from "../api/KeyApi";
 import FileListItem from "./molecules/FileListItem";
 
 const { Dragger } = Upload;
@@ -49,15 +50,6 @@ const LayerModal = ({
   const [batchFinished, setBatchFinished] = useState(false);
   const pollIntervalRef = useRef(null);
 
-  useEffect(() => {
-    if (open) {
-      if (defaultWorkspaceId) {
-        form.setFieldValue("workspace_name", defaultWorkspaceId);
-      }
-    } else {
-      stopPolling();
-    }
-  }, [open, defaultWorkspaceId, form]);
 
   const stopPolling = () => {
     if (pollIntervalRef.current) {
@@ -70,13 +62,34 @@ const LayerModal = ({
     return () => stopPolling();
   }, []);
 
-  const { data: workspaceData, isLoading: isLoadingWorkspaces } = useQuery({
-    queryKey: ["workspaces-for-layer-modal"],
-    queryFn: () => workspaceApi.list(),
+  const { data: keyData } = useQuery({
+    queryKey: ["layer-modal-my-api-key"],
+    queryFn: () => keyApi.getMyKey(),
     enabled: open,
+    staleTime: 5000,
+  });
+
+  const isKeyActive = Boolean(keyData?.data?.is_active);
+
+  const { data: workspaceData, isLoading: isLoadingWorkspaces } = useQuery({
+    queryKey: ["workspaces-for-layer-modal", keyData?.data?.id, isKeyActive],
+    queryFn: () => workspaceApi.list(),
+    enabled: open && isKeyActive,
   });
 
   const workspaces = workspaceData?.data?.data || [];
+
+  useEffect(() => {
+    if (open) {
+      if (defaultWorkspaceId) {
+        form.setFieldValue("workspace_name", defaultWorkspaceId);
+      } else if (workspaces.length === 1 && !form.getFieldValue("workspace_name")) {
+        form.setFieldValue("workspace_name", workspaces[0].id || workspaces[0].ws_name);
+      }
+    } else {
+      stopPolling();
+    }
+  }, [open, defaultWorkspaceId, workspaces, form]);
 
   const handleClose = () => {
     stopPolling();
@@ -385,6 +398,16 @@ const LayerModal = ({
           />
         </Form.Item>
 
+        {!isLoadingWorkspaces && workspaces.length === 0 && !lockWorkspace && (
+          <Alert
+            type="warning"
+            showIcon
+            className="mb-4"
+            message={t("noWorkspaceWarningTitle", "Belum Ada Workspace")}
+            description={t("noWorkspaceWarningDesc", "Tidak ada workspace yang terhubung dengan API Key Anda. Silakan buat workspace terlebih dahulu sebelum mengunggah layer.")}
+          />
+        )}
+
         {/* Description (Optional) */}
         {!isBatchRunning && !batchFinished && (
           <Form.Item label={t("descriptionLabel", "Deskripsi (Opsional)")} name="description">
@@ -523,8 +546,8 @@ const LayerModal = ({
               description={
                 <div className="mt-1 space-y-1">
                   <div className="text-xs">
-                    {t('batchPublishStatus', '{completed} of {total} published successfully', { completed: completedCount, total: totalCount })}
-                    {failedCount > 0 && ` (${t('batchFailedCount', '{failed} failed', { failed: failedCount })})`}
+                    {t('batchPublishStatus', { completed: completedCount, total: totalCount }, '{completed} of {total} published successfully')}
+                    {failedCount > 0 && ` (${t('batchFailedCount', { failed: failedCount }, '{failed} failed')})`}
                   </div>
                   <Progress
                     percent={Math.round((completedCount / totalCount) * 100)}
@@ -546,7 +569,7 @@ const LayerModal = ({
               type="primary"
               block
               loading={isSubmitting}
-              disabled={selectedFiles.length === 0}
+              disabled={selectedFiles.length === 0 || (!lockWorkspace && workspaces.length === 0)}
             >
               {t("startIngestBtn", "Mulai Ingest & Publikasikan")}
             </Button>
