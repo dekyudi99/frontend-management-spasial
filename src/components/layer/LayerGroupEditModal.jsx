@@ -4,6 +4,7 @@ import { Layers, X, Plus, GripVertical, AlertCircle, CheckSquare } from "lucide-
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import layerApi from "../../api/LayerApi";
 import layerGroupApi from "../../api/LayerGroupApi";
+import { useLanguage } from "../../context/LanguageContext";
 
 const LayerGroupEditModal = ({
   open,
@@ -12,6 +13,7 @@ const LayerGroupEditModal = ({
   onClose,
   onSuccess,
 }) => {
+  const { t, translateApi } = useLanguage();
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
 
@@ -27,12 +29,13 @@ const LayerGroupEditModal = ({
   });
 
   const groupData = detailResponse?.data?.data;
+  const targetWs = groupData?.workspace_name || groupData?.workspace_id;
 
   // Fetch semua layer yang ada di workspace layer group ini (agar tidak terbatas pagination)
   const { data: wsLayersResponse, isLoading: isLoadingWsLayers } = useQuery({
-    queryKey: ["workspace-all-layers", groupData?.workspace_id],
-    queryFn: () => layerApi.list({ workspace_id: groupData.workspace_id, size: 100 }),
-    enabled: open && Boolean(groupData?.workspace_id),
+    queryKey: ["workspace-all-layers", targetWs],
+    queryFn: () => layerApi.list({ workspace_id: targetWs, size: 100 }),
+    enabled: open && Boolean(targetWs),
   });
 
   const wsLayers = wsLayersResponse?.data?.data || [];
@@ -65,21 +68,21 @@ const LayerGroupEditModal = ({
   const updateMutation = useMutation({
     mutationFn: (payload) => layerGroupApi.update(groupId, payload),
     onSuccess: (res) => {
-      message.success(res?.data?.detail || "Layer Group updated successfully!");
+      message.success(res?.data?.detail || t('layerGroupUpdatedSuccess', "Layer Group updated successfully!"));
       queryClient.invalidateQueries({ queryKey: ["layer-groups"] });
       queryClient.invalidateQueries({ queryKey: ["layer-group-detail", groupId] });
       onClose();
       if (onSuccess) onSuccess(groupId);
     },
     onError: (err) => {
-      message.error(err?.response?.data?.detail || "Failed to update Layer Group!");
+      message.error(translateApi(err, 'layerGroupUpdateFailed'));
     },
   });
 
   // Handler simpan perubahan
   const onFinish = (values) => {
     if (memberLayers.length === 0) {
-      message.warning("Layer Group must have at least 1 member layer!");
+      message.warning(t('layerGroupMustHaveOne', "Layer Group must have at least 1 member layer!"));
       return;
     }
 
@@ -130,7 +133,7 @@ const LayerGroupEditModal = ({
     if (toAdd.length > 0) {
       setMemberLayers((prev) => [...prev, ...toAdd]);
       setSelectedLayersToAdd([]);
-      message.success(`${toAdd.length} layers added to group`);
+      message.success(t('layersAddedCount', '{count} layers added to group', { count: toAdd.length }));
     }
   };
 
@@ -138,7 +141,7 @@ const LayerGroupEditModal = ({
   const currentMemberIds = memberLayers.map((l) => l.layer_id || l.id);
   const availableLayersToAdd = availableSourcePool.filter(
     (l) =>
-      (!groupData?.workspace_id || l.workspace_id === groupData.workspace_id) &&
+      (!targetWs || (l.workspace_name || l.workspace_id) === targetWs) &&
       !currentMemberIds.includes(l.id)
   );
 
@@ -157,9 +160,9 @@ const LayerGroupEditModal = ({
             <Layers className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-semibold text-base">Edit Layer Group</h3>
+            <h3 className="font-semibold text-base">{t('editLayerGroupModalTitle', 'Edit Layer Group')}</h3>
             <p className="text-xs text-slate-400 font-normal">
-              Modify title, arrangement order, and add/remove member layers
+              {t('editLayerGroupModalSubtitle', 'Modify title, arrangement order, and add/remove member layers')}
             </p>
           </div>
         </div>
@@ -168,50 +171,50 @@ const LayerGroupEditModal = ({
     >
       {isLoadingDetail ? (
         <div className="py-12 flex justify-center">
-          <Spin tip="Loading Layer Group details..." />
+          <Spin tip={t('loadingLayerGroupDetails', 'Loading Layer Group details...')} />
         </div>
       ) : (
         <Form form={form} layout="vertical" onFinish={onFinish} className="mt-4">
           {/* Display Title */}
           <Form.Item
-            label={<span className="text-xs font-semibold text-slate-700">Layer Group Title</span>}
+            label={<span className="text-xs font-semibold text-slate-700">{t('layerGroupTitleLabel', 'Layer Group Title')}</span>}
             name="title"
-            rules={[{ required: true, message: "Title is required!" }]}
+            rules={[{ required: true, message: t('titleRequired', 'Title is required!') }]}
           >
-            <Input placeholder="Layer Group Title" />
+            <Input placeholder={t('layerGroupTitleLabel', 'Layer Group Title')} />
           </Form.Item>
 
           {/* GeoServer WMS Mode */}
           <Form.Item
-            label={<span className="text-xs font-semibold text-slate-700">GeoServer WMS Mode</span>}
+            label={<span className="text-xs font-semibold text-slate-700">{t('wmsModeLabel', 'GeoServer WMS Mode')}</span>}
             name="mode"
           >
             <Select>
-              <Select.Option value="single">Single (Combined WMS visualization)</Select.Option>
-              <Select.Option value="named">Named (Group with sublayers)</Select.Option>
-              <Select.Option value="container">Container (Logical grouping)</Select.Option>
+              <Select.Option value="single">{t('wmsModeSingle', 'Single (Combined WMS visualization)')}</Select.Option>
+              <Select.Option value="named">{t('wmsModeNamed', 'Named (Group with sublayers)')}</Select.Option>
+              <Select.Option value="container">{t('wmsModeContainer', 'Container (Logical grouping)')}</Select.Option>
             </Select>
           </Form.Item>
 
           {/* Description */}
           <Form.Item
-            label={<span className="text-xs font-semibold text-slate-700">Description / Abstract</span>}
+            label={<span className="text-xs font-semibold text-slate-700">{t('descriptionAbstractOptional', 'Description / Abstract')}</span>}
             name="abstract_text"
           >
-            <Input.TextArea rows={2} placeholder="Layer group description..." />
+            <Input.TextArea rows={2} placeholder={t('descriptionPlaceholder', 'Layer group description...')} />
           </Form.Item>
 
           {/* Member Layers List & Reordering */}
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-slate-700">
-                Member Layers ({memberLayers.length})
+                {t('memberLayersCount', 'Member Layers ({count})', { count: memberLayers.length })}
               </span>
             </div>
 
             <div className="border border-slate-200 rounded-xl p-2 bg-slate-50/60 max-h-[220px] overflow-y-auto space-y-1.5">
               {memberLayers.length === 0 ? (
-                <Empty description="No member layers" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                <Empty description={t('noMemberLayers', 'No member layers')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
               ) : (
                 memberLayers.map((layer, idx) => {
                   const lid = layer.layer_id || layer.id;
@@ -239,7 +242,7 @@ const LayerGroupEditModal = ({
                           disabled={idx === 0}
                           onClick={() => moveMember(idx, -1)}
                           className="px-1.5 py-0.5 rounded text-slate-400 hover:text-blue-600 disabled:opacity-30 cursor-pointer"
-                          title="Move up"
+                          title={t('moveUp', 'Move up')}
                         >
                           ▲
                         </button>
@@ -249,7 +252,7 @@ const LayerGroupEditModal = ({
                           disabled={idx === memberLayers.length - 1}
                           onClick={() => moveMember(idx, 1)}
                           className="px-1.5 py-0.5 rounded text-slate-400 hover:text-blue-600 disabled:opacity-30 cursor-pointer"
-                          title="Move down"
+                          title={t('moveDown', 'Move down')}
                         >
                           ▼
                         </button>
@@ -258,7 +261,7 @@ const LayerGroupEditModal = ({
                           type="button"
                           onClick={() => handleRemoveMember(lid)}
                           className="p-1 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 cursor-pointer"
-                          title="Remove from group"
+                          title={t('removeFromGroup', 'Remove from group')}
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
@@ -275,7 +278,7 @@ const LayerGroupEditModal = ({
             <div className="mb-5 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-xs font-semibold text-slate-700">
-                  Add Other Layers to This Group ({availableLayersToAdd.length} available)
+                  {t('addOtherLayersTitle', 'Add Other Layers to This Group ({count} available)', { count: availableLayersToAdd.length })}
                 </span>
                 {availableLayersToAdd.length > 1 && (
                   <button
@@ -283,7 +286,7 @@ const LayerGroupEditModal = ({
                     onClick={handleSelectAllAvailable}
                     className="text-[11px] text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
                   >
-                    Select All ({availableLayersToAdd.length})
+                    {t('selectAllAvailable', 'Select All ({count})', { count: availableLayersToAdd.length })}
                   </button>
                 )}
               </div>
@@ -293,7 +296,7 @@ const LayerGroupEditModal = ({
                   loading={isLoadingWsLayers}
                   value={selectedLayersToAdd}
                   onChange={setSelectedLayersToAdd}
-                  placeholder="Select one or more layers to add..."
+                  placeholder={t('selectLayersToAddPlaceholder', 'Select one or more layers to add...')}
                   className="flex-1 min-w-0"
                   allowClear
                   maxTagCount="responsive"
@@ -312,26 +315,26 @@ const LayerGroupEditModal = ({
                   disabled={selectedLayersToAdd.length === 0}
                   className="flex items-center justify-center gap-1 shrink-0 !bg-white hover:!bg-slate-50"
                 >
-                  Add {selectedLayersToAdd.length > 0 ? `(${selectedLayersToAdd.length})` : ""}
+                  {t('addMembersBtn', 'Add {count}', { count: selectedLayersToAdd.length > 0 ? `(${selectedLayersToAdd.length})` : "" })}
                 </Button>
               </div>
             </div>
           ) : (
             <div className="mb-4 p-2.5 rounded-xl bg-slate-50 border border-slate-200/70 text-center text-xs text-slate-400">
-              All layers in this workspace are already members of this group.
+              {t('allLayersAlreadyInGroup', 'All layers in this workspace are already members of this group.')}
             </div>
           )}
 
           {/* Action Buttons */}
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-            <Button onClick={onClose}>Cancel</Button>
+            <Button onClick={onClose}>{t('cancel', 'Cancel')}</Button>
             <Button
               type="primary"
               htmlType="submit"
               loading={updateMutation.isPending}
               className="!bg-blue-600 hover:!bg-blue-500"
             >
-              Save Changes
+              {t('saveChanges', 'Save Changes')}
             </Button>
           </div>
         </Form>

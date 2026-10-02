@@ -13,6 +13,7 @@ import {
   Navigation2,
 } from "lucide-react";
 import { Popconfirm, Tag, message } from "antd";
+import { useLanguage } from "../../context/LanguageContext";
 
 const LayerGroupCard = ({
   group,
@@ -23,6 +24,7 @@ const LayerGroupCard = ({
   onEdit,
   onDelete,
 }) => {
+  const { t } = useLanguage();
   const [showDetail, setShowDetail] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -30,7 +32,7 @@ const LayerGroupCard = ({
     e.stopPropagation();
     navigator.clipboard.writeText(`${group.wms_url}?service=WMS&version=1.1.1&request=GetMap&layers=${group.wms_layers_param}`);
     setCopied(true);
-    message.success("Layer Group WMS URL copied!");
+    message.success(t('layerGroupWmsCopied', "Layer Group WMS URL copied!"));
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -64,18 +66,18 @@ const LayerGroupCard = ({
                 {/* Badge Workspace */}
                 <span
                   className="inline-flex items-center gap-1 text-[10px] font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 max-w-[120px] truncate"
-                  title={`Workspace: ${group.workspace_name}`}
+                  title={t('workspaceParam', 'Workspace: {ws}', { ws: group.workspace_name })}
                 >
                   <Folder className="w-3 h-3 text-blue-500 flex-shrink-0" />
                   <span className="truncate">{group.workspace_name}</span>
                 </span>
 
                 <Tag color="purple" className="!text-[10px] !m-0 !rounded-full">
-                  {group.layer_count || 0} Layers
+                  {t('layersCountBadge', '{count} Layers', { count: group.layer_count || 0 })}
                 </Tag>
 
                 <Tag color="cyan" className="!text-[10px] !m-0 !rounded-full font-mono">
-                  Mode: {group.mode || "single"}
+                  {t('groupModeBadge', 'Mode: {mode}', { mode: group.mode || "single" })}
                 </Tag>
               </div>
             </div>
@@ -85,7 +87,7 @@ const LayerGroupCard = ({
           <div className="flex items-center gap-1 flex-shrink-0">
             {/* Fly-to indicator when group is selected */}
             {isSelected && group.bbox && (
-              <span title="Map focused on top layer of this group" className="p-1.5 text-indigo-600">
+              <span title={t('mapFocusedGroup', 'Map focused on top layer of this group')} className="p-1.5 text-indigo-600">
                 <Navigation2 className="w-3.5 h-3.5" />
               </span>
             )}
@@ -94,7 +96,7 @@ const LayerGroupCard = ({
             <button
               onClick={handleCopyWms}
               className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition"
-              title="Copy Layer Group WMS parameters"
+              title={t('copyGroupWms', 'Copy Layer Group WMS parameters')}
             >
               {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
             </button>
@@ -106,7 +108,7 @@ const LayerGroupCard = ({
                 setShowDetail((p) => !p);
               }}
               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
-              title="Details"
+              title={showDetail ? t('hideDetails', 'Hide details') : t('moreDetails', 'More details')}
             >
               {showDetail ? <ChevronUp className="w-4 h-4" /> : <Info className="w-4 h-4" />}
             </button>
@@ -120,7 +122,7 @@ const LayerGroupCard = ({
               className={`p-1.5 rounded-lg transition ${
                 isVisible ? "text-indigo-600 hover:bg-indigo-50" : "text-slate-400 hover:bg-slate-100"
               }`}
-              title={isVisible ? "Hide from Map" : "Show on Map"}
+              title={isVisible ? t('hideFromMap', 'Hide from Map') : t('viewOnMap', 'Show on Map')}
             >
               {isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
             </button>
@@ -132,27 +134,27 @@ const LayerGroupCard = ({
                 onEdit?.(group.id);
               }}
               className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition"
-              title="Edit Layer Group & Members"
+              title={t('editLayerGroupBtn', 'Edit Layer Group & Members')}
             >
               <Pencil className="w-4 h-4" />
             </button>
 
             {/* Delete button */}
             <Popconfirm
-              title="Delete Layer Group?"
-              description={`Are you sure you want to delete Layer Group "${group.title}"?`}
+              title={t('deleteGroupConfirmTitle', 'Delete Layer Group?')}
+              description={t('deleteGroupConfirmDesc', 'Are you sure you want to delete Layer Group "{title}"?', { title: group.title })}
               onConfirm={(e) => {
                 e?.stopPropagation();
                 onDelete?.(group.id);
               }}
-              okText="Delete"
-              cancelText="Cancel"
+              okText={t('delete', 'Delete')}
+              cancelText={t('cancel', 'Cancel')}
               okButtonProps={{ danger: true }}
             >
               <button
                 onClick={(e) => e.stopPropagation()}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
-                title="Delete Group"
+                title={t('deleteGroupBtn', 'Delete Group')}
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -165,7 +167,7 @@ const LayerGroupCard = ({
           <div className="mt-3 pt-3 border-t border-slate-100 text-xs space-y-2">
             <div>
               <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
-                Technical Name (WMS Layer Param)
+                {t('technicalNameParam', 'Technical Name (WMS Layer Param)')}
               </span>
               <p className="font-mono text-slate-700 bg-slate-50 p-1 rounded mt-0.5 border border-slate-100 break-all">
                 {group.wms_layers_param}
@@ -174,7 +176,7 @@ const LayerGroupCard = ({
             {group.abstract_text && (
               <div>
                 <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
-                  Description
+                  {t('descriptionLabel', 'Description')}
                 </span>
                 <p className="text-slate-600 mt-0.5">{group.abstract_text}</p>
               </div>

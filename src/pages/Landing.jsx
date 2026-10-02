@@ -11,91 +11,93 @@ import {
   ExternalLink, 
   BookOpen, 
   Server,
-  Activity,
   CheckCircle2,
   Copy,
   Check
 } from 'lucide-react';
 import BgHome from "../assets/bgHome.jpg";
 import Logo from "../assets/logo2.png";
+import { useLanguage } from '../context/LanguageContext';
 
 const appName = import.meta.env.VITE_APP_NAME || "AstraGIS";
 const docsUrl = import.meta.env.VITE_API_DOCS || "http://localhost:8000/docs";
 const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
-// Scalable Configuration: Feature capabilities
-const FEATURES = [
+const getFeatures = (t) => [
   {
     icon: Layers,
-    title: "OGC Standard Web Services",
-    description: "Instantly serves published raster and vector layers via WMS 1.1.1 / 1.3.0 and WFS with sub-second tile delivery.",
-    tag: "GeoServer Powered",
+    title: t("featOgcTitle", "OGC Standard Web Services"),
+    description: t("featOgcDesc", "Instantly serves published raster and vector layers via WMS 1.1.1 / 1.3.0 and WFS with sub-second tile delivery."),
+    tag: t("featOgcTag", "GeoServer Powered"),
     color: "from-blue-600/20 to-sky-500/20",
     border: "hover:border-blue-500/50",
     iconColor: "text-blue-400"
   },
   {
     icon: Cpu,
-    title: "Asynchronous S2S Pipeline",
-    description: "Server-to-server API endpoints allowing external services (such as FlowGIS and GEE pipelines) to publish GeoTIFFs without client lag.",
-    tag: "Async Workflow",
+    title: t("featAsyncTitle", "Asynchronous S2S Pipeline"),
+    description: t("featAsyncDesc", "Server-to-server API endpoints allowing external services (such as FlowGIS and GEE pipelines) to publish GeoTIFFs without client lag."),
+    tag: t("featAsyncTag", "Async Workflow"),
     color: "from-indigo-600/20 to-blue-600/20",
     border: "hover:border-indigo-500/50",
     iconColor: "text-indigo-400"
   },
   {
     icon: Palette,
-    title: "Dynamic Color Mapping & SLD",
-    description: "Generate and customize Styled Layer Descriptors (SLD) on the fly with custom color ramps, intervals, and continuous palettes.",
-    tag: "Visual Styling",
+    title: t("featPaletteTitle", "Dynamic Color Mapping & SLD"),
+    description: t("featPaletteDesc", "Generate and customize Styled Layer Descriptors (SLD) on the fly with custom color ramps, intervals, and continuous palettes."),
+    tag: t("featPaletteTag", "Visual Styling"),
     color: "from-purple-600/20 to-indigo-600/20",
     border: "hover:border-purple-500/50",
     iconColor: "text-purple-400"
   },
   {
     icon: Database,
-    title: "PostGIS Spatial Engine",
-    description: "Spatial indexing, bounding box computation, and geometric operations powered by enterprise-grade PostgreSQL with PostGIS.",
-    tag: "Spatial Storage",
+    title: t("featPostgisTitle", "PostGIS Spatial Engine"),
+    description: t("featPostgisDesc", "Spatial indexing, bounding box computation, and geometric operations powered by enterprise-grade PostgreSQL with PostGIS."),
+    tag: t("featPostgisTag", "Spatial Storage"),
     color: "from-amber-500/20 to-orange-500/20",
     border: "hover:border-amber-500/50",
     iconColor: "text-amber-400"
   },
   {
     icon: ShieldCheck,
-    title: "API Key Management",
-    description: "Scoped project credentials with SHA-256 encrypted authentication for secure inter-service communication.",
-    tag: "Security",
+    title: t("featSecurityTitle", "API Key Management"),
+    description: t("featSecurityDesc", "Scoped project credentials with SHA-256 encrypted authentication for secure inter-service communication."),
+    tag: t("featSecurityTag", "Security"),
     color: "from-blue-600/20 to-indigo-600/20",
     border: "hover:border-blue-500/50",
     iconColor: "text-blue-400"
   },
   {
     icon: Terminal,
-    title: "Layer Group Composition",
-    description: "Merge multiple raster and vector layers into unified composite WMS map services with customizable z-ordering.",
-    tag: "Multi-Layer Groups",
+    title: t("featGroupsTitle", "Layer Group Composition"),
+    description: t("featGroupsDesc", "Merge multiple raster and vector layers into unified composite WMS map services with customizable z-ordering."),
+    tag: t("featGroupsTag", "Multi-Layer Groups"),
     color: "from-sky-500/20 to-blue-600/20",
     border: "hover:border-sky-500/50",
     iconColor: "text-sky-400"
   },
 ];
 
-// Scalable Metrics / Stats
-const SYSTEM_METRICS = [
-  { label: "OGC Standards", value: "WMS & WFS" },
-  { label: "Engine Integration", value: "GeoServer 2.28" },
-  { label: "Database Layer", value: "PostGIS 3.3" },
-  { label: "API Protocol", value: "REST & S2S" },
+const getSystemMetrics = (t) => [
+  { label: t("metricOgcStandards", "OGC Standards"), value: "WMS & WFS" },
+  { label: t("metricEngineIntegration", "Engine Integration"), value: "GeoServer 2.28" },
+  { label: t("metricDatabaseLayer", "Database Layer"), value: "PostGIS 3.3" },
+  { label: t("metricApiProtocol", "API Protocol"), value: "REST & S2S" },
 ];
 
 const Landing = () => {
+  const { t } = useLanguage();
   const [copiedSnippet, setCopiedSnippet] = useState(false);
   const isAuthenticated = Boolean(localStorage.getItem("JWT_TOKEN"));
 
   useEffect(() => {
     document.title = `${appName} - Spatial Data Management System`;
   }, []);
+
+  const features = getFeatures(t);
+  const systemMetrics = getSystemMetrics(t);
 
   const sampleCurl = `curl -X POST "${apiBase}/s2s/publish-url" \\
   -H "X-API-Key: YOUR_S2S_API_KEY" \\
@@ -127,20 +129,20 @@ const Landing = () => {
       <header className="sticky top-0 z-50 backdrop-blur-md bg-blue-950/90 border-b border-blue-900/60 shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3 group">
-            <img src={Logo} alt="AstraGIS Logo" className="h-9 w-auto object-contain transition-transform group-hover:scale-105" />
+            <img src={Logo} alt={`${appName} Logo`} className="h-9 w-auto object-contain transition-transform group-hover:scale-105" />
             <div className="flex flex-col">
               <span className="font-bold text-lg tracking-tight text-white flex items-center gap-1.5">
-                AstraGIS <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-blue-900/80 text-blue-200 border border-blue-700/60">Server</span>
+                {appName} <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-blue-900/80 text-blue-200 border border-blue-700/60">{t("landingServer", "Server")}</span>
               </span>
             </div>
           </Link>
 
           <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-300">
-            <a href="#features" className="hover:text-blue-400 transition-colors">Features</a>
-            <a href="#integration" className="hover:text-blue-400 transition-colors">Integration</a>
-            <Link to="/documentation" className="hover:text-blue-400 transition-colors">Documentation</Link>
+            <a href="#features" className="hover:text-blue-400 transition-colors">{t("navFeatures", "Features")}</a>
+            <a href="#integration" className="hover:text-blue-400 transition-colors">{t("navIntegration", "Integration")}</a>
+            <Link to="/documentation" className="hover:text-blue-400 transition-colors">{t("navDocumentation", "Documentation")}</Link>
             <a href={docsUrl} target="_blank" rel="noreferrer" className="hover:text-blue-400 transition-colors flex items-center gap-1">
-              API Reference <ExternalLink className="w-3.5 h-3.5" />
+              {t("apiReference", "API Reference")} <ExternalLink className="w-3.5 h-3.5" />
             </a>
           </nav>
 
@@ -150,14 +152,14 @@ const Landing = () => {
                 to="/dashboard" 
                 className="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-lg shadow-md shadow-blue-600/30 transition-all flex items-center gap-1.5"
               >
-                Go to Dashboard <ArrowRight className="w-4 h-4" />
+                {t("goToDashboard", "Go to Dashboard")} <ArrowRight className="w-4 h-4" />
               </Link>
             ) : (
               <Link 
                 to="/auth/login" 
                 className="px-4 py-2 text-sm font-medium bg-blue-900/60 hover:bg-blue-900 text-white rounded-lg border border-blue-700/60 transition-all hover:border-blue-500"
               >
-                Sign In
+                {t("signIn", "Sign In")}
               </Link>
             )}
           </div>
@@ -171,20 +173,20 @@ const Landing = () => {
           {/* Status Badge */}
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-900/50 border border-blue-500/40 text-blue-200 text-xs font-medium mb-8 backdrop-blur-sm shadow-sm">
             <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-            <span>OGC Compliant Geospatial Server • GeoServer Integrated</span>
+            <span>{t("landingServerBadge", "OGC Compliant Geospatial Server • GeoServer Integrated")}</span>
           </div>
 
           {/* Heading */}
           <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-white max-w-5xl mx-auto leading-tight">
-            Automate, Integrate, and Publish{' '}
+            {t("landingHeroTitle", "Automate, Integrate, and Publish")}{' '}
             <span className="bg-gradient-to-r from-blue-400 via-sky-300 to-indigo-300 bg-clip-text text-transparent">
-              Spatial Data Services
+              {t("landingHeroTitleAccent", "Spatial Data Services")}
             </span>
           </h1>
 
           {/* Subtitle Description */}
           <p className="mt-6 text-base sm:text-lg lg:text-xl text-slate-300 max-w-3xl mx-auto leading-relaxed">
-            An enterprise geospatial data infrastructure engineered to instantly transform raw raster and vector outputs into OGC-standard Web Map Services (WMS). Powered by an asynchronous S2S pipeline that eliminates client-side lag.
+            {t("landingHeroSubtitle", "An enterprise geospatial data infrastructure engineered to instantly transform raw raster and vector outputs into OGC-standard Web Map Services (WMS). Powered by an asynchronous S2S pipeline that eliminates client-side lag.")}
           </p>
 
           {/* Primary Action Buttons (matching Dashboard royal blue buttons) */}
@@ -194,14 +196,14 @@ const Landing = () => {
                 to="/dashboard" 
                 className="px-6 py-3.5 text-base font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-xl shadow-blue-600/30 transition-all flex items-center gap-2"
               >
-                Open Dashboard <ArrowRight className="w-5 h-5" />
+                {t("openDashboard", "Open Dashboard")} <ArrowRight className="w-5 h-5" />
               </Link>
             ) : (
               <Link 
                 to="/auth/login" 
                 className="px-6 py-3.5 text-base font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-xl shadow-blue-600/30 transition-all flex items-center gap-2"
               >
-                Get Started <ArrowRight className="w-5 h-5" />
+                {t("getStarted", "Get Started")} <ArrowRight className="w-5 h-5" />
               </Link>
             )}
 
@@ -210,7 +212,7 @@ const Landing = () => {
               className="px-6 py-3.5 text-base font-semibold bg-blue-950/80 hover:bg-blue-900/80 text-blue-100 rounded-xl border border-blue-800/80 hover:border-blue-600 transition-all flex items-center gap-2 backdrop-blur-sm"
             >
               <BookOpen className="w-5 h-5 text-blue-400" />
-              Learn About AstraGIS
+              {t("learnAboutApp", "Learn About AstraGIS")}
             </Link>
 
             <a 
@@ -220,13 +222,13 @@ const Landing = () => {
               className="px-5 py-3.5 text-base font-semibold text-slate-400 hover:text-white transition-colors flex items-center gap-1.5"
             >
               <Server className="w-4 h-4 text-sky-400" />
-              API Docs <ExternalLink className="w-4 h-4" />
+              {t("apiDocs", "API Docs")} <ExternalLink className="w-4 h-4" />
             </a>
           </div>
 
           {/* Metrics Bar */}
           <div className="mt-16 pt-10 border-t border-blue-900/50 grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
-            {SYSTEM_METRICS.map((metric, idx) => (
+            {systemMetrics.map((metric, idx) => (
               <div key={idx} className="flex flex-col items-center">
                 <span className="text-xl sm:text-2xl font-bold text-white tracking-tight">{metric.value}</span>
                 <span className="text-xs sm:text-sm text-slate-400 mt-1">{metric.label}</span>
@@ -239,15 +241,15 @@ const Landing = () => {
         <section id="features" className="py-20 bg-blue-950/40 border-y border-blue-900/50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto mb-16">
-              <span className="text-blue-400 text-xs font-bold uppercase tracking-wider">Engineered for Geospatial Workflows</span>
-              <h2 className="text-3xl sm:text-4xl font-bold text-white mt-2">Comprehensive Spatial Infrastructure</h2>
+              <span className="text-blue-400 text-xs font-bold uppercase tracking-wider">{t("featuresBadge", "Engineered for Geospatial Workflows")}</span>
+              <h2 className="text-3xl sm:text-4xl font-bold text-white mt-2">{t("featuresTitle", "Comprehensive Spatial Infrastructure")}</h2>
               <p className="text-slate-400 text-sm sm:text-base mt-3">
-                Everything required to ingest, store, style, and broadcast spatial layers across web and mobile GIS clients.
+                {t("featuresSubtitle", "Everything required to ingest, store, style, and broadcast spatial layers across web and mobile GIS clients.")}
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {FEATURES.map((feat, idx) => {
+              {features.map((feat, idx) => {
                 const IconComponent = feat.icon;
                 return (
                   <div 
@@ -277,26 +279,26 @@ const Landing = () => {
         <section id="integration" className="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
             <div className="lg:col-span-5 space-y-5">
-              <span className="text-blue-400 text-xs font-bold uppercase tracking-wider">Developer Friendly S2S API</span>
+              <span className="text-blue-400 text-xs font-bold uppercase tracking-wider">{t("integrationBadge", "Developer Friendly S2S API")}</span>
               <h2 className="text-3xl sm:text-4xl font-bold text-white leading-tight">
-                Integrate Spatial Publishing in Minutes
+                {t("integrationTitle", "Integrate Spatial Publishing in Minutes")}
               </h2>
               <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-                Connect your analytical pipelines (e.g., Google Earth Engine, Python backend, or FlowGIS) directly to AstraGIS via secure REST endpoints. Published layers are immediately accessible via Leaflet, MapLibre, OpenLayers, or QGIS.
+                {t("integrationDesc", "Connect your analytical pipelines (e.g., Google Earth Engine, Python backend, or FlowGIS) directly to AstraGIS via secure REST endpoints. Published layers are immediately accessible via Leaflet, MapLibre, OpenLayers, or QGIS.")}
               </p>
 
               <div className="space-y-2.5 pt-2">
                 <div className="flex items-center gap-2.5 text-sm text-slate-300">
                   <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0" />
-                  <span>Instant WMS URL & Layer parameter generation</span>
+                  <span>{t("integrationPoint1", "Instant WMS URL & Layer parameter generation")}</span>
                 </div>
                 <div className="flex items-center gap-2.5 text-sm text-slate-300">
                   <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0" />
-                  <span>Custom ColorMap palette injection via JSON</span>
+                  <span>{t("integrationPoint2", "Custom ColorMap palette injection via JSON")}</span>
                 </div>
                 <div className="flex items-center gap-2.5 text-sm text-slate-300">
                   <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0" />
-                  <span>Automatic Bounding Box (BBox) spatial calculation</span>
+                  <span>{t("integrationPoint3", "Automatic Bounding Box (BBox) spatial calculation")}</span>
                 </div>
               </div>
 
@@ -305,7 +307,7 @@ const Landing = () => {
                   to="/documentation" 
                   className="inline-flex items-center gap-2 text-sm font-semibold text-blue-400 hover:text-blue-300"
                 >
-                  View complete S2S Documentation <ArrowRight className="w-4 h-4" />
+                  {t("viewS2sDoc", "View complete S2S Documentation")} <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
             </div>
@@ -325,7 +327,7 @@ const Landing = () => {
                     className="flex items-center gap-1 text-xs text-slate-400 hover:text-white transition-colors px-2 py-1 rounded hover:bg-slate-700/50"
                   >
                     {copiedSnippet ? <Check className="w-3.5 h-3.5 text-blue-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedSnippet ? "Copied" : "Copy cURL"}</span>
+                    <span>{copiedSnippet ? t("copied", "Copied") : t("copyCurl", "Copy cURL")}</span>
                   </button>
                 </div>
                 <pre className="p-4 text-xs font-mono text-sky-300 overflow-x-auto leading-relaxed bg-slate-950/90">
@@ -342,13 +344,13 @@ const Landing = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-blue-400" />
-            <span className="text-slate-300">AstraGIS Spatial Infrastructure Server</span>
+            <span className="text-slate-300">{t("footerTagline", "AstraGIS Spatial Infrastructure Server")}</span>
           </div>
-          <p>© {new Date().getFullYear()} AstraGIS. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} {appName}. {t("allRightsReserved", "All rights reserved.")}</p>
           <div className="flex items-center gap-4 text-slate-400">
-            <Link to="/documentation" className="hover:text-white transition-colors">Docs</Link>
-            <a href={docsUrl} target="_blank" rel="noreferrer" className="hover:text-white transition-colors">API</a>
-            <Link to="/dashboard" className="hover:text-white transition-colors">Console</Link>
+            <Link to="/documentation" className="hover:text-white transition-colors">{t("navDocumentation", "Docs")}</Link>
+            <a href={docsUrl} target="_blank" rel="noreferrer" className="hover:text-white transition-colors">{t("apiDocs", "API")}</a>
+            <Link to="/dashboard" className="hover:text-white transition-colors">{t("navConsole", "Console")}</Link>
           </div>
         </div>
       </footer>
@@ -356,4 +358,4 @@ const Landing = () => {
   );
 };
 
-export default Landing;
+export default Landing;

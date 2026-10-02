@@ -1,11 +1,20 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { NavLink, Link } from "react-router-dom";
-import { XMarkIcon, ChevronLeftIcon } from "@heroicons/react/24/outline";
-import ProjectLogo from "../assets/project.png";
-import LayerLogo from "../assets/layer.png";
+import { 
+  XMarkIcon, 
+  ChevronLeftIcon, 
+  GlobeAltIcon,
+  FolderIcon,
+  KeyIcon,
+  ShieldCheckIcon,
+  MapIcon,
+  LockClosedIcon
+} from "@heroicons/react/24/outline";
 import DocumentationLogo from "../assets/open-book.png";
 import ApiLogo from "../assets/notes.png";
 import { useLanguage } from "../context/LanguageContext";
+import authApi from "../api/AuthApi";
+import keyApi from "../api/KeyApi";
 
 const docs = import.meta.env.VITE_API_DOCS;
 
@@ -16,28 +25,68 @@ const Sidebar = ({
   onCloseDesktop,
 }) => {
   const { t } = useLanguage();
+  const [currentUser, setCurrentUser] = useState(null);
+  const [isKeyDisabled, setIsKeyDisabled] = useState(false);
+
+  useEffect(() => {
+    authApi.getProfile()
+      .then(res => {
+        const user = res.data?.data || res.data?.user || res.data;
+        setCurrentUser(user);
+      })
+      .catch(() => {});
+
+    keyApi.getMyKey()
+      .then(res => {
+        const key = res.data;
+        if (key && key.is_active === false) {
+          setIsKeyDisabled(true);
+          localStorage.removeItem("astragis_s2s_key");
+        } else if (key && key.is_active && (key.full_key || key.plain_key)) {
+          setIsKeyDisabled(false);
+          localStorage.setItem("astragis_s2s_key", key.full_key || key.plain_key);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const menus = [
     {
-      text: t('menuProject', "Project"),
-      to: "/dashboard/project",
-      image: ProjectLogo,
+      text: t('menuWorkspace', "Workspace"),
+      to: "/dashboard/workspace",
+      icon: <FolderIcon className="w-5 h-5 flex-shrink-0 mr-3 text-blue-200" />,
       target: "",
+      locked: isKeyDisabled,
     },
     {
-      text: t('menuLayer', "Layer"),
+      text: t('menuLayer', "Layer & Peta"),
       to: "/dashboard/layer",
-      image: LayerLogo,
+      icon: <MapIcon className="w-5 h-5 flex-shrink-0 mr-3 text-blue-200" />,
       target: "",
+      locked: isKeyDisabled,
     },
     {
-      text: t('menuDocumentation', "Documentation"),
+      text: t('menuApiKey', "API Key (S2S)"),
+      to: "/dashboard/api-key",
+      icon: <KeyIcon className="w-5 h-5 flex-shrink-0 mr-3 text-white" />,
+      target: "",
+    },
+    ...(currentUser?.role === "admin" ? [
+      {
+        text: t('menuAdminPanel', "Admin Panel"),
+        to: "/dashboard/admin",
+        icon: <ShieldCheckIcon className="w-5 h-5 flex-shrink-0 mr-3 text-white" />,
+        target: "",
+      }
+    ] : []),
+    {
+      text: t('menuDocumentation', "Dokumentasi"),
       to: "/documentation",
       image: DocumentationLogo,
       target: "_blank",
     },
     {
-      text: t('menuEndpointList', "Endpoint List"),
+      text: t('menuEndpointList', "Endpoint API"),
       to: docs,
       image: ApiLogo,
       target: "_blank",
@@ -46,23 +95,16 @@ const Sidebar = ({
 
   return (
     <>
-      {/* ============================================================ */}
-      {/* 1. MOBILE DRAWER (Hanya di-render jika isOpen = true di mobile)*/}
-      {/* ============================================================ */}
+      {/* 1. MOBILE DRAWER */}
       {isOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
-          {/* Mobile Backdrop Overlay */}
           <div
             className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-300"
             onClick={onClose}
             aria-hidden="true"
           />
 
-          {/* Drawer Container Melayang */}
-          <aside
-            className="fixed inset-y-0 left-0 z-50 w-64 bg-blue-900 text-white flex flex-col shadow-2xl transition-all duration-300 ease-in-out"
-          >
-            {/* Header Mobile dengan tombol Close (X) */}
+          <aside className="fixed inset-y-0 left-0 z-50 w-64 bg-blue-900 text-white flex flex-col shadow-2xl transition-all duration-300 ease-in-out">
             <div className="flex items-center justify-between p-5 border-b border-blue-800">
               <Link
                 to="/dashboard"
@@ -75,13 +117,13 @@ const Sidebar = ({
               <button
                 onClick={onClose}
                 className="p-1.5 text-blue-300 hover:text-white hover:bg-blue-800 rounded-lg transition cursor-pointer"
-                aria-label="Close Sidebar"
+                title={t('closeSidebar', 'Tutup Sidebar')}
+                aria-label={t('closeSidebar', 'Tutup Sidebar')}
               >
                 <XMarkIcon className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Menus */}
             <nav className="flex-1 flex flex-col py-3 overflow-y-auto space-y-1">
               {menus.map((menu) => (
                 <SideMenu key={menu.to} {...menu} onMenuClick={onClose} />
@@ -95,15 +137,12 @@ const Sidebar = ({
         </div>
       )}
 
-      {/* ============================================================ */}
-      {/* 2. DESKTOP SIDEBAR (Hanya aktif di layar desktop >= md)      */}
-      {/* ============================================================ */}
+      {/* 2. DESKTOP SIDEBAR */}
       <aside
         className={`hidden md:flex flex-col bg-blue-900 text-white flex-shrink-0 h-full transition-all duration-300 ease-in-out relative border-r border-blue-800 ${
           isDesktopOpen ? "w-64" : "w-0 overflow-hidden border-none opacity-0 pointer-events-none"
         }`}
       >
-        {/* Header Desktop dengan tombol Tutup (X) */}
         <div className="flex items-center justify-between p-5 border-b border-blue-800 min-w-[16rem]">
           <Link
             to="/dashboard"
@@ -112,18 +151,16 @@ const Sidebar = ({
             {t('menuDashboard', 'Dashboard')}
           </Link>
 
-          {/* Tombol Tutup Sidebar Desktop */}
           <button
             onClick={onCloseDesktop}
             className="p-1.5 text-blue-300 hover:text-white hover:bg-blue-800 rounded-lg transition cursor-pointer"
-            title="Tutup Sidebar"
-            aria-label="Tutup Sidebar"
+            title={t('closeSidebar', 'Tutup Sidebar')}
+            aria-label={t('closeSidebar', 'Tutup Sidebar')}
           >
             <ChevronLeftIcon className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Menus */}
         <nav className="flex-1 flex flex-col py-3 overflow-y-auto space-y-1 min-w-[16rem]">
           {menus.map((menu) => (
             <SideMenu key={menu.to} {...menu} />
@@ -140,7 +177,8 @@ const Sidebar = ({
 
 export default Sidebar;
 
-function SideMenu({ image, text, to, target, onMenuClick }) {
+function SideMenu({ image, icon, text, to, target, locked, onMenuClick }) {
+  const { t } = useLanguage();
   return (
     <NavLink
       to={to}
@@ -148,7 +186,7 @@ function SideMenu({ image, text, to, target, onMenuClick }) {
       target={target}
       onClick={() => onMenuClick?.()}
       className={({ isActive }) =>
-        `flex items-center gap-3 px-5 py-3.5 transition-all duration-200 text-sm font-medium
+        `flex items-center justify-between px-5 py-3.5 transition-all duration-200 text-sm font-medium
         ${
           isActive
             ? "bg-blue-800 text-white border-r-4 border-white shadow-inner"
@@ -156,8 +194,20 @@ function SideMenu({ image, text, to, target, onMenuClick }) {
         }`
       }
     >
-      <img src={image} alt={text} className="w-5 h-5 object-contain flex-shrink-0 mr-3" />
-      <span className="truncate">{text}</span>
+      <div className="flex items-center min-w-0">
+        {image ? (
+          <img src={image} alt={text} className="w-5 h-5 object-contain flex-shrink-0 mr-3" />
+        ) : icon ? (
+          icon
+        ) : null}
+        <span className="truncate">{text}</span>
+      </div>
+      {locked && (
+        <span className="ml-2 inline-flex items-center gap-1 text-[10px] font-semibold bg-rose-900/60 text-rose-300 border border-rose-500/40 px-1.5 py-0.5 rounded-full">
+          <LockClosedIcon className="w-3 h-3 text-rose-400" />
+          <span>{t('statusInactive', 'Nonaktif')}</span>
+        </span>
+      )}
     </NavLink>
   );
 }

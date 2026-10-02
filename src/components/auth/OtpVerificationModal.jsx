@@ -147,7 +147,10 @@ const OtpVerificationModal = ({
                             }`}
                         >
                             <RefreshCw className={`w-3.5 h-3.5 ${resendOtpMutation.isPending ? 'animate-spin' : ''}`} />
-                            {resendCountdown > 0 ? `${t('otpModalResendIn', 'Resend in')} ${resendCountdown}s` : t('otpModalResendCode', 'Resend Code')}
+                            {resendCountdown > 0 
+                                ? t('authResendOtpIn', { seconds: resendCountdown }, `Resend in ${resendCountdown}s`) 
+                                : t('otpModalResendCode', 'Resend Code')
+                            }
                         </button>
                         <span className='text-slate-400 text-[11px] sm:text-xs'>{t('otpModalValidFor', 'Valid for 5 mins')}</span>
                     </div>

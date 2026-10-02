@@ -10,11 +10,11 @@ import ForgotPassword from "../pages/auth/ForgotPassword";
 import Dashboard from "../pages/Dashboard";
 import Profile from "../pages/Profile";
 import DashboardLayout from "../layout/DashboardLayout";
-import Project from "../pages/Project";
 import Workspace from "../pages/Workspace";
 import Layer from "../pages/Layer";
+import ApiKey from "../pages/ApiKey";
+import Admin from "../pages/Admin";
 import authGuard from "./loader/AuthGuard";
-import DetailProject from "../pages/DetailProject";
 
 const routes = createBrowserRouter([
     {
@@ -36,10 +36,6 @@ const routes = createBrowserRouter([
                       element: <Dashboard/>,  
                     },
                     {
-                      path: "project",
-                      element: <Project/>,  
-                    },
-                    {
                       path: "workspace",
                       element: <Workspace/>,  
                     },
@@ -48,13 +44,13 @@ const routes = createBrowserRouter([
                       element: <Layer/>,
                     },
                     {
-                        path: "project/detail/:id",
-                        element: <DetailProject/>
+                      path: "api-key",
+                      element: <ApiKey/>,
                     },
                     {
-                        path: "project/detail/:id/workspace/:id_workspace",
-                        element: <Workspace/>
-                    }
+                      path: "admin",
+                      element: <Admin/>,
+                    },
                 ]
             },
             {
@@ -90,4 +86,4 @@ const routes = createBrowserRouter([
     },
 ])
 
-export default routes
+export default routes;

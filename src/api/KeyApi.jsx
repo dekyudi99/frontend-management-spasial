@@ -1,23 +1,15 @@
 import axiosClient from "./AxiosClient";
 
 const keyApi = {
-    get: (id) => {
-        return axiosClient.get(`/api-key/${id}`)
+    getMyKey: () => {
+        return axiosClient.get("/api-key/me");
     },
-    create: (project_id, data) => {
-        return axiosClient.post(
-            `/api-key/${project_id}`,
-            data,
-            {
-                headers: {
-                    "Content-Type": "multipart/form-data",
-                }
-            }
-        )
+    refreshKey: () => {
+        return axiosClient.post("/api-key/refresh");
     },
-    delete: (id) => {
-        return axiosClient.delete(`/api-key/${id}`)
+    testConnection: () => {
+        return axiosClient.get("/api-key/test-connection");
     }
-}
+};
 
-export default keyApi
+export default keyApi;

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Popconfirm, Checkbox } from "antd";
 import { getTypeConfig } from "../../utils/geoUtils";
+import { useLanguage } from "../../context/LanguageContext";
 
 const InfoRow = ({ label, value }) => (
   <div>
@@ -33,6 +34,7 @@ const LayerCard = ({
   onToggleVisibility,
   onOpenStyle,
   onDelete,
+  isDeleting = false,
   // Drag & drop handlers
   onDragStart,
   onDragOver,
@@ -40,8 +42,9 @@ const LayerCard = ({
   onDragEnd,
   isDragging,
 }) => {
+  const { t } = useLanguage();
   const [showDetail, setShowDetail] = useState(false);
-  const cfg = getTypeConfig(layer.data_type, layer.layer_type);
+  const cfg = getTypeConfig(layer.data_type, layer.layer_type, layer);
 
   return (
     <div
@@ -71,7 +74,7 @@ const LayerCard = ({
             {/* Grip Handle for Drag & Drop */}
             <div
               className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-600 p-0.5 rounded transition"
-              title="Drag to change layer rendering order"
+              title={t('dragHandleHint', 'Drag to change layer rendering order')}
               onClick={(e) => e.stopPropagation()}
             >
               <GripVertical className="w-4 h-4" />
@@ -94,11 +97,11 @@ const LayerCard = ({
             {/* Title and Tags */}
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <h3 className="font-semibold text-slate-800 text-sm truncate max-w-[170px] sm:max-w-[220px]">
-                  {layer.layer_name}
+                <h3 className="font-semibold text-slate-800 text-sm truncate max-w-[170px] sm:max-w-[220px]" title={layer.display_name || layer.layer_name}>
+                  {layer.display_name || layer.layer_name}
                 </h3>
                 {index !== undefined && (
-                  <span className="text-[10px] text-slate-400 font-mono" title="Rendering order">
+                  <span className="text-[10px] text-slate-400 font-mono" title={t('renderingOrder', 'Rendering order')}>
                     #{index + 1}
                   </span>
                 )}
@@ -109,13 +112,13 @@ const LayerCard = ({
                 {(layer.workspace_display_name || layer.workspace_name) && (
                   <span
                     className="inline-flex items-center gap-1 text-[10px] font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 max-w-[120px] truncate"
-                    title={`Workspace: ${layer.workspace_display_name || layer.workspace_name}`}
+                    title={t('workspaceParam', 'Workspace: {ws}', { ws: layer.workspace_display_name || layer.workspace_name })}
                   >
                     <Folder className="w-3 h-3 text-blue-500 flex-shrink-0" />
                     <span className="truncate">{layer.workspace_display_name || layer.workspace_name}</span>
                   </span>
                 )}
-                <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${cfg.badgeBg} ${cfg.badgeText}`}>
+                <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${cfg.badgeBg} ${cfg.badgeText}`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${cfg.dotColor}`} />
                   {cfg.label}
                 </span>
@@ -135,7 +138,7 @@ const LayerCard = ({
           <div className="flex items-center gap-1 flex-shrink-0">
             {/* Fly-to indicator when selected */}
             {isSelected && layer.bbox && (
-              <span title="Map focused on this layer" className="p-1.5 text-blue-500">
+              <span title={t('mapFocusedLayer', 'Map focused on this layer')} className="p-1.5 text-blue-500">
                 <Navigation2 className="w-3.5 h-3.5" />
               </span>
             )}
@@ -146,7 +149,7 @@ const LayerCard = ({
                 onOpenStyle?.(layer);
               }}
               className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition"
-              title="Configure Color & SLD Style"
+              title={t('styleLayer', 'Configure Color & SLD Style')}
             >
               <Palette className="w-4 h-4" />
             </button>
@@ -157,7 +160,7 @@ const LayerCard = ({
                 setShowDetail((p) => !p);
               }}
               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
-              title="Metadata Details"
+              title={showDetail ? t('hideDetails', 'Hide details') : t('moreDetails', 'More details')}
             >
               {showDetail ? <ChevronUp className="w-4 h-4" /> : <Info className="w-4 h-4" />}
             </button>
@@ -170,28 +173,42 @@ const LayerCard = ({
               className={`p-1.5 rounded-lg transition ${
                 layer.visible ? "text-blue-600 hover:bg-blue-50" : "text-slate-400 hover:bg-slate-100"
               }`}
-              title={layer.visible ? "Hide from Map" : "Show on Map"}
+              title={layer.visible ? t('hideFromMap', 'Hide from Map') : t('viewOnMap', 'Show on Map')}
             >
               {layer.visible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
             </button>
             {/* Delete button */}
             <Popconfirm
-              title="Delete Layer?"
-              description={`Are you sure you want to delete layer "${layer.layer_name}"?`}
+              title={t('deleteLayerConfirmTitle', 'Delete Layer?')}
+              description={t('deleteLayerConfirmDesc', `Are you sure you want to delete layer "${layer.display_name || layer.layer_name}"?`)}
               onConfirm={(e) => {
                 e?.stopPropagation();
-                onDelete?.(layer.id);
+                onDelete?.(layer);
               }}
-              okText="Delete"
-              cancelText="Cancel"
-              okButtonProps={{ danger: true }}
+              okText={t('delete', 'Delete')}
+              cancelText={t('cancel', 'Cancel')}
+              okButtonProps={{ danger: true, loading: isDeleting }}
             >
               <button
                 onClick={(e) => e.stopPropagation()}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
-                title="Delete Layer"
+                disabled={isDeleting}
+                className={`p-1.5 rounded-lg transition ${
+                  isDeleting
+                    ? "text-red-400 bg-red-50/50 cursor-wait"
+                    : "text-slate-400 hover:text-red-600 hover:bg-red-50"
+                }`}
+                title={isDeleting ? t('deleting', 'Deleting...') : t('delete', 'Delete Layer')}
               >
-                <Trash2 className="w-4 h-4" />
+                {isDeleting ? (
+                  <span className="w-4 h-4 flex items-center justify-center">
+                    <svg className="animate-spin h-3.5 w-3.5 text-red-500" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                  </span>
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
               </button>
             </Popconfirm>
           </div>
@@ -201,28 +218,29 @@ const LayerCard = ({
         {showDetail && (
           <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-2 gap-x-4 gap-y-1.5">
             <InfoRow
-              label="Workspace"
+              label={t('columnWorkspace', 'Workspace')}
               value={
                 layer.workspace_display_name && layer.workspace_display_name !== layer.workspace_name
                   ? `${layer.workspace_display_name} (${layer.workspace_name})`
                   : layer.workspace_name
               }
             />
-            <InfoRow label="Format" value={layer.data_type} />
+            <InfoRow label={t('typeLabel', 'Format')} value={cfg.label} />
+            <InfoRow label={t('geoServerName', 'GeoServer Name')} value={layer.geoserver_name || layer.store_name || layer.table_name} />
             {layer.layer_type === "raster" && layer.width && (
-              <InfoRow label="Dimensions" value={`${layer.width} × ${layer.height} px`} />
+              <InfoRow label={t('dimensions', 'Dimensions')} value={`${layer.width} × ${layer.height} px`} />
             )}
             {layer.bbox && (
               <div className="col-span-2">
                 <InfoRow
                   label="Bounding Box"
-                  value={layer.bbox.map((v) => v?.toFixed(4)).join(", ")}
+                  value={Array.isArray(layer.bbox) ? layer.bbox.map((v) => Number(v)?.toFixed(4)).join(", ") : JSON.stringify(layer.bbox)}
                 />
               </div>
             )}
             {layer.description && (
               <div className="col-span-2">
-                <InfoRow label="Description" value={layer.description} />
+                <InfoRow label={t('descriptionLabel', 'Description')} value={layer.description} />
               </div>
             )}
           </div>

@@ -1,33 +1,35 @@
 import { useState, useEffect } from "react";
 import {
-  ArrowLeftOutlined,
-  CheckCircleOutlined,
   DatabaseOutlined,
   FolderOutlined,
   PlusOutlined,
   ReloadOutlined,
   SearchOutlined,
+  GlobalOutlined,
+  LockOutlined,
+  CopyOutlined,
 } from "@ant-design/icons";
-import { useNavigate, useParams, Link } from "react-router-dom";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 import {
   Button,
   Spin,
-  Typography,
   Tabs,
   Select,
-  Checkbox,
   Pagination,
   Tag,
   message,
   Popconfirm,
+  Form,
+  Input,
+  Table,
+  Space,
+  Tooltip,
+  Alert,
 } from "antd";
 import {
   Palette,
   Layers,
-  Sparkles,
-  Plus,
   Trash2,
-  Check,
   Copy,
   ExternalLink,
   Sliders,
@@ -35,31 +37,43 @@ import {
   Shapes,
   Clock,
   Info,
+  Check,
+  ArrowLeft,
 } from "lucide-react";
-import formatTanggal from "../utils/formatTanggal";
+import { formatDate } from "../utils/formatters";
 import { getTypeConfig } from "../utils/geoUtils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import workspaceApi from "../api/WorkspaceApi";
 import layerApi from "../api/LayerApi";
-import { PRESETS } from "../components/LayerStyleModal";
+import keyApi from "../api/KeyApi";
 import LayerStyleModal from "../components/LayerStyleModal";
 import LayerModal from "../components/LayerModal";
-import BackButton from "../components/common/BackButton";
-
-const { Title, Text } = Typography;
+import WorkspaceModal from "../components/WorkspaceModal";
+import BackButton from "../components/BackButton";
+import AccessDeniedCard from "../components/AccessDeniedCard";
+import PageHeader from "../components/PageHeader";
+import { useLanguage } from "../context/LanguageContext";
 
 const Workspace = () => {
-  const navigate = useNavigate();
   const { id, id_workspace } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  const { t, language, translateApi } = useLanguage();
 
-  // Tab State
-  const [activeTab, setActiveTab] = useState("palette");
+  const activeWsId = id_workspace || id || searchParams.get("id");
 
-  // Palette State
-  const [styleType, setStyleType] = useState("values");
-  const [classes, setClasses] = useState(PRESETS[0].classes);
-  const [applyToExisting, setApplyToExisting] = useState(true);
+  useEffect(() => {
+    document.title = `${t('workspaceTitle', 'Workspace Spasial')} | AstraGIS`;
+  }, [language, t]);
+
+  // State: Workspace List Mode
+  const [wsPage, setWsPage] = useState(1);
+  const [wsPageSize, setWsPageSize] = useState(10);
+  const [openCreateWsModal, setOpenCreateWsModal] = useState(false);
+  const [searchWs, setSearchWs] = useState("");
+
+  // Tab State: default ke "layers"
+  const [activeTab, setActiveTab] = useState("layers");
 
   // Layers in Workspace State
   const [layerPage, setLayerPage] = useState(1);
@@ -67,186 +81,419 @@ const Workspace = () => {
   const [searchLayer, setSearchLayer] = useState("");
   const [selectedLayerForStyle, setSelectedLayerForStyle] = useState(null);
   const [openUploadModal, setOpenUploadModal] = useState(false);
+  const [openWorkspaceStyleModal, setOpenWorkspaceStyleModal] = useState(false);
 
-  // Mutation Hapus Layer
-  const deleteLayerMutation = useMutation({
-    mutationFn: (layerId) => layerApi.delete(layerId),
-    onSuccess: (res) => {
-      message.success(res?.data?.detail || "Layer deleted successfully!");
-      refetchLayers();
-      queryClient.invalidateQueries({ queryKey: ["layers"] });
-      queryClient.invalidateQueries({ queryKey: ["workspace-layers"] });
-      queryClient.invalidateQueries({ queryKey: ["workspace"] });
-      queryClient.invalidateQueries({ queryKey: ["project"] });
-      queryClient.invalidateQueries({ queryKey: ["recentlyWorkspace"] });
-      queryClient.invalidateQueries({ queryKey: ["projectLogs"] });
-    },
-    onError: (err) => {
-      message.error(err.response?.data?.detail || "Failed to delete layer");
-    },
+  // Settings Forms
+  const [workspaceForm] = Form.useForm();
+
+  // 0. Fetch API Key status to verify active permission
+  const {
+    data: keyRes,
+    isLoading: isLoadingKey,
+    refetch: refetchKey
+  } = useQuery({
+    queryKey: ["my-api-key"],
+    queryFn: () => keyApi.getMyKey(),
+    staleTime: 5000,
   });
 
-  // 1. Fetch Workspace Detail
+  const keyData = keyRes?.data;
+  const isKeyActive = Boolean(keyData?.is_active);
+  const isKeyDisabled = !isLoadingKey && keyData && keyData.is_active === false;
+
+  // 1. Fetch Workspaces List (hanya jika key aktif)
+  const {
+    data: workspacesListRes,
+    isLoading: isLoadingList,
+    refetch: refetchList
+  } = useQuery({
+    queryKey: ["workspaces-list", wsPage, wsPageSize, isKeyActive],
+    queryFn: () => workspaceApi.list({ page: wsPage, size: wsPageSize }),
+    enabled: !activeWsId && isKeyActive,
+  });
+
+  useEffect(() => {
+    if (keyData?.plain_key && keyData?.is_active) {
+      localStorage.setItem("astragis_s2s_key", keyData.plain_key);
+    } else if (keyData && keyData.is_active === false) {
+      localStorage.removeItem("astragis_s2s_key");
+    }
+  }, [keyData]);
+
+  // 2. Fetch Workspace Detail (hanya jika key aktif)
   const {
     data: workspaceRes,
     isLoading: isLoadingWorkspace,
     isError,
     error,
   } = useQuery({
-    queryKey: ["workspace-detail", id_workspace],
-    queryFn: () => workspaceApi.detail(id_workspace),
-    enabled: !!id_workspace,
+    queryKey: ["workspace-detail", activeWsId, isKeyActive],
+    queryFn: () => workspaceApi.detail(activeWsId),
+    enabled: !!activeWsId && isKeyActive,
   });
 
   const workspace = workspaceRes?.data?.data;
 
-  // 2. Fetch Layers in this Workspace
+  // Sync form values when workspace details load
+  useEffect(() => {
+    if (workspace) {
+      workspaceForm.setFieldsValue({
+        name: workspace.name,
+        visibility: workspace.visibility || "private",
+      });
+    }
+  }, [workspace, workspaceForm]);
+
+  // 3. Fetch Layers in this Workspace (hanya jika key aktif)
   const {
     data: layersRes,
     isLoading: isLoadingLayers,
     refetch: refetchLayers,
   } = useQuery({
-    queryKey: ["workspace-layers", id_workspace, layerPage, layerPageSize, searchLayer],
+    queryKey: ["workspace-layers", activeWsId, layerPage, layerPageSize, searchLayer, isKeyActive],
     queryFn: () =>
       layerApi.list({
-        workspace_id: id_workspace,
+        workspace_id: activeWsId,
         page: layerPage,
         size: layerPageSize,
         search: searchLayer || undefined,
       }),
-    enabled: !!id_workspace,
+    enabled: !!activeWsId && isKeyActive,
   });
 
   const layersList = layersRes?.data?.data || [];
   const layerPagination = layersRes?.data?.pagination;
+  const rasterLayers = layersList.filter((l) => l.layer_type === "raster");
 
-  // Handler preset
-  const handleApplyPreset = (preset) => {
-    setStyleType(preset.styleType);
-    setClasses(JSON.parse(JSON.stringify(preset.classes)));
-    message.info(`Preset "${preset.name}" applied to editor`);
-  };
-
-  const updateClass = (index, field, value) => {
-    setClasses((prev) => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
-      return updated;
-    });
-  };
-
-  const addClass = () => {
-    const lastQty = classes.length > 0 ? classes[classes.length - 1].quantity : 0;
-    setClasses((prev) => [
-      ...prev,
-      {
-        quantity: lastQty + 1,
-        color: "#3b82f6",
-        opacity: 1.0,
-        label: `Class ${lastQty + 1}`,
-      },
-    ]);
-  };
-
-  const removeClass = (index) => {
-    if (classes.length <= 1) {
-      message.warning("At least 1 color class is required!");
-      return;
-    }
-    setClasses((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  // Mutation Save Default Style
-  const saveStyleMutation = useMutation({
-    mutationFn: (payload) => workspaceApi.saveDefaultStyle(id_workspace, payload),
+  // Mutation Hapus Workspace
+  const deleteWorkspaceMutation = useMutation({
+    mutationFn: (wsId) => workspaceApi.delete(wsId),
     onSuccess: (res) => {
-      message.success(
-        res?.data?.detail || "Workspace default palette saved to GeoServer successfully!"
-      );
-      if (applyToExisting) {
-        refetchLayers();
-        queryClient.invalidateQueries({ queryKey: ["layers"] });
+      message.success(translateApi(res?.data?.detail) || "Workspace berhasil dihapus!");
+      queryClient.invalidateQueries({ queryKey: ["workspaces-list"] });
+      queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      if (activeWsId) {
+        setSearchParams({});
       }
     },
     onError: (err) => {
-      message.error(
-        err.response?.data?.detail || "Failed to save workspace default palette"
-      );
+      const errorMsg = translateApi(err?.response?.data?.detail) || err?.message || "Gagal menghapus workspace.";
+      message.error(errorMsg);
+    }
+  });
+
+  // Mutation Hapus Layer
+  const deleteLayerMutation = useMutation({
+    mutationFn: (layerId) => layerApi.delete(layerId),
+    onSuccess: (res) => {
+      message.success(translateApi(res?.data?.detail) || "Layer deleted successfully!");
+      refetchLayers();
+      queryClient.invalidateQueries({ queryKey: ["layers"] });
+      queryClient.invalidateQueries({ queryKey: ["workspace-layers"] });
+    },
+    onError: (err) => {
+      const errorMsg = translateApi(err?.response?.data?.detail) || err?.message || "Failed to delete layer";
+      message.error(errorMsg);
     },
   });
 
-  const handleSaveDefaultStyle = () => {
-    if (!id_workspace) return;
-    saveStyleMutation.mutate({
-      style_type: styleType,
-      colors: classes.map((c) => ({
-        quantity: Number(c.quantity),
-        color: c.color,
-        opacity: Number(c.opacity),
-        label: c.label || "",
-      })),
-      apply_to_existing: applyToExisting,
-    });
-  };
-
-  if (isLoadingWorkspace) {
+  // 0. Loading check untuk otorisasi API Key
+  if (isLoadingKey) {
     return (
-      <div className="min-h-screen flex justify-center items-center">
-        <Spin size="large" tip="Loading workspace data..." />
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+        <Spin size="large" />
+        <span className="text-sm text-slate-500 font-medium">{t('verifyingAuthGeoServer', 'Memverifikasi status otorisasi GeoServer Microservice...')}</span>
       </div>
     );
   }
 
-  const projectId = id || workspace?.project_id;
-
-  if (isError) {
+  // =========================================================================
+  // BLOKIR AKSES WORKSPACE JIKA API KEY DINONAKTIFKAN OLEH ADMIN (DRY Component)
+  // =========================================================================
+  if (isKeyDisabled || !isKeyActive) {
     return (
-      <div className="p-8 text-red-500">
-        <p className="font-semibold">An Error Occurred</p>
-        <p className="text-sm">{error?.response?.data?.detail || "Workspace not found"}</p>
-        <BackButton fallbackTo={projectId ? `/dashboard/project/detail/${projectId}` : "/dashboard/project"} className="mt-4" />
+      <AccessDeniedCard
+        featureName={t('menuWorkspace', 'Workspace')}
+        description={t('accessDeniedWorkspaceDesc', 'Seluruh akses ke ruang kerja spasial GeoServer, layer raster, dan vektor ditangguhkan sementara hingga Administrator mengaktifkan kembali status API Key Anda.')}
+        keyData={keyData}
+        onRefresh={refetchKey}
+        isRefreshing={isLoadingKey}
+      />
+    );
+  }
+
+  // =========================================================================
+  // MODE 1: WORKSPACE LIST VIEW (Ketika activeWsId tidak ada)
+  // =========================================================================
+  if (!activeWsId) {
+    const rawData = workspacesListRes?.data?.data || [];
+    const filteredWorkspaces = searchWs 
+      ? rawData.filter(w => 
+          w.display_name?.toLowerCase().includes(searchWs.toLowerCase()) || 
+          w.name?.toLowerCase().includes(searchWs.toLowerCase()) || 
+          w.ws_name?.toLowerCase().includes(searchWs.toLowerCase())
+        )
+      : rawData;
+
+    const columns = [
+      {
+        title: t('columnWorkspaceDisplay', "Workspace (Display & GeoServer)"),
+        key: "name",
+        render: (_, r) => (
+          <div className="flex items-center space-x-3">
+            <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl border border-blue-100 flex-shrink-0">
+              <FolderOutlined className="text-lg" />
+            </div>
+            <div className="min-w-0">
+              {/* Display Name Wajib Tampil Jelas */}
+              <span 
+                onClick={() => setSearchParams({ id: r.id })}
+                className="font-bold text-slate-800 hover:text-blue-600 cursor-pointer transition block text-sm truncate"
+                title={r.display_name || r.name}
+              >
+                {r.display_name || r.name}
+              </span>
+              {/* Nama Teknis di GeoServer (digunakan untuk memanggil WMS Layer) */}
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="text-[11px] text-slate-600 font-mono bg-slate-100 px-2 py-0.5 rounded border border-slate-200 flex items-center gap-1">
+                  <span className="text-slate-400 font-sans font-medium">GeoServer / WMS:</span>
+                  <span className="font-semibold text-slate-700 select-all">{r.ws_name || r.workspace_name || r.id}</span>
+                </span>
+                <Tooltip title={t('copyGeoServerName', "Salin Nama GeoServer / WMS")}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigator.clipboard.writeText(r.ws_name || r.workspace_name || r.id);
+                      message.success(t('geoServerNameCopied', "Nama GeoServer berhasil disalin!"));
+                    }}
+                    className="text-slate-400 hover:text-blue-600 p-0.5 rounded hover:bg-slate-100 transition-colors"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                </Tooltip>
+              </div>
+            </div>
+          </div>
+        )
+      },
+      {
+        title: t('columnWorkspaceId', "Workspace ID"),
+        dataIndex: "id",
+        key: "id",
+        width: 140,
+        render: (id) => (
+          <Space size="small">
+            <code className="text-xs bg-slate-100 text-blue-700 font-mono px-2 py-0.5 rounded border border-slate-200 font-semibold">
+              {id}
+            </code>
+            <Tooltip title={t('copyId', "Salin ID")}>
+              <Button
+                type="text"
+                size="small"
+                icon={<CopyOutlined className="text-slate-400 hover:text-blue-600 text-xs" />}
+                onClick={() => {
+                  navigator.clipboard.writeText(id);
+                  message.success(t('workspaceIdCopied', "ID Workspace tersalin!"));
+                }}
+              />
+            </Tooltip>
+          </Space>
+        )
+      },
+      {
+        title: t('createdAt', "Dibuat Pada"),
+        dataIndex: "created_at",
+        key: "created_at",
+        width: 150,
+        render: (dateVal) => <span className="text-xs text-slate-500">{formatDate(dateVal, language)}</span>
+      },
+      {
+        title: t('actions', "Aksi"),
+        key: "actions",
+        width: 180,
+        render: (_, r) => {
+          const isDeleting = deleteWorkspaceMutation.isPending && deleteWorkspaceMutation.variables === r.id;
+          return (
+            <div className="flex items-center gap-2">
+              <Button
+                type="primary"
+                size="small"
+                onClick={() => setSearchParams({ id: r.id })}
+                className="text-xs bg-blue-600"
+              >
+                {t('openLayers', "Buka Layer")}
+              </Button>
+              <Popconfirm
+                title={t('deleteWorkspaceConfirmTitle', "Hapus Workspace ini?")}
+                description={t('deleteWorkspaceConfirmDesc', { name: r.display_name || r.name })}
+                onConfirm={async () => {
+                  try {
+                    await deleteWorkspaceMutation.mutateAsync(r.ws_name || r.workspace_name || r.id);
+                  } catch (e) {
+                    // Handled in onError callback
+                  }
+                }}
+                okText={t('delete', "Hapus")}
+                cancelText={t('cancel', "Batal")}
+                okType="danger"
+                okButtonProps={{ loading: isDeleting }}
+              >
+                <Button 
+                  size="small" 
+                  danger 
+                  loading={isDeleting}
+                  icon={<Trash2 className="w-3.5 h-3.5" />} 
+                />
+              </Popconfirm>
+            </div>
+          );
+        }
+      }
+    ];
+
+    return (
+      <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-6">
+        {/* Header (DRY PageHeader Component) */}
+        <PageHeader
+          icon={FolderOutlined}
+          title={t('workspaceTitle', 'Workspace Spasial')}
+          subtitle={t('workspaceSubtitle', 'Kelola ruang kerja GeoServer Anda untuk mengorganisir data raster dan vektor.')}
+          iconBgColor="bg-blue-50"
+          iconColor="text-blue-600"
+          extra={
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setOpenCreateWsModal(true)}
+              className="flex items-center shadow-sm"
+            >
+              {t('newWorkspace', 'Buat Workspace Baru')}
+            </Button>
+          }
+        />
+
+        {/* Controls */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="relative w-full sm:w-72">
+            <SearchOutlined className="text-slate-400 absolute left-3 top-3 text-sm" />
+            <input
+              type="text"
+              placeholder={t('searchWorkspacePlaceholder', "Cari workspace...")}
+              value={searchWs}
+              onChange={(e) => setSearchWs(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            />
+          </div>
+          <Button icon={<ReloadOutlined />} onClick={() => refetchList()}>
+            {t('reloadBtn', "Muat Ulang")}
+          </Button>
+        </div>
+
+        {/* Table List */}
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
+          <Table
+            dataSource={filteredWorkspaces}
+            columns={columns}
+            rowKey="id"
+            loading={isLoadingList}
+            pagination={{
+              current: wsPage,
+              pageSize: wsPageSize,
+              total: workspacesListRes?.data?.total || 0,
+              onChange: (p, s) => {
+                setWsPage(p);
+                setWsPageSize(s);
+              }
+            }}
+          />
+        </div>
+
+        {/* Create Modal */}
+        <WorkspaceModal
+          open={openCreateWsModal}
+          onClose={() => {
+            setOpenCreateWsModal(false);
+            refetchList();
+          }}
+        />
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // MODE 2: WORKSPACE DETAIL VIEW (Ketika activeWsId dipilih)
+  // =========================================================================
+  if (isLoadingWorkspace) {
+    return (
+      <div className="flex justify-center items-center h-full min-h-[400px]">
+        <Spin size="large" />
       </div>
     );
   }
 
   return (
-    <div className="p-3 sm:p-5 md:p-8 bg-slate-50 min-h-screen font-sans">
-      {/* Back Button */}
-      <BackButton fallbackTo={projectId ? `/dashboard/project/detail/${projectId}` : "/dashboard/project"} />
+    <div className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto">
+      {/* Back to List Button */}
+      <div>
+        <Button
+          type="text"
+          icon={<ArrowLeft className="w-4 h-4" />}
+          onClick={() => setSearchParams({})}
+          className="text-slate-600 hover:text-blue-600 font-medium flex items-center gap-1.5 px-0"
+        >
+          {t('backToWorkspacesList', "Kembali ke Daftar Workspace")}
+        </Button>
+      </div>
 
-      {/* Workspace Header */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm mb-4 sm:mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-start gap-3 sm:gap-4">
-            <div className="p-2.5 sm:p-3 bg-blue-50 text-blue-600 rounded-xl flex-shrink-0">
-              <FolderOutlined className="text-xl sm:text-2xl" />
+      {/* Header Banner */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 relative overflow-hidden">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl border border-blue-100 flex-shrink-0">
+              <FolderOutlined className="text-2xl" />
             </div>
+
             <div>
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h1 className="text-2xl font-bold text-slate-800 m-0">
-                  {workspace?.name}
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
+                  {workspace?.display_name || workspace?.name}
                 </h1>
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-mono font-medium shadow-2xs">
-                  <span className="text-slate-500 font-sans font-normal">Workspace ID:</span>
-                  <span className="font-semibold">{workspace?.id || id_workspace}</span>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-mono font-medium shadow-2xs">
+                  <span className="text-slate-500 font-sans font-normal">{t('columnWorkspaceId', 'Workspace ID')}:</span>
+                  <span className="font-semibold select-all">{workspace?.id || activeWsId}</span>
                   <button
                     onClick={() => {
-                      navigator.clipboard.writeText(workspace?.id || id_workspace);
-                      message.success("Workspace ID copied to clipboard!");
+                      navigator.clipboard.writeText(workspace?.id || activeWsId);
+                      message.success(t('workspaceIdCopied', "ID Workspace tersalin!"));
                     }}
-                    title="Copy Workspace ID"
+                    title={t('copyId', "Salin ID Workspace")}
                     className="hover:text-blue-900 text-blue-600 transition-colors cursor-pointer p-0.5 rounded hover:bg-blue-100"
                   >
                     <Copy className="w-3.5 h-3.5" />
                   </button>
                 </div>
+                <span className="font-mono text-xs px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md border border-slate-200 flex items-center gap-1">
+                  <span className="text-slate-400 font-sans">GeoServer / WMS:</span>
+                  <span className="font-semibold text-slate-700 select-all">{workspace?.ws_name || workspace?.workspace_name || activeWsId}</span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(workspace?.ws_name || workspace?.workspace_name || activeWsId);
+                      message.success(t('geoServerNameCopied', "Nama GeoServer berhasil disalin!"));
+                    }}
+                    title={t('copyGeoServerName', "Salin Nama GeoServer / WMS")}
+                    className="hover:text-blue-900 text-slate-500 transition-colors cursor-pointer p-0.5 rounded hover:bg-slate-200 ml-0.5"
+                  >
+                    <Copy className="w-3 h-3" />
+                  </button>
+                </span>
               </div>
-              <div className="flex items-center gap-4 text-xs text-slate-400 mt-2">
+
+              <div className="flex items-center gap-4 text-xs text-slate-400 mt-2 flex-wrap">
                 <span className="flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5" /> Created {formatTanggal(workspace?.created_at)}
+                  <Clock className="w-3.5 h-3.5" /> {t('createdAt', 'Dibuat')}: {formatDate(workspace?.created_at, language)}
                 </span>
                 <span className="flex items-center gap-1">
-                  <DatabaseOutlined /> {layerPagination?.total ?? 0} Layers Available
+                  <DatabaseOutlined /> {layerPagination?.total ?? 0} {t('layers', 'Layer')}
                 </span>
               </div>
             </div>
@@ -257,9 +504,9 @@ const Workspace = () => {
               type="primary"
               icon={<PlusOutlined />}
               onClick={() => setOpenUploadModal(true)}
-              className="flex items-center gap-1.5"
+              className="flex items-center"
             >
-              Upload New Layer
+              {t('uploadLayer', 'Upload Layer Baru')}
             </Button>
           </div>
         </div>
@@ -268,7 +515,7 @@ const Workspace = () => {
         <div className="mt-5 p-3.5 bg-blue-50/60 border border-blue-100 rounded-xl flex items-center gap-3 text-xs text-blue-800">
           <Info className="w-4 h-4 text-blue-600 flex-shrink-0" />
           <span>
-            This workspace is directly integrated with GeoServer. All layers under this workspace can have their default color palette configured here.
+            {t('workspaceBannerHint', "Workspace ini terhubung langsung ke GeoServer Microservice. Seluruh layer raster & vektor yang dipublish di bawah workspace ini dikelola di sini.")}
           </span>
         </div>
       </div>
@@ -281,261 +528,11 @@ const Workspace = () => {
           tabBarStyle={{ paddingLeft: "24px", paddingRight: "24px", marginBottom: 0 }}
           items={[
             {
-              key: "palette",
-              label: (
-                <span className="flex items-center gap-2 py-1 font-semibold">
-                  <Palette className="w-4 h-4 text-amber-500" />
-                  Default Palette Settings (Style Template)
-                </span>
-              ),
-              children: (
-                <div className="p-6">
-                  {/* Default Palette Description */}
-                  <div className="mb-6">
-                    <h2 className="text-base font-bold text-slate-800">
-                      Default Color Palette for New Rasters
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Every new 1-band raster layer published to workspace{" "}
-                      <span className="font-semibold text-slate-700">
-                        {workspace?.name}
-                      </span>{" "}
-                      will automatically use this color scheme.
-                    </p>
-                  </div>
-
-                  {/* Popular Presets */}
-                  <div className="mb-6">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 mb-3">
-                      <Sparkles className="w-4 h-4 text-amber-500" />
-                      <span>Quick Select from Popular Palette Presets:</span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {PRESETS.map((p) => (
-                        <div
-                          key={p.id}
-                          onClick={() => handleApplyPreset(p)}
-                          className="p-3 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/20 cursor-pointer transition flex flex-col justify-between group"
-                        >
-                          <div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-semibold text-slate-800 group-hover:text-blue-600">
-                                {p.name}
-                              </span>
-                              <Tag className="text-[10px] m-0">{p.styleType}</Tag>
-                            </div>
-                            {/* Color preview bar */}
-                            <div className="flex h-3 w-full rounded overflow-hidden shadow-inner my-2">
-                              {p.classes.map((c, i) => (
-                                <div
-                                  key={i}
-                                  style={{
-                                    backgroundColor: c.opacity === 0 ? "transparent" : c.color,
-                                    flex: 1,
-                                  }}
-                                  className={
-                                    c.opacity === 0 ? "border border-dashed border-slate-300" : ""
-                                  }
-                                />
-                              ))}
-                            </div>
-                          </div>
-                          <span className="text-[10px] text-slate-400 truncate">
-                            {p.description}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* GeoServer SLD Color Method */}
-                  <div className="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                      <span className="text-xs font-semibold text-slate-800 block">
-                        GeoServer SLD Color Method
-                      </span>
-                      <span className="text-[11px] text-slate-500">
-                        {styleType === "values" &&
-                          "Exact discrete values (Ideal for risk classification classes 1, 2, 3, 4, 5)"}
-                        {styleType === "intervals" &&
-                          "Gradual intervals (Pixels styled based on quantity interval boundaries)"}
-                        {styleType === "ramp" &&
-                          "Continuous smooth gradient interpolation between pixel values"}
-                      </span>
-                    </div>
-                    <Select
-                      value={styleType}
-                      onChange={setStyleType}
-                      className="w-44"
-                      options={[
-                        { value: "values", label: "Discrete (Values)" },
-                        { value: "intervals", label: "Intervals" },
-                        { value: "ramp", label: "Gradient (Ramp)" },
-                      ]}
-                    />
-                  </div>
-
-                  {/* Classes & Color Editor */}
-                  <div className="mb-6">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-xs font-semibold text-slate-700">
-                        Classes &amp; Color List ({classes.length} classes):
-                      </span>
-                      <Button
-                        type="dashed"
-                        size="small"
-                        icon={<Plus className="w-3.5 h-3.5" />}
-                        onClick={addClass}
-                        className="text-xs flex items-center"
-                      >
-                        Add Class
-                      </Button>
-                    </div>
-
-                    <div className="space-y-2 max-h-[320px] overflow-y-auto overflow-x-auto pr-1">
-                      <div className="min-w-[500px] space-y-2">
-                        {classes.map((cls, idx) => (
-                          <div
-                            key={idx}
-                            className="flex items-center gap-2.5 p-2.5 bg-white rounded-xl border border-slate-200 text-xs hover:border-slate-300 transition"
-                          >
-                            {/* Color Picker */}
-                            <div className="flex items-center gap-1.5 flex-shrink-0">
-                              <input
-                                type="color"
-                                value={cls.color}
-                                onChange={(e) => updateClass(idx, "color", e.target.value)}
-                                className="w-8 h-8 rounded border border-slate-200 cursor-pointer p-0 bg-transparent"
-                                title="Choose Color"
-                              />
-                              <input
-                                type="text"
-                                value={cls.color}
-                                onChange={(e) => updateClass(idx, "color", e.target.value)}
-                                className="w-16 px-1.5 py-1 text-[11px] font-mono border border-slate-200 rounded uppercase text-slate-700"
-                              />
-                            </div>
-
-                            {/* Pixel Value */}
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                              <span className="text-[10px] text-slate-400 font-medium">Value:</span>
-                              <input
-                                type="number"
-                                value={cls.quantity}
-                                onChange={(e) => updateClass(idx, "quantity", e.target.value)}
-                                className="w-16 px-1.5 py-1 text-xs border border-slate-200 rounded text-slate-800 font-medium text-center"
-                              />
-                            </div>
-
-                            {/* Label Description */}
-                            <div className="flex-1 min-w-0">
-                              <input
-                                type="text"
-                                value={cls.label}
-                                placeholder="Description label (e.g. Critical High)..."
-                                onChange={(e) => updateClass(idx, "label", e.target.value)}
-                                className="w-full px-2.5 py-1 text-xs border border-slate-200 rounded text-slate-700"
-                              />
-                            </div>
-
-                            {/* Opacity Slider */}
-                            <div className="flex items-center gap-1.5 flex-shrink-0 w-28">
-                              <span className="text-[10px] text-slate-400">Op:</span>
-                              <input
-                                type="range"
-                                min="0"
-                                max="1"
-                                step="0.1"
-                                value={cls.opacity}
-                                onChange={(e) =>
-                                  updateClass(idx, "opacity", parseFloat(e.target.value))
-                                }
-                                className="w-16 accent-blue-600 cursor-pointer"
-                              />
-                              <span className="text-[10px] font-mono text-slate-500 w-7">
-                                {Math.round(cls.opacity * 100)}%
-                              </span>
-                            </div>
-
-                            {/* Delete Class Button */}
-                            <button
-                              type="button"
-                              onClick={() => removeClass(idx)}
-                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition"
-                              title="Delete Class"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Preview Legenda Bar */}
-                  <div className="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
-                    <span className="text-xs font-semibold text-slate-700 block mb-2">
-                      WMS Legend Preview:
-                    </span>
-                    <div className="flex flex-wrap gap-2">
-                      {classes.map((cls, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center gap-1.5 text-xs text-slate-700 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-sm"
-                        >
-                          <span
-                            className="w-3.5 h-3.5 rounded-full flex-shrink-0 border border-black/10"
-                            style={{
-                              backgroundColor: cls.opacity === 0 ? "transparent" : cls.color,
-                              backgroundImage:
-                                cls.opacity === 0
-                                  ? "repeating-linear-gradient(45deg, #ccc, #ccc 2px, #fff 2px, #fff 4px)"
-                                  : "none",
-                            }}
-                          />
-                          <span className="font-semibold text-slate-800">
-                            {cls.label || `Val ${cls.quantity}`}
-                          </span>
-                          <span className="text-slate-400 text-[10px]">({cls.quantity})</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Checkbox Apply to Existing */}
-                  <div className="mb-6">
-                    <Checkbox
-                      checked={applyToExisting}
-                      onChange={(e) => setApplyToExisting(e.target.checked)}
-                      className="text-xs text-slate-700 font-medium"
-                    >
-                      Also apply this palette to all existing raster layers currently in this
-                      workspace ({layerPagination?.total ?? 0} layers)
-                    </Checkbox>
-                  </div>
-
-                  {/* Save Button */}
-                  <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
-                    <Button
-                      type="primary"
-                      size="large"
-                      onClick={handleSaveDefaultStyle}
-                      loading={saveStyleMutation.isPending}
-                      icon={<Check className="w-4 h-4" />}
-                      className="flex items-center gap-2"
-                    >
-                      Save Workspace Default Palette
-                    </Button>
-                  </div>
-                </div>
-              ),
-            },
-            {
               key: "layers",
               label: (
-                <span className="flex items-center gap-2 py-1 font-semibold">
+                <span className="flex items-center gap-2 py-1 font-semibold text-sm">
                   <Layers className="w-4 h-4 text-blue-600" />
-                  Layers in Workspace ({layerPagination?.total ?? 0})
+                  {t('layersInWorkspace', { count: layerPagination?.total ?? 0 })}
                 </span>
               ),
               children: (
@@ -546,13 +543,13 @@ const Workspace = () => {
                       <SearchOutlined className="text-slate-400 absolute left-3 top-2.5" />
                       <input
                         type="text"
-                        placeholder="Search layers in this workspace..."
+                        placeholder={t('searchLayersInWorkspace', "Cari layer dalam workspace...")}
                         value={searchLayer}
                         onChange={(e) => {
                           setSearchLayer(e.target.value);
                           setLayerPage(1);
                         }}
-                        className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                       />
                     </div>
 
@@ -563,7 +560,7 @@ const Workspace = () => {
                         size="small"
                         className="text-xs"
                       >
-                        Refresh
+                        {t('refresh', 'Refresh')}
                       </Button>
                       <Button
                         type="primary"
@@ -572,138 +569,101 @@ const Workspace = () => {
                         onClick={() => setOpenUploadModal(true)}
                         className="text-xs flex items-center"
                       >
-                        Add Layer
+                        {t('addLayer', 'Tambah Layer')}
                       </Button>
                     </div>
                   </div>
 
-                  {/* List Layers */}
+                  {/* Layers List Cards */}
                   {isLoadingLayers ? (
-                    <div className="py-16 text-center">
-                      <Spin tip="Loading workspace layers..." />
+                    <div className="flex justify-center items-center py-20">
+                      <Spin size="large" />
                     </div>
                   ) : layersList.length === 0 ? (
-                    <div className="py-16 text-center text-slate-400 border border-dashed border-slate-200 rounded-2xl">
-                      <Layers className="w-12 h-12 mx-auto mb-2 opacity-30 text-slate-500" />
-                      <p className="text-sm font-semibold text-slate-700">
-                        No layers in this workspace yet
-                      </p>
-                      <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-                        Upload GeoTIFF files to workspace "{workspace?.name}".
+                    <div className="text-center py-16 px-4 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                      <Layers className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                      <h3 className="text-sm font-semibold text-slate-700">{t('noLayersInWorkspaceYet', 'Belum Ada Layer')}</h3>
+                      <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                        {t('noLayersInWorkspaceDesc', 'Workspace ini belum memiliki layer spasial. Upload file Shapefile, GeoJSON, atau GeoTIFF untuk memulai.')}
                       </p>
                       <Button
                         type="primary"
-                        className="mt-4"
                         icon={<PlusOutlined />}
+                        size="small"
                         onClick={() => setOpenUploadModal(true)}
+                        className="mt-4 text-xs"
                       >
-                        Upload Layer Now
+                        {t('uploadLayer', 'Upload Layer Sekarang')}
                       </Button>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {layersList.map((layer) => (
-                        <div
-                          key={layer.id}
-                          className="p-4 bg-white rounded-xl border border-slate-200 hover:border-blue-400 hover:shadow-sm transition flex flex-col justify-between"
-                        >
-                          <div>
-                            {(() => {
-                              const cfg = getTypeConfig(layer.data_type, layer.layer_type);
-                              return (
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex items-center gap-2.5">
-                                    <div className={`p-2 ${cfg.bgColor} ${cfg.textColor} rounded-lg flex-shrink-0`}>
-                                      {cfg.isVector ? <Shapes className="w-4 h-4" /> : <ImageIcon className="w-4 h-4" />}
-                                    </div>
-                                    <div>
-                                      <h3 className="text-sm font-bold text-slate-800 truncate max-w-[200px]">
-                                        {layer.layer_name}
-                                      </h3>
-                                      <span className="text-[11px] font-mono text-slate-400">
-                                        EPSG:{layer.epsg} • {cfg.label}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <Tag color="green" className="text-[10px] m-0">
-                                    {layer.status}
-                                  </Tag>
-                                </div>
-                              );
-                            })()}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {layersList.map((layer) => {
+                        const typeConfig = getTypeConfig(layer.layer_type);
+                        return (
+                          <div
+                            key={layer.id}
+                            className="bg-white border border-slate-200 rounded-xl p-4.5 hover:shadow-md transition-all duration-200 flex flex-col justify-between"
+                          >
+                            <div className="space-y-3">
+                              <div className="flex items-start justify-between gap-2">
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-bold tracking-wider ${typeConfig.bgColor} ${typeConfig.color} border ${typeConfig.borderColor}`}>
+                                  {typeConfig.icon}
+                                  {typeConfig.label}
+                                </span>
 
-                            {/* Info dimensions / bbox */}
-                            <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-slate-500 bg-slate-50 p-2 rounded-lg">
-                              <div>
-                                <span className="text-slate-400 block text-[10px]">Type:</span>
-                                <span className="font-semibold">{layer.layer_type}</span>
+                                <Popconfirm
+                                  title={t('deleteLayerConfirmTitle', "Hapus layer ini?")}
+                                  description={t('deleteLayerConfirmDesc', "Layer akan dihapus dari GeoServer.")}
+                                  onConfirm={() => deleteLayerMutation.mutate(layer.id)}
+                                  okText={t('delete', "Hapus")}
+                                  cancelText={t('cancel', "Batal")}
+                                  okType="danger"
+                                >
+                                  <button className="text-slate-400 hover:text-red-600 transition p-1 rounded-md hover:bg-red-50">
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </Popconfirm>
                               </div>
+
                               <div>
-                                <span className="text-slate-400 block text-[10px]">Dimensions:</span>
-                                <span className="font-semibold">
-                                  {layer.width ? `${layer.width}x${layer.height} px` : "-"}
+                                <h4 className="font-bold text-sm text-slate-800 truncate" title={layer.layer_name}>
+                                  {layer.layer_name}
+                                </h4>
+                                <span className="text-xs text-slate-400 font-mono block truncate">
+                                  {layer.geoserver_layer_name}
                                 </span>
                               </div>
                             </div>
-                          </div>
 
-                          {/* Actions */}
-                          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <button
-                                onClick={() => setSelectedLayerForStyle(layer)}
-                                className="text-xs font-semibold text-amber-600 hover:text-amber-700 flex items-center gap-1 hover:underline"
-                              >
-                                <Palette className="w-3.5 h-3.5" />
-                                <span>Custom Style</span>
-                              </button>
-
+                            <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+                              <span>EPSG: {layer.srid || "4326"}</span>
                               <Link
-                                to="/dashboard/layer"
-                                className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 hover:underline"
+                                to={`/dashboard/layer?id=${layer.id}`}
+                                className="text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
                               >
-                                <span>View on Map</span>
-                                <ExternalLink className="w-3.5 h-3.5" />
+                                {t('detailAndPreview', 'Detail & Pratinjau →')}
                               </Link>
                             </div>
-
-                            {/* Delete Layer Button */}
-                            <Popconfirm
-                              title="Delete Layer?"
-                              description={`Are you sure you want to delete layer "${layer.layer_name}"?`}
-                              onConfirm={() => deleteLayerMutation.mutate(layer.id)}
-                              okText="Delete"
-                              cancelText="Cancel"
-                              okButtonProps={{ danger: true, loading: deleteLayerMutation.isPending && deleteLayerMutation.variables === layer.id }}
-                            >
-                              <button
-                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                                title="Delete Layer from Workspace"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </Popconfirm>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
 
                   {/* Pagination */}
                   {layerPagination && layerPagination.total > 0 && (
-                    <div className="flex justify-center mt-6">
+                    <div className="flex justify-end mt-6">
                       <Pagination
-                        current={layerPagination.page}
-                        pageSize={layerPagination.size}
+                        current={layerPage}
+                        pageSize={layerPageSize}
                         total={layerPagination.total}
+                        onChange={(p, s) => {
+                          setLayerPage(p);
+                          setLayerPageSize(s);
+                        }}
                         showSizeChanger
                         pageSizeOptions={["6", "12", "24"]}
-                        size="small"
-                        showTotal={(total) => `${total} layers found`}
-                        onChange={(newPage, newPageSize) => {
-                          setLayerPage(newPage);
-                          setLayerPageSize(newPageSize);
-                        }}
                       />
                     </div>
                   )}
@@ -714,28 +674,15 @@ const Workspace = () => {
         />
       </div>
 
-      {/* Modal Custom Style untuk layer individual jika diinginkan */}
-      {selectedLayerForStyle && (
-        <LayerStyleModal
-          open={Boolean(selectedLayerForStyle)}
-          onClose={() => setSelectedLayerForStyle(null)}
-          layer={selectedLayerForStyle}
-          onStyleApplied={() => {
-            refetchLayers();
-            message.success("Individual layer style updated successfully!");
-          }}
-        />
-      )}
-
-      {/* Modal Upload Layer dengan Workspace & Project Terkunci */}
+      {/* Modal Upload Layer */}
       <LayerModal
         open={openUploadModal}
         onClose={() => setOpenUploadModal(false)}
-        defaultProjectId={workspace?.project_id}
-        defaultWorkspaceId={workspace?.id || id_workspace}
+        defaultWorkspaceId={workspace?.id || activeWsId}
         lockWorkspace={true}
         onSuccess={() => {
           refetchLayers();
+          queryClient.invalidateQueries({ queryKey: ["workspace-detail", activeWsId] });
         }}
       />
     </div>

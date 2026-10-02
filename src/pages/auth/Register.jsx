@@ -4,13 +4,16 @@ import { useMutation } from '@tanstack/react-query'
 import authApi from '../../api/AuthApi'
 import { useNavigate, Link } from 'react-router-dom'
 import OtpVerificationModal from '../../components/auth/OtpVerificationModal'
+import { useLanguage } from '../../context/LanguageContext'
 
 const appName = import.meta.env.VITE_APP_NAME
 
 const Register = () => {
+    const { t, translateApi } = useLanguage()
+
     useEffect(() => {
-        document.title = `Register | ${appName}`
-    }, [])
+        document.title = `${t('authRegisterButton', 'Register')} | ${appName}`
+    }, [t])
 
     const navigate = useNavigate()
 
@@ -23,11 +26,11 @@ const Register = () => {
         mutationFn: authApi.register,
         onSuccess: (response) => {
             const data = response?.data
-            message.success(data?.detail || "Registration successful! An OTP code has been sent to your email.")
+            message.success(translateApi(data?.detail) || t('authRegisterSuccess', "Registration successful! An OTP code has been sent to your email."))
             setIsOtpModalOpen(true)
         },
         onError: (error) => {
-            message.error(error.response?.data?.detail || "An error occurred during registration.")
+            message.error(translateApi(error) || t('authRegisterFailed', "An error occurred during registration."))
         }
     })
 
@@ -43,8 +46,8 @@ const Register = () => {
 
     return (
         <div className='flex flex-col justify-center items-center gap-1 w-full'>
-            <h1 className='text-white font-bold text-xl sm:text-2xl mb-1'>Create an Account</h1>
-            <p className='text-slate-300 text-xs sm:text-sm text-center mb-4'>Join AstraGIS to publish and analyze spatial data</p>
+            <h1 className='text-white font-bold text-xl sm:text-2xl mb-1'>{t('authRegisterTitle', 'Create an Account')}</h1>
+            <p className='text-slate-300 text-xs sm:text-sm text-center mb-4'>{t('authRegisterSubtitle', 'Join AstraGIS to publish and analyze spatial data')}</p>
 
             <ConfigProvider
                 theme={{
@@ -58,60 +61,63 @@ const Register = () => {
                 <Form layout='vertical' onFinish={onFinish} className='w-full'>
                     <Form.Item
                         name={"username"}
-                        label={<span className='text-xs sm:text-sm text-white'>Username</span>}
-                        rules={[{ required: true, message: "Please enter your username" }]}
+                        label={<span className='text-xs sm:text-sm text-white'>{t('authUsernameLabel', 'Username')}</span>}
+                        rules={[{ required: true, message: t('authUsernameRequired', "Please enter your username") }]}
                         className='w-full mb-3'
                     >
-                        <Input placeholder="Enter username" size="large" className='rounded-lg text-sm sm:text-base' />
+                        <Input placeholder={t('authUsernamePlaceholder', "Enter username")} size="large" className='rounded-lg text-sm sm:text-base' />
                     </Form.Item>
 
                     <Form.Item
                         name={"email"}
-                        label={<span className='text-xs sm:text-sm text-white'>Email Address</span>}
+                        label={<span className='text-xs sm:text-sm text-white'>{t('authEmailLabel', 'Email Address')}</span>}
                         rules={[
-                            { required: true, message: "Please enter your email" },
-                            { type: 'email', message: "Please enter a valid email address" }
+                            { required: true, message: t('authEmailRequired', "Please enter your email") },
+                            { type: 'email', message: t('authEmailInvalid', "Please enter a valid email address") }
                         ]}
                         className='w-full mb-3'
                     >
-                        <Input placeholder="name@example.com" size="large" className='rounded-lg text-sm sm:text-base' />
+                        <Input placeholder={t('authEmailPlaceholder', "name@example.com")} size="large" className='rounded-lg text-sm sm:text-base' />
                     </Form.Item>
 
                     <Form.Item
                         name="password"
-                        label={<span className='text-xs sm:text-sm text-white'>Password</span>}
+                        label={<span className='text-xs sm:text-sm text-white'>{t('authPasswordLabel', 'Password')}</span>}
                         rules={[
-                            { required: true, message: 'Please enter a password' },
-                            { min: 8, message: "Password must be at least 8 characters" }
+                            { required: true, message: t('authPasswordRequired', 'Please enter a password') },
+                            { min: 8, message: t('authPasswordMin', "Password must be at least 8 characters") }
                         ]}
                         className='w-full mb-3'
                     >
-                        <Input.Password placeholder="Min 8 characters" size="large" className='rounded-lg text-sm sm:text-base' />
+                        <Input.Password placeholder={t('newPasswordPlaceholder', "Min 8 characters")} size="large" className='rounded-lg text-sm sm:text-base' />
                     </Form.Item>
 
                     <Form.Item
                         name="confirmPassword"
-                        label={<span className='text-xs sm:text-sm text-white'>Confirm Password</span>}
+                        label={<span className='text-xs sm:text-sm text-white'>{t('authConfirmPasswordLabel', 'Confirm Password')}</span>}
                         dependencies={['password']}
                         className='w-full mb-4'
                         rules={[
-                            { required: true, message: 'Please confirm your password' },
+                            { required: true, message: t('authConfirmPasswordRequired', 'Please confirm your password') },
                             ({ getFieldValue }) => ({
                                 validator(_, value) {
                                     if (!value || getFieldValue('password') === value) {
                                         return Promise.resolve()
                                     }
-                                    return Promise.reject(new Error('The two passwords do not match!'))
+                                    return Promise.reject(new Error(t('authPasswordMismatch', 'The two passwords do not match!')))
                                 },
                             }),
-                            { min: 8, message: "Password must be at least 8 characters" }
+                            { min: 8, message: t('authPasswordMin', "Password must be at least 8 characters") }
                         ]}
                     >
-                        <Input.Password placeholder="Repeat your password" size="large" className='rounded-lg text-sm sm:text-base' />
+                        <Input.Password placeholder={t('authConfirmPasswordPlaceholder', "Repeat your password")} size="large" className='rounded-lg text-sm sm:text-base' />
                     </Form.Item>
 
                     <p className='text-slate-300 text-xs sm:text-sm mb-4'>
-                        Already have an account? <Link to={"/auth/login"} className='text-teal-400 hover:text-teal-300 font-medium'>Login</Link>
+                        {t('authAlreadyHaveAccount', 'Already have an account?')}{' '}
+                        <Link to={"/auth/login"} className='text-teal-400 hover:text-teal-300 font-medium'>
+                            {t('authLoginButton', 'Login')}
+                        </Link>
                     </p>
 
                     <Button
@@ -121,7 +127,7 @@ const Register = () => {
                         loading={registerMutation.isPending}
                         className='w-full bg-teal-600 hover:bg-teal-500 font-semibold h-11 rounded-lg text-sm sm:text-base'
                     >
-                        Register
+                        {t('authRegisterButton', 'Register')}
                     </Button>
                 </Form>
             </ConfigProvider>
@@ -138,8 +144,8 @@ const Register = () => {
                     setIsOtpModalOpen(false)
                     navigate('/dashboard')
                 }}
-                title="Verify Your Email Address"
-                subtitle="Registration Successful!"
+                title={t('authVerificationRequired', "Verify Your Email Address")}
+                subtitle={t('authRegisterSuccess', "Registration Successful!")}
             />
         </div>
     )

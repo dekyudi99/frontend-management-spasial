@@ -14,17 +14,21 @@ import {
     KeyOutlined,
     MoreOutlined,
     EditOutlined,
-    DeleteOutlined
+    DeleteOutlined,
+    GlobalOutlined,
+    LockOutlined
 } from "@ant-design/icons";
 import {
     ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 import { Link } from "react-router-dom";
 import formatTanggal from "../utils/formatTanggal";
+import { useLanguage } from "../context/LanguageContext";
 
 const {Title,Text}=Typography;
 
 const ProjectCard = ({project, onManage, onEdit, onDelete})=>{
+    const { t } = useLanguage();
 
     const items=[
 
@@ -78,7 +82,17 @@ const ProjectCard = ({project, onManage, onEdit, onDelete})=>{
                     {project.description}
                 </Text>
 
-                <div className="flex gap-2 flex-wrap">
+                <div className="flex gap-2 flex-wrap items-center">
+                    {project.visibility === "public" ? (
+                        <Tag color="success" icon={<GlobalOutlined />}>
+                            {t("visibilityPublic", "Public")}
+                        </Tag>
+                    ) : (
+                        <Tag color="default" icon={<LockOutlined />}>
+                            {t("visibilityPrivate", "Private")}
+                        </Tag>
+                    )}
+
                     <Tag color="blue" icon={<DatabaseOutlined/>}>
                         {project.workspace_count} Workspace
                     </Tag>

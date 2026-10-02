@@ -12,9 +12,10 @@ import {
 import { Dropdown, Modal } from "antd";
 import { useSidebar } from "../context/SidebarContext";
 import { useLanguage } from "../context/LanguageContext";
+import { availableLanguages } from "../i18n/translations";
 
 const Header = () => {
-    const { t } = useLanguage();
+    const { language, setLanguage, t } = useLanguage();
     const navigate = useNavigate();
     const location = useLocation();
     const isDashboard = location.pathname.startsWith("/dashboard");
@@ -32,6 +33,7 @@ const Header = () => {
             okType: "danger",
             onOk() {
                 localStorage.removeItem("JWT_TOKEN");
+                localStorage.removeItem("astragis_s2s_key");
                 navigate("/auth/login");
             },
         });
@@ -72,8 +74,8 @@ const Header = () => {
                                 }
                             }}
                             className="p-1.5 -ml-1 text-blue-200 hover:text-white hover:bg-blue-900 rounded-lg transition active:scale-95 cursor-pointer focus:outline-none"
-                            title={isDesktopOpen ? "Tutup Sidebar" : "Buka Sidebar"}
-                            aria-label="Toggle Sidebar"
+                            title={isDesktopOpen ? t('closeSidebar', "Tutup Sidebar") : t('openSidebar', "Buka Sidebar")}
+                            aria-label={t('toggleSidebar', "Toggle Sidebar")}
                         >
                             <Bars3Icon className="w-6 h-6" />
                         </button>
@@ -86,7 +88,7 @@ const Header = () => {
                         <img
                             src={Logo}
                             alt="Logo"
-                            className="h-8 sm:h-9 transition-transform group-hover:scale-105"
+                            className="h-8 sm:h-9 transition-transform group-hover:scale-105 rounded-lg"
                         />
 
                         <h1 className="text-xl sm:text-2xl font-bold text-white tracking-wide">
@@ -96,7 +98,50 @@ const Header = () => {
                 </div>
 
                 {/* Right Menu */}
-                <div className="flex items-center">
+                <div className="flex items-center gap-2 sm:gap-3">
+
+                    <Dropdown
+                        menu={{
+                            items: availableLanguages.map((lang) => ({
+                                key: lang.code,
+                                label: `${lang.flag} ${lang.nativeName}`,
+                                onClick: () => setLanguage(lang.code),
+                            })),
+                            selectedKeys: [language],
+                        }}
+                        trigger={["click"]}
+                        placement="bottomRight"
+                    >
+                        <button
+                            type="button"
+                            className="
+                                flex
+                                items-center
+                                justify-center
+                                gap-1.5
+                                h-10
+                                px-2.5
+                                sm:px-3
+                                rounded-lg
+                                border
+                                border-white/20
+                                bg-blue-900
+                                text-white
+                                hover:bg-blue-800
+                                transition
+                                text-xs
+                                sm:text-sm
+                                font-semibold
+                                cursor-pointer
+                                shrink-0
+                            "
+                            title={t('changeLanguage', 'Change Language')}
+                            aria-label={t('changeLanguage', 'Change Language')}
+                        >
+                            <span className="text-sm sm:text-base leading-none">{availableLanguages.find((l) => l.code === language)?.flag || '🌐'}</span>
+                            <span className="uppercase tracking-wider font-bold leading-none">{language}</span>
+                        </button>
+                    </Dropdown>
 
                     {isAuthenticated ? (
                         <Dropdown

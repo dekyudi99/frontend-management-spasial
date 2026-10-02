@@ -1,16 +1,96 @@
-# React + Vite
+﻿# AstraGIS Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Frontend platform GIS berbasis web untuk pengelolaan, publikasi, dan visualisasi data spasial.
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Framework:** React 19 + Vite 8
+- **UI Library:** Ant Design (antd 6)
+- **Styling:** TailwindCSS 4 + CSS custom
+- **Routing:** React Router DOM 7
+- **State/Fetch:** TanStack React Query 5
+- **Peta:** Leaflet + React Leaflet
+- **HTTP:** Axios
 
-## React Compiler
+## Fitur Utama
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- 🗺️ **Upload Layer Multi-Format** — GeoTIFF, GeoJSON, Shapefile (ZIP), KML, KMZ, CSV
+- 📦 **Batch Upload** — Hingga 10 file sekaligus dengan pemrosesan latar belakang
+- 🗂️ **Layer Groups** — Gabungkan beberapa layer untuk overlay WMS
+- 🎨 **Style Management** — Terapkan SLD XML atau JSON ColorMap ke layer
+- 🔑 **API Key Management** — Generate & kelola API Key untuk integrasi S2S
+- 🗑️ **Hapus Otomatis** — Penghapusan layer membersihkan GeoServer, PostGIS, dan storage
+- 🌐 **Internasionalisasi** — Dukungan multi-bahasa (ID/EN)
+- 📄 **Dokumentasi Terintegrasi** — Panduan API tersedia di halaman `/docs`
 
-## Expanding the ESLint configuration
+## Prasyarat
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- Node.js >= 18
+- Backend Main API aktif (`VITE_API_BASE_URL`)
+- GeoServer Microservice aktif (`VITE_GEOSERVER_MICROSERVICE_URL`)
+
+## Environment Variables
+
+Salin `.env.example` ke `.env.local`:
+
+```bash
+cp .env.example .env.local
+```
+
+Variabel yang diperlukan:
+
+| Variable | Keterangan |
+|---|---|
+| `VITE_APP_NAME` | Nama aplikasi (default: AstraGIS) |
+| `VITE_API_BASE_URL` | URL Main API (contoh: `http://localhost:8000`) |
+| `VITE_GEOSERVER_MICROSERVICE_URL` | URL GeoServer Microservice (contoh: `http://localhost:8005`) |
+| `VITE_GEOSERVER_WMS_URL` | URL GeoServer WMS (contoh: `http://localhost:8080/geoserver/wms`) |
+
+## Menjalankan Lokal
+
+```bash
+# Install dependencies
+npm install
+
+# Jalankan development server
+npm run dev
+```
+
+Buka `http://localhost:5173` di browser.
+
+## Build Produksi
+
+```bash
+npm run build
+```
+
+Output tersedia di folder `dist/`.
+
+## Docker
+
+```bash
+# Build & jalankan dengan Docker Compose
+docker compose up --build
+```
+
+## Struktur Folder
+
+```
+src/
+├── api/          # Fungsi HTTP (Axios) untuk setiap service
+├── components/   # Komponen reusable (Modal, Card, Header, dsb.)
+├── context/      # React Context (Language, Sidebar)
+├── i18n/         # File terjemahan (ID/EN)
+├── layout/       # Layout wrapper (Dashboard, Auth, Main)
+├── pages/        # Halaman utama (Dashboard, Layer, Workspace, dsb.)
+└── utils/        # Utility functions (geoUtils, formatTanggal, dsb.)
+```
+
+## Dokumentasi API
+
+Buka halaman `/docs` di dalam aplikasi untuk panduan lengkap penggunaan API, termasuk:
+- Upload layer via dashboard
+- Integrasi S2S (FlowGIS, Laravel, Python)
+- Endpoint hapus layer (single & batch)
+- Format style (SLD & JSON ColorMap)
+- Contoh kode cURL, PHP/Laravel, Python

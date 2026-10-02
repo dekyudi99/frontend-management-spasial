@@ -1,1 +1,24 @@
 @import "tailwindcss";
+
+/* Responsive Admin Tabs and Table Styling */
+.admin-tabs .ant-tabs-nav {
+  margin-bottom: 16px !important;
+}
+
+.admin-tabs .ant-tabs-nav-wrap {
+  overflow-x: auto !important;
+  scrollbar-width: none; /* Firefox */
+}
+
+.admin-tabs .ant-tabs-nav-wrap::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
+}
+
+.admin-tabs .ant-tabs-nav-list {
+  flex-wrap: nowrap !important;
+}
+
+/* Ant Design Table Mobile Scrolling polish */
+.ant-table-wrapper .ant-table {
+  scrollbar-width: thin;
+}

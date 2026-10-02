@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Typography, Button, Tabs, Spin } from "antd";
 import {
     EditOutlined,
+    GlobalOutlined,
+    LockOutlined
 } from "@ant-design/icons";
 
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -14,7 +16,7 @@ import projectApi from "../api/ProjectApi";
 import { useQuery } from "@tanstack/react-query";
 import formatTanggal from "../utils/formatTanggal";
 import ProjectModal from "../components/ProjectModal";
-import BackButton from "../components/common/BackButton";
+import BackButton from "../components/BackButton";
 import { useLanguage } from "../context/LanguageContext";
 
 const { Title, Text } = Typography;
@@ -64,9 +66,20 @@ const DetailProject = () => {
 
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
                 <div>
-                    <Title level={2} className="!mb-1">
-                        {data.project_name}
-                    </Title>
+                    <div className="flex items-center gap-3 flex-wrap mb-1">
+                        <Title level={2} className="!mb-0">
+                            {data.project_name}
+                        </Title>
+                        {data.visibility === "public" ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                                <GlobalOutlined className="text-emerald-500" /> {t("visibilityPublic", "Public")}
+                            </span>
+                        ) : (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                                <LockOutlined className="text-slate-400" /> {t("visibilityPrivate", "Private")}
+                            </span>
+                        )}
+                    </div>
 
                     <Text type="secondary">
                         {data.description}
@@ -139,6 +152,7 @@ const DetailProject = () => {
                                 id={data.id}
                                 projectName={data.project_name}
                                 description={data.description}
+                                visibility={data.visibility}
                             />
                         )
                     }

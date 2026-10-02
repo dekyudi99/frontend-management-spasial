@@ -11,10 +11,13 @@ import {
   CheckSquare,
   Square,
   ArrowDownUp,
+  Trash2,
 } from "lucide-react";
-import { Button, Spin, Pagination, message, Tabs, Badge, Select } from "antd";
+import { Button, Spin, Pagination, message, Tabs, Badge, Select, Tag, Popconfirm } from "antd";
+import { LockOutlined } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
+import keyApi from "../api/KeyApi";
 import layerApi from "../api/LayerApi";
 import layerGroupApi from "../api/LayerGroupApi";
 import workspaceApi from "../api/WorkspaceApi";
@@ -25,10 +28,14 @@ import LayerGroupCard from "../components/layer/LayerGroupCard";
 import LayerGroupModal from "../components/layer/LayerGroupModal";
 import LayerGroupEditModal from "../components/layer/LayerGroupEditModal";
 import MapFlyController from "../components/layer/MapFlyController";
+import AccessDeniedCard from "../components/AccessDeniedCard";
+import PageHeader from "../components/PageHeader";
+import { useLanguage } from "../context/LanguageContext";
 
 const appName = import.meta.env.VITE_APP_NAME
 
 const Layer = () => {
+  const { t } = useLanguage();
   useEffect(()=>{
     document.title = `Layer | ${appName}`
   },[])
@@ -47,6 +54,7 @@ const Layer = () => {
   const [selectedLayerId, setSelectedLayerId] = useState(null);
   const [checkedLayerIds, setCheckedLayerIds] = useState([]);
   const [activeTab, setActiveTab] = useState("layers");
+  const [flyTrigger, setFlyTrigger] = useState(0);
 
   // Pagination states
   const [page, setPage] = useState(1);
@@ -62,17 +70,33 @@ const Layer = () => {
   // Group settings (visibility, opacity)
   const [groupSettings, setGroupSettings] = useState({});
   const [selectedGroupId, setSelectedGroupId] = useState(null);
+  const [deletingLayerId, setDeletingLayerId] = useState(null);
 
-  // 0. Fetch Workspaces milik user untuk filter dropdown
+  // 0. Cek Status API Key
+  const {
+    data: keyRes,
+    isLoading: isLoadingKey,
+  } = useQuery({
+    queryKey: ["my-api-key"],
+    queryFn: () => keyApi.getMyKey(),
+    staleTime: 5000,
+  });
+
+  const keyData = keyRes?.data;
+  const isKeyActive = Boolean(keyData?.is_active);
+  const isKeyDisabled = !isLoadingKey && keyData && keyData.is_active === false;
+
+  // 0. Fetch Workspaces milik user untuk filter dropdown (hanya jika key aktif)
   const { data: workspacesResponse } = useQuery({
-    queryKey: ["user-workspaces"],
+    queryKey: ["user-workspaces", isKeyActive],
     queryFn: () => workspaceApi.getAll(),
+    enabled: isKeyActive,
   });
   const userWorkspaces = workspacesResponse?.data?.data || [];
 
-  // 1. Fetch Layers Query (Backend Filtering: pagination, workspace_id, search)
+  // 1. Fetch Layers Query (hanya jika key aktif)
   const { data: responseData, isLoading: isLoadingLayers } = useQuery({
-    queryKey: ["layers", page, pageSize, selectedWorkspaceId, searchQuery],
+    queryKey: ["layers", page, pageSize, selectedWorkspaceId, searchQuery, isKeyActive],
     queryFn: () =>
       layerApi.list({
         page,
@@ -80,27 +104,57 @@ const Layer = () => {
         workspace_id: selectedWorkspaceId || undefined,
         search: searchQuery.trim() || undefined,
       }),
+    enabled: isKeyActive,
   });
 
-  // 2. Fetch Layer Groups Query (Backend Filtering: workspace_id)
+  // 2. Fetch Layer Groups Query (hanya jika key aktif)
   const { data: groupResponse, isLoading: isLoadingGroups } = useQuery({
-    queryKey: ["layer-groups", selectedWorkspaceId],
+    queryKey: ["layer-groups", selectedWorkspaceId, isKeyActive],
     queryFn: () =>
       layerGroupApi.list({
         workspace_id: selectedWorkspaceId || undefined,
       }),
+    enabled: isKeyActive,
   });
 
   // Delete layer mutation
   const deleteLayerMutation = useMutation({
-    mutationFn: (id) => layerApi.delete(id),
+    mutationFn: (layerOrId) => {
+      const id = typeof layerOrId === "object" ? layerOrId.id : layerOrId;
+      setDeletingLayerId(id);
+      return layerApi.delete(layerOrId);
+    },
     onSuccess: (res) => {
       message.success(res?.data?.detail || "Layer deleted successfully!");
       queryClient.invalidateQueries({ queryKey: ["layers"] });
       queryClient.invalidateQueries({ queryKey: ["layer-groups"] });
     },
     onError: (err) => {
-      message.error(err.response?.data?.detail || "Failed to delete layer");
+      message.error(err.response?.data?.detail || err.message || "Failed to delete layer");
+    },
+    onSettled: () => {
+      setDeletingLayerId(null);
+    },
+  });
+
+  // Batch delete layers mutation
+  const [isBatchDeleting, setIsBatchDeleting] = useState(false);
+  const batchDeleteMutation = useMutation({
+    mutationFn: (ids) => {
+      setIsBatchDeleting(true);
+      return layerApi.batchDelete(ids);
+    },
+    onSuccess: (res) => {
+      message.success(res?.data?.detail || `${checkedLayerIds.length} layers deleted successfully!`);
+      setCheckedLayerIds([]);
+      queryClient.invalidateQueries({ queryKey: ["layers"] });
+      queryClient.invalidateQueries({ queryKey: ["layer-groups"] });
+    },
+    onError: (err) => {
+      message.error(err.response?.data?.detail || err.message || "Failed to delete selected layers");
+    },
+    onSettled: () => {
+      setIsBatchDeleting(false);
     },
   });
 
@@ -251,6 +305,7 @@ const Layer = () => {
   const handleSelectLayer = (id) => {
     setSelectedLayerId(id);
     setSelectedGroupId(null);
+    setFlyTrigger((prev) => prev + 1);
     setLayerSettings((prev) => ({
       ...prev,
       [id]: { ...prev[id], visible: true },
@@ -267,6 +322,7 @@ const Layer = () => {
   const handleSelectGroup = (groupId) => {
     setSelectedGroupId(groupId);
     setSelectedLayerId(null);
+    setFlyTrigger((prev) => prev + 1);
     setGroupSettings((prev) => ({
       ...prev,
       [groupId]: { ...prev[groupId], visible: true },
@@ -287,31 +343,48 @@ const Layer = () => {
   const visibleLayerCount = layers.filter((l) => l.visible).length;
   const visibleGroupCount = layerGroups.filter((g) => g.visible).length;
 
+  if (isLoadingKey) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+        <Spin size="large" />
+        <span className="text-sm text-slate-500 font-medium">{t('verifyingAuthGeoServer', 'Memverifikasi status otorisasi GeoServer Microservice...')}</span>
+      </div>
+    );
+  }
+
+  if (isKeyDisabled || !isKeyActive) {
+    return (
+      <AccessDeniedCard
+        featureName={t('menuLayer', 'Layer & Peta')}
+        description={t('accessDeniedLayerDesc', 'Seluruh akses ke visualisasi layer peta GeoServer, upload raster/vektor, dan styling ditangguhkan sementara hingga Administrator mengaktifkan kembali status API Key Anda.')}
+        keyData={keyData}
+        onRefresh={refetchKey}
+        isRefreshing={isLoadingKey}
+      />
+    );
+  }
+
   return (
     <div className="p-3 sm:p-5 md:p-6 bg-slate-50 min-h-[calc(100vh-64px)] font-sans">
-      {/* ── Header ───────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-3 sm:gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-2">
-            <Layers className="w-6 h-6 sm:w-7 sm:h-7 text-blue-600" />
-            Layer &amp; Group Management
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Manage, reorder layers (drag &amp; drop), create Layer Groups, and preview via GeoServer WMS.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
+      {/* ── Header (DRY PageHeader Component) ─────────────────────────── */}
+      <PageHeader
+        icon={Layers}
+        title={t('layerPageTitle', 'Layer & Group Management')}
+        subtitle={t('layerPageSubtitle', 'Manage, reorder layers (drag & drop), create Layer Groups, and preview via GeoServer WMS.')}
+        iconBgColor="bg-blue-50"
+        iconColor="text-blue-600"
+        className="mb-4 sm:mb-6"
+        extra={
           <Button
             onClick={() => setOpenLayerModal(true)}
             type="primary"
             icon={<Plus className="w-4 h-4" />}
             className="flex items-center gap-1.5 !bg-blue-600 hover:!bg-blue-500"
           >
-            Add New Layer
+            {t('addNewLayer', 'Add New Layer')}
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* ── Main Grid Layout ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
@@ -328,7 +401,7 @@ const Layer = () => {
                     key: "layers",
                     label: (
                       <span className="flex items-center gap-2 text-sm font-medium">
-                        Single Layers
+                        {t('tabSingleLayers', 'Single Layers')}
                         <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-semibold">
                           {layers.length}
                         </span>
@@ -339,7 +412,7 @@ const Layer = () => {
                     key: "groups",
                     label: (
                       <span className="flex items-center gap-2 text-sm font-medium">
-                        Layer Groups
+                        {t('tabLayerGroups', 'Layer Groups')}
                         <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-semibold">
                           {layerGroups.length}
                         </span>
@@ -355,7 +428,7 @@ const Layer = () => {
               {/* Workspace Filter Dropdown */}
               <Select
                 allowClear
-                placeholder="All Workspaces"
+                placeholder={t('allWorkspaces', 'All Workspaces')}
                 value={selectedWorkspaceId}
                 onChange={(val) => {
                   setSelectedWorkspaceId(val || null);
@@ -364,8 +437,8 @@ const Layer = () => {
                 className="w-full sm:w-44 text-xs shrink-0"
               >
                 {userWorkspaces.map((ws) => (
-                  <Select.Option key={ws.raw_id || ws.id} value={String(ws.raw_id || ws.id)}>
-                    {ws.name}
+                  <Select.Option key={ws.id || ws.ws_name} value={String(ws.id || ws.ws_name)}>
+                    {ws.display_name || ws.name || ws.id}
                   </Select.Option>
                 ))}
               </Select>
@@ -377,8 +450,8 @@ const Layer = () => {
                   type="text"
                   placeholder={
                     activeTab === "layers"
-                      ? "Search layer name..."
-                      : "Search layer group name..."
+                      ? t('searchLayerPlaceholder', 'Search layer name...')
+                      : t('searchGroupPlaceholder', 'Search layer group name...')
                   }
                   value={searchQuery}
                   onChange={(e) => {
@@ -405,96 +478,127 @@ const Layer = () => {
                       ) : (
                         <Square className="w-4 h-4 text-slate-400" />
                       )}
-                      <span>Select All ({checkedLayerIds.length}/{filteredLayers.length})</span>
+                      <span>{t('selectAll', 'Select All')} ({checkedLayerIds.length}/{filteredLayers.length})</span>
                     </button>
                   </div>
 
                   <div className="flex items-center gap-1.5 text-slate-400 text-[11px]">
                     <ArrowDownUp className="w-3.5 h-3.5" />
-                    <span>Drag handle to reorder</span>
+                    <span>{t('dragToReorder', 'Drag handle to reorder')}</span>
                   </div>
                 </div>
 
                 {/* Banner CTA when layers are checked */}
                 {checkedLayerIds.length > 0 && (
-                  <div className="mx-3 mt-3 p-2.5 bg-indigo-50 border border-indigo-200/80 rounded-xl flex items-center justify-between gap-2 animate-in fade-in duration-200">
+                  <div className="mx-3 mt-3 p-2.5 bg-indigo-50 border border-indigo-200/80 rounded-xl flex items-center justify-between gap-2 animate-in fade-in duration-200 flex-wrap">
                     <div className="flex items-center gap-2 text-xs font-semibold text-indigo-900">
                       <CheckCircle2 className="w-4 h-4 text-indigo-600" />
-                      <span>{checkedLayerIds.length} layers selected</span>
+                      <span>{t('layersCountSelected', '{count} layers selected', { count: checkedLayerIds.length })}</span>
                     </div>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <Button
                         size="small"
                         type="primary"
                         onClick={() => setOpenGroupModal(true)}
+                        disabled={isBatchDeleting}
                         className="!bg-indigo-600 hover:!bg-indigo-500 !text-xs !font-medium"
                       >
-                        Save to Group
+                        {t('saveToGroup', 'Save to Group')}
                       </Button>
+
+                      <Popconfirm
+                        title={t('deleteSelectedLayersTitle', `Hapus ${checkedLayerIds.length} Layer Terpilih?`)}
+                        description={t(
+                          'deleteSelectedLayersDesc',
+                          `Apakah Anda yakin ingin menghapus ${checkedLayerIds.length} layer terpilih secara permanen? Data di GeoServer dan database akan dihapus.`
+                        )}
+                        onConfirm={() => batchDeleteMutation.mutate(checkedLayerIds)}
+                        okText={t('delete', 'Hapus')}
+                        cancelText={t('cancel', 'Batal')}
+                        okButtonProps={{ danger: true, loading: isBatchDeleting }}
+                      >
+                        <Button
+                          size="small"
+                          danger
+                          loading={isBatchDeleting}
+                          icon={<Trash2 className="w-3.5 h-3.5" />}
+                          className="!text-xs !font-medium"
+                        >
+                          {t('deleteSelected', `Hapus (${checkedLayerIds.length})`)}
+                        </Button>
+                      </Popconfirm>
+
                       <button
                         onClick={() => setCheckedLayerIds([])}
-                        className="text-xs text-slate-500 hover:text-slate-700 px-2 py-1"
+                        disabled={isBatchDeleting}
+                        className="text-xs text-slate-500 hover:text-slate-700 px-2 py-1 disabled:opacity-50"
                       >
-                        Cancel
+                        {t('cancel', 'Cancel')}
                       </button>
                     </div>
                   </div>
                 )}
 
                 {/* List of Layers (Drag & Drop enabled) */}
-                <div className="p-3 space-y-2.5 max-h-[520px] overflow-y-auto">
-                  {isLoadingLayers ? (
-                    <div className="text-center py-10">
-                      <Spin tip="Loading layers list..." />
-                    </div>
-                  ) : filteredLayers.length === 0 ? (
-                    <div className="text-center py-10 text-slate-400">
-                      <Layers className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                      <p className="text-sm">No layers found</p>
-                      <p className="text-xs mt-1">Click "Add New Layer" to upload GIS data</p>
-                    </div>
-                  ) : (
-                    filteredLayers.map((layer, idx) => (
-                      <LayerCard
-                        key={layer.id}
-                        layer={layer}
-                        index={idx}
-                        isSelected={selectedLayerId === layer.id}
-                        isChecked={checkedLayerIds.includes(layer.id)}
-                        onSelect={handleSelectLayer}
-                        onToggleCheck={handleToggleCheck}
-                        onToggleVisibility={toggleLayerVisibility}
-                        onOpenStyle={setStylingLayer}
-                        onDelete={(id) => deleteLayerMutation.mutate(id)}
-                        // Drag & Drop
-                        onDragStart={handleDragStart}
-                        onDragOver={handleDragOver}
-                        onDrop={handleDrop}
-                        onDragEnd={handleDragEnd}
-                        isDragging={draggedIndex === idx}
-                      />
-                    ))
-                  )}
+                <Spin
+                  spinning={isBatchDeleting}
+                  tip={t('deletingSelectedLayers', `Sedang menghapus ${checkedLayerIds.length} layer terpilih...`)}
+                >
+                  <div className="p-3 space-y-2.5 max-h-[520px] overflow-y-auto">
+                    {isLoadingLayers ? (
+                      <div className="text-center py-10">
+                        <Spin tip={t('loadingLayers', 'Loading layers list...')} />
+                      </div>
+                    ) : filteredLayers.length === 0 ? (
+                      <div className="text-center py-10 text-slate-400">
+                        <Layers className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                        <p className="text-sm">{t('noLayersFound', 'No layers found')}</p>
+                        <p className="text-xs mt-1">{t('clickAddLayerHint', 'Click "Add New Layer" to upload GIS data')}</p>
+                      </div>
+                    ) : (
+                      filteredLayers.map((layer, idx) => (
+                        <LayerCard
+                          key={layer.id}
+                          layer={layer}
+                          index={idx}
+                          isSelected={selectedLayerId === layer.id}
+                          isChecked={checkedLayerIds.includes(layer.id)}
+                          onSelect={handleSelectLayer}
+                          onToggleCheck={handleToggleCheck}
+                          onToggleVisibility={toggleLayerVisibility}
+                          onOpenStyle={setStylingLayer}
+                          onDelete={(layerOrId) => deleteLayerMutation.mutate(layerOrId)}
+                          isDeleting={deletingLayerId === layer.id || (isBatchDeleting && checkedLayerIds.includes(layer.id))}
+                          // Drag & Drop
+                          onDragStart={handleDragStart}
+                          onDragOver={handleDragOver}
+                          onDrop={handleDrop}
+                          onDragEnd={handleDragEnd}
+                          isDragging={draggedIndex === idx}
+                        />
+                      ))
+                    )}
 
-                  {/* Pagination */}
-                  {pagination && pagination.total > 0 && (
-                    <div className="flex justify-center mt-3 pt-2 border-t border-slate-100">
-                      <Pagination
-                        current={pagination.page}
-                        pageSize={pagination.size}
-                        total={pagination.total}
-                        showSizeChanger
-                        pageSizeOptions={["3", "6", "12"]}
-                        size="small"
-                        showTotal={(total) => `${total} layers`}
-                        onChange={(newPage, newPageSize) => {
-                          setPage(newPage);
-                          setPageSize(newPageSize);
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
+                    {/* Pagination */}
+                    {pagination && pagination.total > 0 && (
+                      <div className="flex justify-center mt-3 pt-2 border-t border-slate-100">
+                        <Pagination
+                          current={pagination.page}
+                          pageSize={pagination.size}
+                          total={pagination.total}
+                          showSizeChanger
+                          pageSizeOptions={["3", "6", "12"]}
+                          size="small"
+                          showTotal={(total) => `${total} ${t('layersAvailable', 'layers')}`}
+                          onChange={(newPage, newPageSize) => {
+                            setPage(newPage);
+                            setPageSize(newPageSize);
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </Spin>
               </>
             )}
 
@@ -503,7 +607,7 @@ const Layer = () => {
               <div className="p-3 space-y-2.5 max-h-[540px] overflow-y-auto">
                 <div className="flex items-center justify-between px-1 pb-1">
                   <span className="text-xs text-slate-400">
-                    Layer Group combines multi-layers into a single WMS request
+                    {t('groupInfoHint', 'Layer Group combines multi-layers into a single WMS request')}
                   </span>
                   <Button
                     size="small"
@@ -511,7 +615,7 @@ const Layer = () => {
                     icon={<Plus className="w-3.5 h-3.5" />}
                     onClick={() => {
                       if (checkedLayerIds.length === 0) {
-                        message.info("Check layers in the 'Single Layers' tab to create a group");
+                        message.info(t('selectLayersToGroupFirst', "Check layers in the 'Single Layers' tab to create a group"));
                         setActiveTab("layers");
                       } else {
                         setOpenGroupModal(true);
@@ -519,20 +623,20 @@ const Layer = () => {
                     }}
                     className="!p-0 !text-xs text-blue-600"
                   >
-                    New Group
+                    {t('newGroup', 'New Group')}
                   </Button>
                 </div>
 
                 {isLoadingGroups ? (
                   <div className="text-center py-10">
-                    <Spin tip="Loading layer groups..." />
+                    <Spin tip={t('loadingGroups', 'Loading layer groups...')} />
                   </div>
                 ) : filteredGroups.length === 0 ? (
                   <div className="text-center py-10 text-slate-400">
                     <FolderPlus className="w-10 h-10 mx-auto mb-2 opacity-40 text-indigo-400" />
-                    <p className="text-sm font-medium">No Layer Groups Yet</p>
+                    <p className="text-sm font-medium">{t('noGroupsYet', 'No Layer Groups Yet')}</p>
                     <p className="text-xs mt-1 max-w-xs mx-auto">
-                      Check layers in the "Single Layers" tab, then click "Save to Group".
+                      {t('createGroupHint', 'Check layers in the "Single Layers" tab, then click "Save to Group".')}
                     </p>
                   </div>
                 ) : (
@@ -565,12 +669,12 @@ const Layer = () => {
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
                 </span>
                 <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  WMS Live Engine
+                  {t('wmsLiveEngine', 'WMS Live Engine')}
                 </span>
                 {selectedLayer && (
                   <span className="text-[11px] text-blue-600 font-medium flex items-center gap-1 ml-1 truncate max-w-[160px]">
                     <Navigation2 className="w-3 h-3 flex-shrink-0" />
-                    {selectedLayer.layer_name}
+                    {selectedLayer.display_name || selectedLayer.layer_name}
                   </span>
                 )}
                 {selectedGroup && (
@@ -585,16 +689,16 @@ const Layer = () => {
               <div className="flex items-center gap-2">
                 {visibleLayerCount > 0 && (
                   <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
-                    {visibleLayerCount} Active Layers
+                    {visibleLayerCount} {t('activeLayersCount', 'Active Layers')}
                   </span>
                 )}
                 {visibleGroupCount > 0 && (
                   <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
-                    {visibleGroupCount} Active Groups
+                    {visibleGroupCount} {t('activeGroupsCount', 'Active Groups')}
                   </span>
                 )}
                 {visibleLayerCount === 0 && visibleGroupCount === 0 && (
-                  <span className="text-xs text-slate-400">Map standby</span>
+                  <span className="text-xs text-slate-400">{t('mapStandby', 'Map standby')}</span>
                 )}
               </div>
             </div>
@@ -613,20 +717,25 @@ const Layer = () => {
                 />
 
                 {/* Controller fly-to ke bbox layer / group terpilih */}
-                <MapFlyController selectedLayer={selectedLayer} selectedGroup={selectedGroup} />
+                <MapFlyController
+                  selectedLayer={selectedLayer}
+                  selectedGroup={selectedGroup}
+                  flyTrigger={flyTrigger}
+                />
 
                 {/* Render Individual WMS Layers:
                     Array di-reverse agar item teratas di list (#1) dirender terakhir di DOM
                     dan memiliki zIndex paling tinggi, sehingga tampil di tumpukan paling atas pada peta */}
                 {[...layers].reverse().map((layer, revIdx) => {
                   if (!layer.visible || !layer.wms_url) return null;
+                  const lyrName = layer.geoserver_name || layer.table_name || layer.store_name || layer.layer_name;
                   return (
                     <WMSTileLayer
                       key={`layer-${layer.id}-${layerSettings[layer.id]?.styleUpdatedAt || 0}`}
                       url={layer.wms_url}
                       zIndex={10 + revIdx}
                       params={{
-                        layers: `${layer.workspace_name}:${layer.geoserver_name}`,
+                        layers: `${layer.workspace_name}:${lyrName}`,
                         format: "image/png",
                         transparent: true,
                         version: "1.1.1",
@@ -667,6 +776,12 @@ const Layer = () => {
       <LayerModal
         open={openLayerModal}
         onClose={() => setOpenLayerModal(false)}
+        onSuccess={() => {
+          setPage(1);
+          queryClient.invalidateQueries({ queryKey: ["layers"] });
+          queryClient.refetchQueries({ queryKey: ["layers"] });
+          queryClient.invalidateQueries({ queryKey: ["layer-groups"] });
+        }}
         page={page}
         pageSize={pageSize}
       />

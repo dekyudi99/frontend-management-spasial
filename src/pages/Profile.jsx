@@ -5,18 +5,18 @@ import authApi from '../api/AuthApi'
 import OtpVerificationModal from '../components/auth/OtpVerificationModal'
 import { useLanguage } from '../context/LanguageContext'
 import ProfileIdentityCard from '../components/profile/ProfileIdentityCard'
-import LanguageSelectCard from '../components/profile/LanguageSelectCard'
 import ProfileSecurityCard from '../components/profile/ProfileSecurityCard'
 import ProfileEditForm from '../components/profile/ProfileEditForm'
 import ProfilePasswordForm from '../components/profile/ProfilePasswordForm'
-import BackButton from '../components/common/BackButton'
+import BackButton from '../components/BackButton'
 import { UserCheck, AlertCircle } from 'lucide-react'
+import { formatDate } from '../utils/formatters'
 
 const appName = import.meta.env.VITE_APP_NAME || 'AstraGIS'
 
 const Profile = () => {
     const queryClient = useQueryClient()
-    const { language, setLanguage, t, translateApi } = useLanguage()
+    const { language, t, translateApi } = useLanguage()
     const [profileForm] = Form.useForm()
     const [passwordForm] = Form.useForm()
 
@@ -62,14 +62,14 @@ const Profile = () => {
         mutationFn: authApi.updateProfile,
         onSuccess: (response) => {
             const data = response?.data
-            message.success(translateApi(data?.detail) || t('saveChanges'))
+            message.success(translateApi(data?.detail) || t('saveChanges', 'Save Changes'))
             if (data?.access_token) {
                 localStorage.setItem('JWT_TOKEN', data.access_token)
             }
             queryClient.invalidateQueries({ queryKey: ['userProfile'] })
         },
         onError: (error) => {
-            message.error(translateApi(error.response?.data?.detail) || 'Failed to update profile.')
+            message.error(translateApi(error.response?.data?.detail) || t('profileUpdateFailed', 'Failed to update profile.'))
         }
     })
 
@@ -78,12 +78,12 @@ const Profile = () => {
         mutationFn: authApi.sendChangeEmailOtp,
         onSuccess: (response) => {
             const rawDetail = response?.data?.detail
-            const fallbackMsg = `Verification OTP code has been sent to your new email (${pendingNewEmail}).`
+            const fallbackMsg = t('otpSentEmail', { email: pendingNewEmail })
             message.success(translateApi(rawDetail) || fallbackMsg)
             setIsEmailOtpModalOpen(true)
         },
         onError: (error) => {
-            message.error(translateApi(error.response?.data?.detail) || 'Failed to send OTP to new email.')
+            message.error(translateApi(error.response?.data?.detail) || t('otpSendFailed', 'Failed to send OTP to new email.'))
         }
     })
 
@@ -92,11 +92,11 @@ const Profile = () => {
         mutationFn: authApi.changePassword,
         onSuccess: (response) => {
             const data = response?.data
-            message.success(translateApi(data?.detail) || 'Your password has been updated successfully!')
+            message.success(translateApi(data?.detail) || t('passwordChangeSuccess', 'Your password has been updated successfully!'))
             passwordForm.resetFields()
         },
         onError: (error) => {
-            message.error(translateApi(error.response?.data?.detail) || 'Failed to change password.')
+            message.error(translateApi(error.response?.data?.detail) || t('passwordChangeFailed', 'Failed to change password.'))
         }
     })
 
@@ -145,28 +145,6 @@ const Profile = () => {
 
     // Inisial untuk Avatar
     const userInitial = user?.username ? user.username.charAt(0).toUpperCase() : 'U'
-
-    // Format Tanggal Registrasi Berdasarkan Bahasa Aktif
-    const formatDate = (dateString) => {
-        if (!dateString) return '-'
-        try {
-            const normalized = typeof dateString === 'string' && dateString.includes(' ') && !dateString.includes('T')
-                ? dateString.replace(' ', 'T')
-                : dateString
-            const d = new Date(normalized)
-            if (isNaN(d.getTime())) {
-                return String(dateString)
-            }
-            const locale = language === 'id' ? 'id-ID' : language === 'th' ? 'th-TH' : 'en-US'
-            return d.toLocaleDateString(locale, {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-            })
-        } catch {
-            return String(dateString)
-        }
-    }
 
     if (isProfileLoading) {
         return (
@@ -221,13 +199,7 @@ const Profile = () => {
                         <ProfileIdentityCard
                             user={user}
                             userInitial={userInitial}
-                            formatDate={formatDate}
-                            t={t}
-                        />
-
-                        <LanguageSelectCard
-                            language={language}
-                            setLanguage={setLanguage}
+                            formatDate={(val) => formatDate(val, language)}
                             t={t}
                         />
 
