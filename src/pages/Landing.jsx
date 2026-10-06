@@ -16,7 +16,7 @@ import {
   Check
 } from 'lucide-react';
 import BgHome from "../assets/bgHome.jpg";
-import Logo from "../assets/logo2.png";
+import Logo from "../assets/logo.png";
 import { useLanguage } from '../context/LanguageContext';
 
 const appName = import.meta.env.VITE_APP_NAME || "AstraGIS";
@@ -358,4 +358,4 @@ const Landing = () => {
   );
 };
 
-export default Landing;
+export default Landing;
