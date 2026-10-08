@@ -11,8 +11,10 @@ import {
   Check,
   Pencil,
   Navigation2,
+  CheckSquare,
+  Square,
 } from "lucide-react";
-import { Popconfirm, Tag, message } from "antd";
+import { Popconfirm, Tag, Tooltip, message } from "antd";
 import { useLanguage } from "../../context/LanguageContext";
 
 const LayerGroupCard = ({
@@ -23,10 +25,16 @@ const LayerGroupCard = ({
   onToggleVisibility,
   onEdit,
   onDelete,
+  selectedSublayerIds,
+  onToggleSublayer,
 }) => {
   const { t } = useLanguage();
   const [showDetail, setShowDetail] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  const mode = String(group.mode || "SINGLE").toUpperCase();
+  const memberLayers = Array.isArray(group.layers) ? group.layers : [];
+  const layerCount = group.layer_count !== undefined ? group.layer_count : memberLayers.length || (group.layer_ids?.length || 0);
 
   const handleCopyWms = (e) => {
     e.stopPropagation();
@@ -34,6 +42,21 @@ const LayerGroupCard = ({
     setCopied(true);
     message.success(t('layerGroupWmsCopied', "Layer Group WMS URL copied!"));
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const getModeTooltip = () => {
+    switch (mode) {
+      case "SINGLE":
+        return "Mode SINGLE: Semua layer menyatu sebagai 1 komposit WMS di GeoServer. Tidak dapat dimatikan per-sublayer.";
+      case "NAMED":
+        return "Mode NAMED: Grup dengan sublayer independen. Anda dapat mencentang sublayer tertentu untuk ditampilkan.";
+      case "CONTAINER":
+        return "Mode CONTAINER: Pengelompokan struktural. Layer anggota ditampilkan secara mandiri.";
+      case "OPAQUE_CONTAINER":
+        return "Mode OPAQUE_CONTAINER: Layer grup tertutup yang menyembunyikan detail sublayer.";
+      default:
+        return `Mode GeoServer: ${mode}`;
+    }
   };
 
   return (
@@ -73,12 +96,14 @@ const LayerGroupCard = ({
                 </span>
 
                 <Tag color="purple" className="!text-[10px] !m-0 !rounded-full">
-                  {t('layersCountBadge', '{count} Layers', { count: group.layer_count || 0 })}
+                  {t('layersCountBadge', '{count} Layers', { count: layerCount })}
                 </Tag>
 
-                <Tag color="cyan" className="!text-[10px] !m-0 !rounded-full font-mono">
-                  {t('groupModeBadge', 'Mode: {mode}', { mode: group.mode || "single" })}
-                </Tag>
+                <Tooltip title={getModeTooltip()}>
+                  <Tag color="cyan" className="!text-[10px] !m-0 !rounded-full font-mono font-semibold cursor-help">
+                    {t('groupModeBadge', 'Mode: {mode}', { mode })}
+                  </Tag>
+                </Tooltip>
               </div>
             </div>
           </div>
@@ -162,17 +187,18 @@ const LayerGroupCard = ({
           </div>
         </div>
 
-        {/* Panel Detail */}
+        {/* Panel Detail & Sublayer Management */}
         {showDetail && (
-          <div className="mt-3 pt-3 border-t border-slate-100 text-xs space-y-2">
+          <div className="mt-3 pt-3 border-t border-slate-100 text-xs space-y-2.5">
             <div>
               <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
                 {t('technicalNameParam', 'Technical Name (WMS Layer Param)')}
               </span>
-              <p className="font-mono text-slate-700 bg-slate-50 p-1 rounded mt-0.5 border border-slate-100 break-all">
+              <p className="font-mono text-slate-700 bg-slate-50 p-1.5 rounded mt-0.5 border border-slate-100 break-all text-[11px]">
                 {group.wms_layers_param}
               </p>
             </div>
+
             {group.abstract_text && (
               <div>
                 <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
@@ -181,10 +207,84 @@ const LayerGroupCard = ({
                 <p className="text-slate-600 mt-0.5">{group.abstract_text}</p>
               </div>
             )}
+
+            {/* Sublayer list with Mode-aware behavior */}
+            {memberLayers.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+                    {mode === "NAMED"
+                      ? "Pilih Sublayer Aktif (Mode NAMED):"
+                      : mode === "CONTAINER"
+                      ? "Sublayer Kontainer (Mode CONTAINER):"
+                      : "Daftar Layer Anggota (Mode SINGLE):"}
+                  </span>
+                  {mode === "SINGLE" && (
+                    <span className="text-[9px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                      Komposit Otomatis
+                    </span>
+                  )}
+                </div>
+
+                <div className="bg-slate-50/70 border border-slate-200/80 rounded-lg p-1.5 space-y-1 max-h-36 overflow-y-auto">
+                  {memberLayers.map((sub, idx) => {
+                    const subId = sub.id || sub.layer_id;
+                    const isSubActive = !selectedSublayerIds || selectedSublayerIds.includes(subId);
+
+                    return (
+                      <div
+                        key={subId || idx}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if ((mode === "NAMED" || mode === "CONTAINER") && onToggleSublayer) {
+                            onToggleSublayer(group.id, subId);
+                          }
+                        }}
+                        className={`flex items-center justify-between p-1.5 rounded text-[11px] transition ${
+                          mode === "NAMED" || mode === "CONTAINER"
+                            ? "hover:bg-white cursor-pointer"
+                            : ""
+                        } ${isSubActive ? "text-slate-800" : "text-slate-400"}`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          {mode === "NAMED" || mode === "CONTAINER" ? (
+                            <button
+                              type="button"
+                              className="text-indigo-600 shrink-0"
+                            >
+                              {isSubActive ? (
+                                <CheckSquare className="w-3.5 h-3.5" />
+                              ) : (
+                                <Square className="w-3.5 h-3.5 text-slate-300" />
+                              )}
+                            </button>
+                          ) : (
+                            <span className="font-mono text-slate-400 text-[10px] w-4">
+                              #{idx + 1}
+                            </span>
+                          )}
+                          <span className={`truncate font-medium ${!isSubActive ? "line-through text-slate-400" : ""}`}>
+                            {sub.layer_name || sub.geoserver_name}
+                          </span>
+                        </div>
+
+                        <span className="text-[9px] font-mono text-slate-400 shrink-0 pl-1">
+                          {sub.workspace_name || group.workspace_name}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {(mode === "NAMED" || mode === "CONTAINER") && (
+                  <p className="text-[10px] text-slate-400 mt-1 italic">
+                    * Centang / hilangkan centang sublayer di atas untuk menyesuaikan layer yang dirender di peta.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
-
-
       </div>
     </div>
   );

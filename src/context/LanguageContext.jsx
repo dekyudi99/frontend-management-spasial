@@ -34,8 +34,9 @@ export const LanguageProvider = ({ children }) => {
     }, [language])
 
     // Helper untuk mengambil terjemahan string dengan dukungan interpolasi {paramName}
+    // Mendukung signature: t(key, params, fallback) maupun t(key, fallback, params)
     const t = useCallback((key, paramsOrFallback = '', optionalFallback = '') => {
-        const currentTranslations = translations[language] || translations['en']
+        const currentTranslations = translations[language] || translations['en'] || {}
         let text = currentTranslations[key]
 
         let params = null
@@ -43,9 +44,12 @@ export const LanguageProvider = ({ children }) => {
 
         if (typeof paramsOrFallback === 'object' && paramsOrFallback !== null) {
             params = paramsOrFallback
-            fallback = optionalFallback || key
+            fallback = typeof optionalFallback === 'string' ? optionalFallback : key
+        } else if (typeof optionalFallback === 'object' && optionalFallback !== null) {
+            fallback = typeof paramsOrFallback === 'string' ? paramsOrFallback : key
+            params = optionalFallback
         } else {
-            fallback = paramsOrFallback || key
+            fallback = typeof paramsOrFallback === 'string' ? paramsOrFallback : key
         }
 
         if (text === undefined) {
@@ -56,7 +60,7 @@ export const LanguageProvider = ({ children }) => {
         // Jalankan interpolasi jika ada parameter {key}
         if (params && typeof text === 'string') {
             for (const [pKey, pVal] of Object.entries(params)) {
-                text = text.replace(new RegExp(`\\{${pKey}\\}`, 'g'), String(pVal))
+                text = text.replace(new RegExp(`\\{${pKey}\\}`, 'g'), String(pVal !== undefined && pVal !== null ? pVal : ''))
             }
         }
 

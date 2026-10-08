@@ -70,6 +70,7 @@ const Layer = () => {
   // Group settings (visibility, opacity)
   const [groupSettings, setGroupSettings] = useState({});
   const [selectedGroupId, setSelectedGroupId] = useState(null);
+  const [groupSublayerSettings, setGroupSublayerSettings] = useState({});
   const [deletingLayerId, setDeletingLayerId] = useState(null);
 
   // 0. Cek Status API Key
@@ -327,6 +328,19 @@ const Layer = () => {
       ...prev,
       [groupId]: { ...prev[groupId], visible: true },
     }));
+  };
+
+  const handleToggleGroupSublayer = (groupId, sublayerId) => {
+    setGroupSublayerSettings((prev) => {
+      const group = layerGroups.find((g) => g.id === groupId);
+      const allIds = (group?.layers || []).map((l) => l.id || l.layer_id);
+      const currentSelected = prev[groupId] !== undefined ? prev[groupId] : allIds;
+      const isSelected = currentSelected.includes(sublayerId);
+      const updated = isSelected
+        ? currentSelected.filter((id) => id !== sublayerId)
+        : [...currentSelected, sublayerId];
+      return { ...prev, [groupId]: updated };
+    });
   };
 
   const handleStyleApplied = (layerId) => {
@@ -650,6 +664,8 @@ const Layer = () => {
                       onToggleVisibility={toggleGroupVisibility}
                       onEdit={(id) => setEditingGroupId(id)}
                       onDelete={(id) => deleteGroupMutation.mutate(id)}
+                      selectedSublayerIds={groupSublayerSettings[group.id]}
+                      onToggleSublayer={handleToggleGroupSublayer}
                     />
                   ))
                 )}
@@ -708,12 +724,16 @@ const Layer = () => {
               <MapContainer
                 center={[-2.5, 118.0]}
                 zoom={5}
+                minZoom={3}
+                maxBounds={[[-85, -180], [85, 180]]}
+                maxBoundsViscosity={0.9}
                 scrollWheelZoom
                 className="w-full h-full"
               >
                 <TileLayer
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  noWrap={true}
                 />
 
                 {/* Controller fly-to ke bbox layer / group terpilih */}
@@ -746,17 +766,43 @@ const Layer = () => {
                   );
                 })}
 
-                {/* Render Layer Groups WMS (Group visual dengan instant cache-busting _t) */}
+                {/* Render Layer Groups WMS (Group visual dengan instant cache-busting _t dan penanganan mode GeoServer) */}
                 {layerGroups.map((group) => {
                   if (!group.visible || !group.wms_url) return null;
                   const groupTs = groupSettings[group.id]?.updatedAt || 0;
+                  const mode = String(group.mode || "SINGLE").toUpperCase();
+                  const allLayers = Array.isArray(group.layers) ? group.layers : [];
+                  const activeSublayerIds = groupSublayerSettings[group.id];
+
+                  let layersParam = group.wms_layers_param;
+
+                  if (mode === "CONTAINER") {
+                    // GeoServer WMS tidak mengizinkan request GetMap langsung pada container group
+                    const selectedList = activeSublayerIds !== undefined
+                      ? allLayers.filter((l) => activeSublayerIds.includes(l.id || l.layer_id))
+                      : allLayers;
+                    if (selectedList.length === 0) return null;
+                    layersParam = selectedList
+                      .map((l) => `${l.workspace_name || group.workspace_name}:${l.geoserver_name}`)
+                      .join(",");
+                  } else if (mode === "NAMED" && activeSublayerIds !== undefined && activeSublayerIds.length < allLayers.length) {
+                    // Jika pengguna memilih sebagian sublayer dalam mode NAMED
+                    const selectedList = allLayers.filter((l) => activeSublayerIds.includes(l.id || l.layer_id));
+                    if (selectedList.length === 0) return null;
+                    layersParam = selectedList
+                      .map((l) => `${l.workspace_name || group.workspace_name}:${l.geoserver_name}`)
+                      .join(",");
+                  }
+
+                  if (!layersParam) return null;
+
                   return (
                     <WMSTileLayer
-                      key={`group-${group.id}-${groupTs}`}
+                      key={`group-${group.id}-${groupTs}-${layersParam}`}
                       url={group.wms_url}
                       zIndex={50}
                       params={{
-                        layers: group.wms_layers_param,
+                        layers: layersParam,
                         format: "image/png",
                         transparent: true,
                         version: "1.1.1",
