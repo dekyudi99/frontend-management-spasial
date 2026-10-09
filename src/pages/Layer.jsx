@@ -749,6 +749,7 @@ const Layer = () => {
                 center={[-2.5, 118.0]}
                 zoom={5}
                 minZoom={3}
+                maxZoom={18}
                 maxBounds={[[-85, -180], [85, 180]]}
                 maxBoundsViscosity={0.9}
                 scrollWheelZoom
