@@ -1,9 +1,10 @@
 import axios from "axios";
 import { ensureS2SKey } from "./WorkspaceApi";
 
-import { MICROSERVICE_API } from "./microserviceConfig";
+import { MICROSERVICE_API, GEOSERVER_BASE_URL } from "./microserviceConfig";
 
 const MICROSERVICE_URL = MICROSERVICE_API;
+export { GEOSERVER_BASE_URL };
 
 // Cache to map layer ID -> { workspace_name, layer_name } for deletions
 let layersCache = new Map();
@@ -136,6 +137,10 @@ const layerApi = {
                             data_type: fmt,
                             file_format: fmt.toLowerCase(),
                             layer_type: (fmt === "TIF" || item.type === "raster") ? "raster" : "vector",
+                            geom_type: item.geom_type || item.geometry_type || null,
+                            geometry_type: item.geometry_type || item.geom_type || null,
+                            symbology: item.symbology || null,
+                            style_name: item.style_name || null,
                             wms_url: item.wms_url,
                             created_at: item.created_at,
                             bbox: Array.isArray(item.bbox)
@@ -322,6 +327,22 @@ const layerApi = {
                         statistics: { min: 0, max: 100, mean: 50, std: 10 }
                     }
                 }
+            };
+        }
+    },
+
+    // 7. Get Available Vector SVG Icons
+    getVectorIcons: async () => {
+        const headers = await getAuthHeaders(false);
+        try {
+            const res = await axios.get(`${MICROSERVICE_URL}/styles/icons`, { headers });
+            return {
+                data: res.data?.data || []
+            };
+        } catch (err) {
+            console.warn("Gagal mengambil vector icons:", err);
+            return {
+                data: []
             };
         }
     }
