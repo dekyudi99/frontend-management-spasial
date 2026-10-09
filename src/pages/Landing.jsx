@@ -16,12 +16,12 @@ import {
   Check
 } from 'lucide-react';
 import BgHome from "../assets/bgHome.jpg";
-import Logo from "../assets/logo.png";
+import Header from '../components/Header';
 import { useLanguage } from '../context/LanguageContext';
 
-const appName = import.meta.env.VITE_APP_NAME || "AstraGIS";
-const docsUrl = import.meta.env.VITE_API_DOCS || "http://localhost:8000/docs";
-const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const appName = import.meta.env.VITE_APP_NAME
+const docsUrl = import.meta.env.VITE_API_DOCS
+const apiBase = import.meta.env.VITE_API_BASE_URL
 
 const getFeatures = (t) => [
   {
@@ -125,46 +125,8 @@ const Landing = () => {
       <div className="fixed -top-40 -left-40 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none" />
       <div className="fixed top-1/3 -right-40 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Top Navigation Header (matching Dashboard bg-blue-950) */}
-      <header className="sticky top-0 z-50 backdrop-blur-md bg-blue-950/90 border-b border-blue-900/60 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3 group">
-            <img src={Logo} alt={`${appName} Logo`} className="h-9 w-auto object-contain transition-transform group-hover:scale-105" />
-            <div className="flex flex-col">
-              <span className="font-bold text-lg tracking-tight text-white flex items-center gap-1.5">
-                {appName} <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-blue-900/80 text-blue-200 border border-blue-700/60">{t("landingServer", "Server")}</span>
-              </span>
-            </div>
-          </Link>
-
-          <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-300">
-            <a href="#features" className="hover:text-blue-400 transition-colors">{t("navFeatures", "Features")}</a>
-            <a href="#integration" className="hover:text-blue-400 transition-colors">{t("navIntegration", "Integration")}</a>
-            <Link to="/documentation" className="hover:text-blue-400 transition-colors">{t("navDocumentation", "Documentation")}</Link>
-            <a href={docsUrl} target="_blank" rel="noreferrer" className="hover:text-blue-400 transition-colors flex items-center gap-1">
-              {t("apiReference", "API Reference")} <ExternalLink className="w-3.5 h-3.5" />
-            </a>
-          </nav>
-
-          <div className="flex items-center gap-3">
-            {isAuthenticated ? (
-              <Link 
-                to="/dashboard" 
-                className="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-lg shadow-md shadow-blue-600/30 transition-all flex items-center gap-1.5"
-              >
-                {t("goToDashboard", "Go to Dashboard")} <ArrowRight className="w-4 h-4" />
-              </Link>
-            ) : (
-              <Link 
-                to="/auth/login" 
-                className="px-4 py-2 text-sm font-medium bg-blue-900/60 hover:bg-blue-900 text-white rounded-lg border border-blue-700/60 transition-all hover:border-blue-500"
-              >
-                {t("signIn", "Sign In")}
-              </Link>
-            )}
-          </div>
-        </div>
-      </header>
+      {/* Top Navigation Header (shared with Dashboard, landing variant) */}
+      <Header variant="landing" />
 
       {/* Main Content */}
       <main className="relative z-10">
@@ -212,7 +174,7 @@ const Landing = () => {
               className="px-6 py-3.5 text-base font-semibold bg-blue-950/80 hover:bg-blue-900/80 text-blue-100 rounded-xl border border-blue-800/80 hover:border-blue-600 transition-all flex items-center gap-2 backdrop-blur-sm"
             >
               <BookOpen className="w-5 h-5 text-blue-400" />
-              {t("learnAboutApp", "Learn About AstraGIS")}
+              {t("learnAboutApp", `Learn About ${appName}`)}
             </Link>
 
             <a 
@@ -284,7 +246,7 @@ const Landing = () => {
                 {t("integrationTitle", "Integrate Spatial Publishing in Minutes")}
               </h2>
               <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-                {t("integrationDesc", "Connect your analytical pipelines (e.g., Google Earth Engine, Python backend, or FlowGIS) directly to AstraGIS via secure REST endpoints. Published layers are immediately accessible via Leaflet, MapLibre, OpenLayers, or QGIS.")}
+                {t("integrationDesc", `Connect your analytical pipelines (e.g., Google Earth Engine, Python backend, or FlowGIS) directly to ${appName} via secure REST endpoints. Published layers are immediately accessible via Leaflet, MapLibre, OpenLayers, or QGIS.`)}
               </p>
 
               <div className="space-y-2.5 pt-2">
@@ -344,7 +306,7 @@ const Landing = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-blue-400" />
-            <span className="text-slate-300">{t("footerTagline", "AstraGIS Spatial Infrastructure Server")}</span>
+            <span className="text-slate-300">{t("footerTagline", `${appName} Spatial Infrastructure Server`)}</span>
           </div>
           <p>© {new Date().getFullYear()} {appName}. {t("allRightsReserved", "All rights reserved.")}</p>
           <div className="flex items-center gap-4 text-slate-400">

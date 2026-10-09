@@ -22,3 +22,10 @@
 .ant-table-wrapper .ant-table {
   scrollbar-width: thin;
 }
+
+/* Mengatur logo agar otomatis berwarna putih di seluruh halaman/komponen */
+img[src*="logo"],
+.logo-white {
+  filter: brightness(0) invert(1);
+}
+

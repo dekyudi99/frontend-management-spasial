@@ -28,6 +28,7 @@ import LayerGroupCard from "../components/layer/LayerGroupCard";
 import LayerGroupModal from "../components/layer/LayerGroupModal";
 import LayerGroupEditModal from "../components/layer/LayerGroupEditModal";
 import MapFlyController from "../components/layer/MapFlyController";
+import MapLegend from "../components/layer/MapLegend";
 import AccessDeniedCard from "../components/AccessDeniedCard";
 import PageHeader from "../components/PageHeader";
 import { useLanguage } from "../context/LanguageContext";
@@ -210,6 +211,7 @@ const Layer = () => {
       orderedRawLayers.map((l) => ({
         ...l,
         visible: layerSettings[l.id]?.visible ?? false,
+        styleUpdatedAt: layerSettings[l.id]?.styleUpdatedAt,
       })),
     [orderedRawLayers, layerSettings]
   );
@@ -813,6 +815,12 @@ const Layer = () => {
                   );
                 })}
               </MapContainer>
+
+              {/* Dynamic Map Legend Overlay */}
+              <MapLegend
+                activeLayers={layers.filter((l) => l.visible)}
+                activeGroups={layerGroups.filter((g) => g.visible)}
+              />
             </div>
           </div>
         </div>
