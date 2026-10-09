@@ -912,7 +912,14 @@ export const translations = {
         pointCross: "Cross",
         defaultRasterColormap: "Default Raster Colormap",
         legendClass: "Class",
+
+        // Base Layers
+        baseLayerStandard: "Standard",
+        baseLayerSatellite: "Satellite",
+        baseLayerTerrain: "Terrain",
+        switchBaseLayer: "Switch base layer:",
   },
+
 
 
     id: {
@@ -1814,7 +1821,14 @@ export const translations = {
         pointCross: "Silang",
         defaultRasterColormap: "Palet Warna Raster Default",
         legendClass: "Kelas",
+
+        // Base Layers
+        baseLayerStandard: "Standar",
+        baseLayerSatellite: "Satelit",
+        baseLayerTerrain: "Medan",
+        switchBaseLayer: "Ganti peta dasar:",
   },
+
 
 
     th: {
@@ -2712,6 +2726,13 @@ export const translations = {
         pointCross: "กากบาท",
         defaultRasterColormap: "ชุดสีแรสเตอร์เริ่มต้น",
         legendClass: "ระดับชั้น",
+
+        // Base Layers
+        baseLayerStandard: "มาตรฐาน",
+        baseLayerSatellite: "ดาวเทียม",
+        baseLayerTerrain: "ภูมิประเทศ",
+        switchBaseLayer: "เปลี่ยนแผนที่ฐาน:",
     }
 }
+
 

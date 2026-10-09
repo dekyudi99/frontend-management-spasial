@@ -17,6 +17,7 @@ import authApi from "../api/AuthApi";
 import keyApi from "../api/KeyApi";
 
 const docs = import.meta.env.VITE_API_DOCS;
+const appName = import.meta.env.VITE_APP_NAME;
 
 const Sidebar = ({
   isOpen = false,
@@ -131,7 +132,7 @@ const Sidebar = ({
             </nav>
 
             <div className="p-4 border-t border-blue-800 text-xs text-blue-300 text-center">
-              &copy; 2026 AstraGIS
+              &copy; 2026 {appName}
             </div>
           </aside>
         </div>
@@ -168,7 +169,7 @@ const Sidebar = ({
         </nav>
 
         <div className="p-4 border-t border-blue-800 text-xs text-blue-300 text-center min-w-[16rem]">
-          &copy; 2026 AstraGIS
+          &copy; 2026 {appName}
         </div>
       </aside>
     </>

@@ -32,6 +32,8 @@ import MapLegend from "../components/layer/MapLegend";
 import AccessDeniedCard from "../components/AccessDeniedCard";
 import PageHeader from "../components/PageHeader";
 import { useLanguage } from "../context/LanguageContext";
+import { BASE_LAYERS } from "../constants/layers";
+import LayerBaseControl from "../components/layer/LayerBaseControl";
 
 const appName = import.meta.env.VITE_APP_NAME
 
@@ -48,6 +50,26 @@ const Layer = () => {
   const [openGroupModal, setOpenGroupModal] = useState(false);
   const [editingGroupId, setEditingGroupId] = useState(null);
   const [stylingLayer, setStylingLayer] = useState(null);
+
+  // Base layer state
+  const [activeBaseLayer, setActiveBaseLayer] = useState(() => {
+    try {
+      return localStorage.getItem("astragis_base_layer") || "osm";
+    } catch {
+      return "osm";
+    }
+  });
+
+  const handleSelectBaseLayer = (layerId) => {
+    setActiveBaseLayer(layerId);
+    try {
+      localStorage.setItem("astragis_base_layer", layerId);
+    } catch (e) {
+      console.warn("Failed to save base layer preference", e);
+    }
+  };
+
+  const currentBaseLayer = BASE_LAYERS[activeBaseLayer] || BASE_LAYERS.osm;
 
   // Filter & selection states
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(null);
@@ -733,8 +755,10 @@ const Layer = () => {
                 className="w-full h-full"
               >
                 <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  key={currentBaseLayer.id}
+                  attribution={currentBaseLayer.attribution}
+                  url={currentBaseLayer.url}
+                  maxZoom={currentBaseLayer.maxZoom || 19}
                   noWrap={true}
                 />
 
@@ -815,6 +839,12 @@ const Layer = () => {
                   );
                 })}
               </MapContainer>
+
+              {/* Interactive Base Layer Switcher (Standar, Satelit, Medan) */}
+              <LayerBaseControl
+                activeLayer={activeBaseLayer}
+                onSelectLayer={handleSelectBaseLayer}
+              />
 
               {/* Dynamic Map Legend Overlay */}
               <MapLegend
