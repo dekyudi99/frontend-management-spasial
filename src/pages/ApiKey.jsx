@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { message, Modal, Button, Tag, Spin, Tooltip, Statistic } from "antd";
+import { message, Modal, Button, Tag, Spin, Tooltip, Statistic, Progress } from "antd";
 import { 
   KeyIcon, 
   ArrowPathIcon, 
@@ -74,6 +74,7 @@ const ApiKey = () => {
         testing: false
       });
       if (isManual) {
+        fetchKey();
         if (isOk) {
           message.success(t('connectionSuccess', "Koneksi ke GeoServer Microservice berhasil! (Online)"));
         } else {
@@ -115,19 +116,22 @@ const ApiKey = () => {
 
   const confirmRefresh = () => {
     Modal.confirm({
-      title: t('refreshKeyConfirm', "Refresh API Key Anda?"),
+      title: t('refreshKeyConfirm', "Perbarui Nilai API Key Anda?"),
       content: (
         <div className="space-y-2 mt-2">
           <p className="text-slate-600 text-sm">
-            {t('refreshKeyDesc', "Tindakan ini akan menonaktifkan kunci sebelumnya secara permanen di GeoServer Microservice.")}
+            {t('refreshKeyDesc', "Tindakan ini akan mengganti token/string rahasia API Key Anda demi alasan keamanan.")}
+          </p>
+          <p className="text-emerald-700 text-xs font-semibold bg-emerald-50 border border-emerald-200 p-2 rounded-lg">
+            {t('refreshKeyDataSafeNotice', "✓ Seluruh layer spasial, workspace, dan tabel PostGIS Anda tetap aman dan TIDAK AKAN HILANG karena ID kepemilikan akun Anda tidak berubah.")}
           </p>
           <p className="text-amber-600 text-xs font-medium">
-            {t('refreshKeyWarningNotice', "Koneksi pihak ketiga atau skrip S2S yang menggunakan kunci lama harus diperbarui dengan kunci baru.")}
+            {t('refreshKeyWarningNotice', "Pastikan untuk memperbarui token pada skrip integrasi S2S atau aplikasi luar yang menggunakan kunci lama.")}
           </p>
         </div>
       ),
-      okText: t('refreshKey', "Ya, Refresh Kunci"),
-      okType: "danger",
+      okText: t('refreshKey', "Ya, Perbarui Kunci"),
+      okType: "primary",
       cancelText: t('cancel', "Batal"),
       onOk: async () => {
         setRefreshing(true);
@@ -139,14 +143,16 @@ const ApiKey = () => {
             masked_key: res.data.masked_key,
             full_key: newSecret,
             plain_key: newSecret,
-            is_active: res.data.is_active
+            is_active: res.data.is_active,
+            disk_usage: res.data.disk_usage || prev?.disk_usage
           }));
           if (newSecret) {
             localStorage.setItem("astragis_s2s_key", newSecret);
           }
-          message.success(t('keyRefreshedSuccess', "API Key baru berhasil diterbitkan dan disinkronkan!"));
+          message.success(t('keyRefreshedSuccess', "Nilai API Key berhasil diperbarui! Seluruh data layer dan workspace Anda tetap aman."));
+          fetchKey();
         } catch (err) {
-          message.error(translateApi(err.response?.data?.detail) || t('keyRefreshFailed', "Gagal me-refresh API Key."));
+          message.error(translateApi(err.response?.data?.detail) || t('keyRefreshFailed', "Gagal memperbarui API Key."));
         } finally {
           setRefreshing(false);
         }
@@ -270,7 +276,7 @@ const ApiKey = () => {
                           </p>
                         </div>
 
-                        {/* Total Disk Usage Stats Card (Real-time Calculation) */}
+                        {/* Total Disk Usage Stats Card (500 MB Quota Limit) */}
                         <div className="bg-slate-50/80 border border-slate-200/90 rounded-2xl p-5 space-y-4">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2.5">
@@ -281,15 +287,39 @@ const ApiKey = () => {
                                 <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
                                   {t('totalDiskUsed', 'Total Disk Digunakan')}
                                 </span>
-                                <span className="text-xl font-extrabold text-slate-800 font-mono">
-                                  {diskUsage?.total_readable || "0 B"}
-                                </span>
+                                <div className="flex items-baseline gap-2">
+                                  <span className="text-xl font-extrabold text-slate-800 font-mono">
+                                    {diskUsage?.total_readable || "0 B"}
+                                  </span>
+                                  <span className="text-xs text-slate-400 font-mono">
+                                    / {diskUsage?.max_quota_readable || `${keyData?.quota_mb || 500} MB`} ({diskUsage?.usage_percent !== undefined ? diskUsage.usage_percent : 0}%)
+                                  </span>
+                                </div>
                               </div>
                             </div>
-                            <Tag color="blue" className="text-xs font-semibold px-2.5 py-0.5 rounded-full">
-                              {diskUsage?.total_layers || 0} Layers
-                            </Tag>
+                            <div className="flex items-center gap-2">
+                              <Tooltip title={t('refreshDiskUsage', "Perbarui status penggunaan disk")}>
+                                <button
+                                  type="button"
+                                  onClick={fetchKey}
+                                  className="text-slate-400 hover:text-indigo-600 transition-colors p-1 rounded-lg hover:bg-slate-200/60 cursor-pointer"
+                                >
+                                  <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin text-indigo-600' : ''}`} />
+                                </button>
+                              </Tooltip>
+                              <Tag color="blue" className="text-xs font-semibold px-2.5 py-0.5 rounded-full">
+                                {diskUsage?.total_layers || 0} Layers
+                              </Tag>
+                            </div>
                           </div>
+
+                          <Progress
+                            percent={Number(diskUsage?.usage_percent || 0)}
+                            size="small"
+                            status={diskUsage?.is_quota_exceeded ? "exception" : "normal"}
+                            strokeColor={Number(diskUsage?.usage_percent || 0) > 90 ? "#ef4444" : Number(diskUsage?.usage_percent || 0) > 70 ? "#f59e0b" : "#4f46e5"}
+                            showInfo={false}
+                          />
 
                           <div className="grid grid-cols-2 gap-3 pt-1 border-t border-slate-200/60">
                             <div className="bg-white p-3 rounded-xl border border-slate-200/70">
@@ -322,7 +352,7 @@ const ApiKey = () => {
                           </div>
 
                           <p className="text-[11px] text-slate-500 leading-relaxed italic">
-                            {t('diskQuotaNote', '* Setiap kali Anda mempublikasikan layer raster (GeoTIFF) atau vektor ke GeoServer, ukuran file dihitung dan diakumulasikan ke kuota API Key ini secara real-time.')}
+                            {t('diskQuotaNote', { quota: diskUsage?.max_quota_readable || `${keyData?.quota_mb || 500} MB` }, '* Setiap API Key dibatasi kuota penyimpanan data spasial maksimal {quota} untuk seluruh layer raster dan vektor.')}
                           </p>
                         </div>
 
@@ -331,23 +361,23 @@ const ApiKey = () => {
                           <div className="flex items-start gap-2.5">
                             <ExclamationTriangleIcon className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
                             <div className="space-y-1 text-xs">
-                              <span className="font-bold text-amber-900 block">{t('refreshKey', 'Refresh API Key')}</span>
+                              <span className="font-bold text-amber-900 block">{t('refreshKey', 'Perbarui Kunci (Rotasi)')}</span>
                               <p className="text-amber-800 leading-relaxed">
-                                {t('refreshKeyRotationDesc', 'Anda dapat merotasi kunci baru sewaktu-waktu demi alasan keamanan. Tindakan ini akan menonaktifkan kunci sebelumnya secara permanen.')}
+                                {t('refreshKeyRotationDesc', 'Anda dapat memperbarui token kunci sewaktu-waktu demi keamanan. Seluruh layer spasial, workspace, dan tabel Anda tetap aman karena ID akun tidak berubah.')}
                               </p>
                             </div>
                           </div>
                           <div className="pt-1">
                             <Button
-                              danger
+                              type="default"
                               size="small"
                               disabled={!keyData?.is_active}
                               loading={refreshing}
-                              icon={<ArrowPathIcon className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />}
+                              icon={<ArrowPathIcon className={`w-3.5 h-3.5 ${refreshing ? "animate-spin text-amber-700" : ""}`} />}
                               onClick={confirmRefresh}
-                              className="font-medium text-xs"
+                              className="font-medium text-xs !border-amber-400 !text-amber-900 hover:!bg-amber-100"
                             >
-                              {t('refreshKey', 'Refresh API Key')}
+                              {t('refreshKey', 'Perbarui Kunci')}
                             </Button>
                             {!keyData?.is_active && (
                               <p className="text-[11px] text-rose-600 font-medium mt-2">

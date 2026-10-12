@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { 
-  Tabs, Table, Tag, Button, Modal, Form, Input, Select, Switch, 
+  Tabs, Table, Tag, Button, Modal, Form, Input, InputNumber, Select, Switch, Space, 
   message, Popconfirm, Card, Statistic, Spin, Tooltip 
 } from "antd";
 import { 
@@ -17,7 +17,9 @@ import {
   CpuChipIcon,
   SignalIcon,
   ClipboardDocumentIcon,
-  ClipboardDocumentCheckIcon
+  ClipboardDocumentCheckIcon,
+  ExclamationTriangleIcon,
+  CircleStackIcon
 } from "@heroicons/react/24/outline";
 import adminApi from "../api/AdminApi";
 import { formatDate } from "../utils/formatters";
@@ -41,12 +43,18 @@ const Admin = () => {
   const [editUserModal, setEditUserModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [editForm] = Form.useForm();
+  const watchedRole = Form.useWatch("role", editForm);
   const [userActionLoading, setUserActionLoading] = useState(false);
 
   // State: GeoServer Overview
   const [geoOverview, setGeoOverview] = useState(null);
   const [geoLoading, setGeoLoading] = useState(false);
   const [retestingGeo, setRetestingGeo] = useState(false);
+
+  // State: Custom Quota Modal
+  const [quotaModal, setQuotaModal] = useState({ open: false, keyId: null, keyName: "", currentMb: 500 });
+  const [quotaLoading, setQuotaLoading] = useState(false);
+  const [quotaForm] = Form.useForm();
 
   // State: Audit Logs
   const [logs, setLogs] = useState([]);
@@ -57,6 +65,9 @@ const Admin = () => {
   // State: Refreshed / Generated Key Display Modal
   const [refreshedKeyModal, setRefreshedKeyModal] = useState({ open: false, key: "", username: "", isNew: false });
   const [copiedKeyModal, setCopiedKeyModal] = useState(false);
+  const [createKeyModal, setCreateKeyModal] = useState({ open: false, userId: null });
+  const [createKeyLoading, setCreateKeyLoading] = useState(false);
+  const [createKeyForm] = Form.useForm();
 
   // 1. Fetch Users
   const fetchUsers = async (page = 1) => {
@@ -172,8 +183,42 @@ const Admin = () => {
     }
   };
 
-  // Toggle Microservice API Key Directly
-  const handleToggleMicroserviceKey = async (keyId) => {
+  // Toggle Microservice API Key Directly (with special caution for PRIMARY keys)
+  const handleToggleMicroserviceKey = (record) => {
+    const isPrimary = record.key_type === "PRIMARY";
+    const willDeactivate = record.is_active;
+
+    if (isPrimary && willDeactivate) {
+      Modal.confirm({
+        title: t('primaryKeyDeactivateWarningTitle', "Perhatian Khusus: Menonaktifkan PRIMARY API Key"),
+        icon: <ExclamationTriangleIcon className="w-6 h-6 text-amber-500" />,
+        content: (
+          <div className="space-y-2 mt-2">
+            <p className="text-slate-700 text-sm">
+              {t('keyIsPrimaryKeyNotice', { name: record.name }, `Kunci ${record.name} adalah PRIMARY KEY (Admin).`)}
+            </p>
+            <div className="bg-amber-50 border border-amber-300 rounded-lg p-2.5 text-xs text-amber-900 leading-relaxed">
+              ⚠️ {t('primaryKeyDeactivateWarningDesc', 'Menonaktifkan kunci ini akan mencabut seluruh hak akses administratif pada GeoServer Microservice sampai diaktifkan kembali.')}
+            </div>
+            <p className="text-xs text-slate-500">
+              {t('confirmDeactivatePrimaryKeyQuestion', 'Apakah Anda yakin ingin menonaktifkan kunci Primary ini?')}
+            </p>
+          </div>
+        ),
+        okText: t('confirmDeactivatePrimaryKey', "Ya, Nonaktifkan Kunci Primary"),
+        okType: "danger",
+        cancelText: t('cancel', "Batal"),
+        onOk: async () => {
+          await executeToggleMicroserviceKey(record.id);
+        }
+      });
+      return;
+    }
+
+    executeToggleMicroserviceKey(record.id);
+  };
+
+  const executeToggleMicroserviceKey = async (keyId) => {
     try {
       const res = await adminApi.toggleKeyByMicroserviceId(keyId);
       message.success(res.data.detail || "Status API Key microservice diperbarui.");
@@ -184,21 +229,48 @@ const Admin = () => {
     }
   };
 
+  // Quota Customization Handlers
+  const handleOpenQuotaModal = (keyRecord) => {
+    const currentMb = keyRecord.quota_mb || (keyRecord.disk_usage?.max_quota_mb) || 500;
+    setQuotaModal({
+      open: true,
+      keyId: keyRecord.id,
+      keyName: keyRecord.name,
+      currentMb
+    });
+    quotaForm.setFieldsValue({ quota_mb: currentMb });
+  };
+
+  const handleUpdateQuotaSubmit = async (values) => {
+    setQuotaLoading(true);
+    try {
+      await adminApi.updateKeyQuota(quotaModal.keyId, Number(values.quota_mb));
+      message.success(t('quotaSuccessUpdate', 'Batas kuota penyimpanan berhasil diperbarui!'));
+      setQuotaModal({ open: false, keyId: null, keyName: "", currentMb: 500 });
+      fetchGeoOverview();
+    } catch (err) {
+      message.error(err.response?.data?.detail || t('quotaFailedUpdate', "Gagal mengubah batas kuota API Key."));
+    } finally {
+      setQuotaLoading(false);
+    }
+  };
+
   // Generate or Refresh User's Key Handler
   const handleGenerateOrRefreshKey = async (user) => {
     const hasKey = Boolean(user.api_key && user.api_key.id);
     const title = hasKey 
-      ? `Terbitkan Ulang API Key untuk ${user.username}?`
-      : `Buatkan API Key untuk ${user.username}?`;
+      ? t('reissueKeyConfirmTitle', { username: user.username }, `Terbitkan Ulang API Key untuk ${user.username}?`)
+      : t('generateKeyConfirmTitle', { username: user.username }, `Buatkan API Key untuk ${user.username}?`);
     const content = hasKey
-      ? "API Key lama pengguna akan segera dinonaktifkan di GeoServer dan kunci baru akan diterbitkan."
-      : `Sistem akan membuatkan 1 API Key resmi (${user.role === 'admin' ? 'PRIMARY' : 'STANDARD'}) untuk ${user.username} di GeoServer dan database AstraGIS.`;
+      ? t('reissueKeyConfirmDesc', "API Key lama pengguna akan segera dinonaktifkan di GeoServer dan kunci baru akan diterbitkan.")
+      : t('generateKeyConfirmDesc', { role: user.role === 'admin' ? 'PRIMARY' : 'STANDARD', username: user.username }, `Sistem akan membuatkan 1 API Key resmi (${user.role === 'admin' ? 'PRIMARY' : 'STANDARD'}) untuk ${user.username} di GeoServer dan database AstraGIS.`);
 
     Modal.confirm({
       title,
       content,
-      okText: hasKey ? "Ya, Terbitkan Kunci Baru" : "Ya, Buatkan API Key",
+      okText: hasKey ? t('reissueKeyOkBtn', "Ya, Terbitkan Kunci Baru") : t('generateKeyOkBtn', "Ya, Buatkan API Key"),
       okType: hasKey ? "danger" : "primary",
+      cancelText: t('cancel', "Batal"),
       onOk: async () => {
         try {
           const res = await adminApi.generateUserKey(user.id);
@@ -209,14 +281,78 @@ const Admin = () => {
             username: user.username,
             isNew: !hasKey
           });
-          message.success(res.data.detail || (hasKey ? "API Key baru berhasil diterbitkan." : "API Key baru berhasil dibuatkan."));
+          message.success(res.data.detail || (hasKey ? t('newKeyReissuedSuccess', "API Key baru berhasil diterbitkan ulang!") : t('newKeyCreatedSuccess', "API Key baru berhasil dibuatkan!")));
           fetchUsers(userPage);
           if (activeTab === "geoserver") fetchGeoOverview();
         } catch (err) {
-          message.error(err.response?.data?.detail || "Gagal membuat/me-refresh key.");
+          message.error(err.response?.data?.detail || t('keyOperationFailed', "Gagal membuat/me-refresh key."));
         }
       }
     });
+  };
+
+  // Rotate Microservice Key Handler (In-Place Rotation)
+  const handleRotateKeyFromMicroservice = (keyRecord) => {
+    Modal.confirm({
+      title: t('refreshKeyConfirm', "Perbarui Nilai API Key?"),
+      content: (
+        <div className="space-y-2 mt-2">
+          <p className="text-slate-600 text-sm">
+            {t('refreshKeyDesc', "Tindakan ini akan mengganti token/string rahasia API Key demi alasan keamanan.")}
+          </p>
+          <p className="text-emerald-700 text-xs font-semibold bg-emerald-50 border border-emerald-200 p-2 rounded-lg">
+            {t('refreshKeyDataSafeNotice', "✓ Seluruh layer spasial, workspace, dan tabel PostGIS pengguna tetap aman dan TIDAK AKAN HILANG karena ID kepemilikan akun tidak berubah.")}
+          </p>
+          <p className="text-amber-600 text-xs font-medium">
+            {t('refreshKeyWarningNotice', "Pastikan untuk memperbarui token pada skrip integrasi S2S atau aplikasi luar yang menggunakan kunci lama.")}
+          </p>
+        </div>
+      ),
+      okText: t('refreshKey', "Ya, Perbarui Kunci"),
+      okType: "primary",
+      cancelText: t('cancel', "Batal"),
+      onOk: async () => {
+        try {
+          const res = await adminApi.rotateKeyByMicroserviceId(keyRecord.id);
+          const newKey = res.data.full_key || res.data.api_key;
+          setRefreshedKeyModal({
+            open: true,
+            key: newKey,
+            username: keyRecord.name,
+            isNew: false
+          });
+          message.success(res.data.detail || "API Key berhasil dirotasi!");
+          fetchGeoOverview();
+          fetchUsers(userPage);
+        } catch (err) {
+          message.error(err.response?.data?.detail || "Gagal memperbarui API Key.");
+        }
+      }
+    });
+  };
+
+  // Create Key for User Handler
+  const handleCreateKeySubmit = async (values) => {
+    setCreateKeyLoading(true);
+    try {
+      const targetUser = users.find(u => u.id === values.userId);
+      const res = await adminApi.generateUserKey(values.userId);
+      const newKey = res.data.full_key || res.data.api_key;
+      setCreateKeyModal({ open: false, userId: null });
+      setRefreshedKeyModal({
+        open: true,
+        key: newKey,
+        username: targetUser?.username || "Pengguna",
+        isNew: true
+      });
+      message.success(res.data.detail || t('newKeyCreatedSuccess', "API Key baru berhasil dibuatkan!"));
+      fetchGeoOverview();
+      fetchUsers(userPage);
+    } catch (err) {
+      message.error(err.response?.data?.detail || t('keyOperationFailed', "Gagal membuat API Key."));
+    } finally {
+      setCreateKeyLoading(false);
+    }
   };
 
   const handleCopyExistingKey = (keyText, username) => {
@@ -228,6 +364,23 @@ const Admin = () => {
     message.success(`API Key milik ${username} berhasil disalin ke clipboard!`);
   };
 
+  // Filter user yang belum memiliki API Key sama sekali (Aturan: 1 User = 1 API Key)
+  const usersWithoutKey = (geoOverview?.users_without_key && geoOverview.users_without_key.length > 0)
+    ? geoOverview.users_without_key
+    : users.filter(u => {
+        const hasKeyInMicroservice = geoOverview?.registered_api_keys?.some(k => {
+          if (k.user_id && k.user_id === u.id) return true;
+          if (k.owner_info) {
+            try {
+              const parsed = typeof k.owner_info === "string" ? JSON.parse(k.owner_info) : k.owner_info;
+              if (String(parsed.user_id) === String(u.id)) return true;
+            } catch {}
+          }
+          return false;
+        });
+        return !hasKeyInMicroservice;
+      });
+
   // Columns: Users
   const userColumns = [
     {
@@ -238,14 +391,21 @@ const Admin = () => {
       render: (id) => <span className="font-mono text-xs text-slate-500">{id}</span>
     },
     {
-      title: "Pengguna",
-      key: "user",
-      minWidth: 160,
-      render: (_, r) => (
-        <div className="min-w-[140px]">
-          <span className="font-semibold text-slate-800 block text-xs sm:text-sm">{r.username}</span>
-          <span className="text-xs text-slate-400 block truncate max-w-[180px]">{r.email}</span>
-        </div>
+      title: t('user', "Pengguna"),
+      dataIndex: "username",
+      key: "username",
+      minWidth: 130,
+      render: (username) => (
+        <span className="font-semibold text-slate-800 text-xs sm:text-sm">{username}</span>
+      )
+    },
+    {
+      title: "Email",
+      dataIndex: "email",
+      key: "email",
+      minWidth: 200,
+      render: (email) => (
+        <span className="text-xs text-slate-600 font-mono select-all">{email}</span>
       )
     },
     {
@@ -269,90 +429,6 @@ const Admin = () => {
           {verified ? t('otpVerified', "Terverifikasi") : t('otpPending', "Belum OTP")}
         </Tag>
       )
-    },
-    {
-      title: "API Key",
-      key: "api_key",
-      minWidth: 230,
-      render: (_, r) => {
-        const keyInfo = r.api_key;
-        if (!keyInfo || !keyInfo.id) {
-          return (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <Tag color="default" className="text-slate-500 bg-slate-100 border-dashed text-xs whitespace-nowrap m-0">
-                {t('noApiKeyFound', 'Belum Ada Kunci')}
-              </Tag>
-              <Tooltip title={t('generateApiKeyTooltip', 'Buatkan API Key baru untuk pengguna ini')}>
-                <Button
-                  size="small"
-                  type="primary"
-                  className="bg-indigo-600 hover:bg-indigo-700 text-xs font-medium flex items-center gap-1 shadow-xs h-6 px-2"
-                  icon={<KeyIcon className="w-3.5 h-3.5" />}
-                  onClick={() => handleGenerateOrRefreshKey(r)}
-                >
-                  {t('generateApiKey', 'Buatkan Kunci')}
-                </Button>
-              </Tooltip>
-            </div>
-          );
-        }
-
-        return (
-          <div className="space-y-1 py-0.5">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <code className="text-[11px] bg-slate-100 text-slate-800 px-2 py-0.5 rounded font-mono font-bold tracking-tight border border-slate-200">
-                {keyInfo.masked_key || `${keyInfo.key_prefix || 'gsvc_'}...`}
-              </code>
-              <Tag color={keyInfo.is_active ? "green" : "red"} className="text-[10px] font-mono font-bold px-1.5 py-0 whitespace-nowrap m-0">
-                {keyInfo.is_active ? t('keyActive', 'AKTIF') : t('keyInactive', 'NONAKTIF')}
-              </Tag>
-            </div>
-            
-            <div className="flex items-center gap-1 pt-0.5 flex-wrap">
-              {keyInfo.full_key && (
-                <Tooltip title={t('copyKeyTooltip', 'Salin Full API Key ke Clipboard')}>
-                  <Button
-                    size="small"
-                    type="text"
-                    className="h-6 px-1.5 text-xs text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 flex items-center gap-1"
-                    icon={<ClipboardDocumentIcon className="w-3.5 h-3.5" />}
-                    onClick={() => handleCopyExistingKey(keyInfo.full_key, r.username)}
-                  >
-                    {t('copyApiKey', 'Salin')}
-                  </Button>
-                </Tooltip>
-              )}
-
-              <Tooltip title={keyInfo.is_active ? t('deactivateKey', 'Nonaktifkan Kunci') : t('activateKey', 'Aktifkan Kunci')}>
-                <Button
-                  size="small"
-                  type="text"
-                  className={`h-6 px-1.5 text-xs flex items-center gap-1 ${
-                    keyInfo.is_active
-                      ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                      : "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                  }`}
-                  onClick={() => handleToggleKey(r.id)}
-                >
-                  {keyInfo.is_active ? t('deactivateKey', 'Nonaktifkan') : t('activateKey', 'Aktifkan')}
-                </Button>
-              </Tooltip>
-
-              <Tooltip title={t('reissueKeyTooltip', 'Terbitkan Kunci Baru')}>
-                <Button
-                  size="small"
-                  type="text"
-                  className="h-6 px-1.5 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 flex items-center gap-1"
-                  icon={<ArrowPathIcon className="w-3.5 h-3.5" />}
-                  onClick={() => handleGenerateOrRefreshKey(r)}
-                >
-                  {t('reissueApiKey', 'Ganti')}
-                </Button>
-              </Tooltip>
-            </div>
-          </div>
-        );
-      }
     },
     {
       title: "Workspaces",
@@ -403,14 +479,20 @@ const Admin = () => {
   // Columns: Registered API Keys in GeoServer Microservice
   const keyColumns = [
     {
-      title: t('keyName', "Nama Kunci"),
-      dataIndex: "name",
-      key: "name",
-      minWidth: 160,
-      render: (name, r) => (
-        <div className="min-w-[140px]">
-          <span className="font-bold text-slate-800 text-xs sm:text-sm block">{name}</span>
-          <span className="text-[11px] font-mono text-slate-400 block truncate max-w-[200px]" title={r.id}>{r.id}</span>
+      title: t('keyName', "Nama Kunci & Token"),
+      key: "name_token",
+      minWidth: 200,
+      render: (_, r) => (
+        <div className="space-y-1 py-0.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-bold text-slate-800 text-xs sm:text-sm block">{r.name}</span>
+            <code className="text-[11px] bg-slate-100 text-slate-800 px-2 py-0.5 rounded font-mono font-bold tracking-tight border border-slate-200">
+              {r.masked_key || `${r.key_prefix || 'gsvc_'}••••••••`}
+            </code>
+          </div>
+          <span className="text-[10px] font-mono text-slate-400 block truncate max-w-[220px]" title={r.id}>
+            ID: {r.id}
+          </span>
         </div>
       )
     },
@@ -426,26 +508,20 @@ const Admin = () => {
       )
     },
     {
-      title: "Prefix",
-      dataIndex: "key_prefix",
-      key: "key_prefix",
-      width: 105,
-      render: (p) => <code className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-mono font-semibold whitespace-nowrap">{p}</code>
-    },
-    {
-      title: t('keyOwner', "Pemilik / Metadata"),
+      title: t('keyOwner', "Pemilik / Akun"),
       dataIndex: "owner_info",
       key: "owner_info",
       minWidth: 150,
       render: (info) => {
         if (!info) return <span className="text-xs text-slate-400 italic">Sistem Internal AstraGIS</span>;
         try {
-          const parsed = JSON.parse(info);
+          const parsed = typeof info === "string" ? JSON.parse(info) : info;
           return (
             <div className="text-xs min-w-[130px]">
-              <span className="font-semibold text-slate-800 block truncate max-w-[180px]">{parsed.username || parsed.client || parsed.system || "System"}</span>
+              <span className="font-semibold text-slate-800 block truncate max-w-[180px]">
+                {parsed.username || parsed.client || parsed.system || "System"}
+              </span>
               {parsed.email && <span className="text-slate-400 block text-[11px] truncate max-w-[180px]">{parsed.email}</span>}
-              {parsed.description && <span className="text-slate-400 italic block text-[11px] truncate max-w-[180px]">{parsed.description}</span>}
             </div>
           );
         } catch {
@@ -454,15 +530,30 @@ const Admin = () => {
       }
     },
     {
-      title: t('diskUsage', "Disk Terpakai"),
+      title: t('diskAndQuota', "Disk & Kuota"),
       key: "disk_usage",
-      width: 160,
+      width: 200,
       render: (_, r) => (
         <div className="whitespace-nowrap">
-          <span className="font-mono font-bold text-xs text-slate-800 block">
-            {r.disk_usage?.total_readable || "0 B"}
-          </span>
-          <span className="text-[11px] text-slate-400">
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono font-bold text-xs text-slate-800">
+              {r.disk_usage?.total_readable || "0 B"}
+            </span>
+            <span className="text-slate-400 text-xs font-mono">/</span>
+            <span className="text-xs font-semibold text-indigo-600 font-mono">
+              {r.disk_usage?.max_quota_readable || `${r.quota_mb || 500} MB`}
+            </span>
+            <Tooltip title={t('changeQuotaTooltip', "Ubah Batas Kuota Penyimpanan (MB)")}>
+              <button
+                type="button"
+                onClick={() => handleOpenQuotaModal(r)}
+                className="text-slate-400 hover:text-indigo-600 transition-colors p-0.5 rounded cursor-pointer"
+              >
+                <PencilSquareIcon className="w-3.5 h-3.5" />
+              </button>
+            </Tooltip>
+          </div>
+          <span className="text-[11px] text-slate-400 block mt-0.5">
             {r.disk_usage?.total_layers || 0} Layers ({r.disk_usage?.raster_count || 0} ras, {r.disk_usage?.vector_count || 0} vec)
           </span>
         </div>
@@ -489,24 +580,47 @@ const Admin = () => {
     {
       title: t('columnAction', "Aksi"),
       key: "action",
-      width: 125,
+      width: 220,
       render: (_, r) => (
-        r.key_type === "PRIMARY" ? (
-          <Tag color="purple" className="text-[11px] font-semibold whitespace-nowrap">Protected (Admin)</Tag>
-        ) : (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {r.full_key && (
+            <Tooltip title={t('copyKeyTooltip', "Salin Full API Key ke Clipboard")}>
+              <Button
+                size="small"
+                type="text"
+                className="h-7 px-2 text-xs text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 flex items-center gap-1"
+                icon={<ClipboardDocumentIcon className="w-3.5 h-3.5" />}
+                onClick={() => handleCopyExistingKey(r.full_key, r.name)}
+              >
+                {t('copyApiKey', "Salin")}
+              </Button>
+            </Tooltip>
+          )}
+
           <Tooltip title={r.is_active ? t('deactivateKey', "Nonaktifkan Kunci") : t('activateKey', "Aktifkan Kunci")}>
             <Button
               size="small"
               className={r.is_active 
-                ? "text-rose-600 hover:text-rose-700 border-rose-300 hover:border-rose-500 bg-rose-50/80 font-medium text-xs flex items-center gap-1 whitespace-nowrap" 
-                : "text-emerald-600 hover:text-emerald-700 border-emerald-300 hover:border-emerald-500 bg-emerald-50/80 font-medium text-xs flex items-center gap-1 whitespace-nowrap"}
-              icon={r.is_active ? <XCircleIcon className="w-4 h-4" /> : <CheckCircleIcon className="w-4 h-4" />}
-              onClick={() => handleToggleMicroserviceKey(r.id)}
+                ? "h-7 px-2 text-xs text-amber-700 hover:text-amber-800 border-amber-300 hover:border-amber-500 bg-amber-50 flex items-center gap-1"
+                : "h-7 px-2 text-xs text-emerald-600 hover:text-emerald-700 border-emerald-300 hover:border-emerald-500 bg-emerald-50 flex items-center gap-1"}
+              icon={r.is_active ? <XCircleIcon className="w-3.5 h-3.5" /> : <CheckCircleIcon className="w-3.5 h-3.5" />}
+              onClick={() => handleToggleMicroserviceKey(r)}
             >
               {r.is_active ? t('deactivateKey', "Nonaktifkan") : t('activateKey', "Aktifkan")}
             </Button>
           </Tooltip>
-        )
+
+          <Tooltip title={t('reissueKeyTooltip', "Perbarui Token Kunci (In-Place Rotation)")}>
+            <Button
+              size="small"
+              className="h-7 px-2 text-xs text-rose-600 hover:text-rose-700 border-rose-300 hover:border-rose-500 bg-rose-50 flex items-center gap-1"
+              icon={<ArrowPathIcon className="w-3.5 h-3.5" />}
+              onClick={() => handleRotateKeyFromMicroservice(r)}
+            >
+              {t('reissueApiKey', "Perbarui")}
+            </Button>
+          </Tooltip>
+        </div>
       )
     }
   ];
@@ -631,7 +745,7 @@ const Admin = () => {
                   columns={userColumns}
                   rowKey="id"
                   loading={usersLoading}
-                  scroll={{ x: 650 }}
+                  scroll={{ x: 750 }}
                   pagination={{
                     current: userPage,
                     total: userTotal,
@@ -712,15 +826,23 @@ const Admin = () => {
 
                     {/* Table of All Registered API Keys in GeoServer Microservice */}
                     <div className="bg-white rounded-xl sm:rounded-2xl p-3.5 sm:p-5 md:p-6 shadow-xs border border-slate-200 space-y-3 sm:space-y-4">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                         <div>
                           <h3 className="text-sm sm:text-base font-bold text-slate-800">
                             {t('registeredApiKeys', 'Daftar Seluruh API Key Terdaftar di GeoServer Microservice')}
                           </h3>
                           <p className="text-xs text-slate-400 mt-0.5">
-                            Menampilkan seluruh kunci yang ada di database spasial microservice (PRIMARY &amp; STANDARD) beserta kuota disk terpakai.
+                            {t('registeredApiKeysDesc', 'Kelola seluruh kredensial akses modular, rotasi token, dan pantau penggunaan disk spasial PostGIS.')}
                           </p>
                         </div>
+                        <Button
+                          type="primary"
+                          icon={<KeyIcon className="w-4 h-4" />}
+                          onClick={() => setCreateKeyModal({ open: true, userId: geoOverview?.users_without_key?.[0]?.id || users?.[0]?.id || null })}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-xs font-medium self-start sm:self-auto h-8 px-3 flex items-center gap-1.5 shadow-xs"
+                        >
+                          {t('generateApiKey', 'Terbitkan Kunci Baru')}
+                        </Button>
                       </div>
 
                       <div className="sm:hidden text-[11px] text-slate-400 flex items-center justify-end gap-1 px-1">
@@ -851,6 +973,19 @@ const Admin = () => {
             </Select>
           </Form.Item>
 
+          {watchedRole === "admin" && (
+            <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 text-xs text-amber-900 mb-4 flex gap-2.5 items-start animate-fade-in">
+              <ExclamationTriangleIcon className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <span className="font-bold block text-amber-950">Peringatan Kenaikan Hak Akses (Admin)</span>
+                <p className="m-0 leading-relaxed text-amber-800">
+                  Mengubah role pengguna menjadi <b>ADMIN</b> akan secara otomatis meningkatkan API Key mereka di GeoServer Microservice menjadi <b>PRIMARY KEY</b> (<code className="text-purple-700 font-bold">gsvc_pk_...</code>).
+                  Pengguna ini akan memiliki hak istimewa penuh untuk mengelola atau menonaktifkan API Key lain, serta mengatur batas kuota penyimpanan spasial.
+                </p>
+              </div>
+            </div>
+          )}
+
           <Form.Item name="is_verified" label="Status Verifikasi Akun" valuePropName="checked">
             <Switch />
           </Form.Item>
@@ -869,8 +1004,8 @@ const Admin = () => {
             <KeyIcon className="w-5 h-5 text-indigo-600" />
             <span>
               {refreshedKeyModal.isNew
-                ? `API Key Berhasil Dibuat untuk ${refreshedKeyModal.username}`
-                : `API Key Berhasil Diterbitkan Ulang untuk ${refreshedKeyModal.username}`}
+                ? t('keyGeneratedSuccessTitle', { username: refreshedKeyModal.username }, `API Key Berhasil Dibuat untuk ${refreshedKeyModal.username}`)
+                : t('keyReissuedSuccessTitle', { username: refreshedKeyModal.username }, `API Key Berhasil Diterbitkan Ulang untuk ${refreshedKeyModal.username}`)}
             </span>
           </div>
         }
@@ -889,12 +1024,12 @@ const Admin = () => {
               if (refreshedKeyModal.key) {
                 navigator.clipboard.writeText(refreshedKeyModal.key);
                 setCopiedKeyModal(true);
-                message.success("API Key berhasil disalin ke clipboard!");
+                message.success(t('keyCopied', "API Key berhasil disalin ke clipboard!"));
                 setTimeout(() => setCopiedKeyModal(false), 3000);
               }
             }}
           >
-            {copiedKeyModal ? "Tersalin!" : "Salin Kunci"}
+            {copiedKeyModal ? t('copied', "Tersalin!") : t('copyKeyBtn', "Salin Kunci")}
           </Button>,
           <Button 
             key="close" 
@@ -905,13 +1040,13 @@ const Admin = () => {
               setCopiedKeyModal(false);
             }}
           >
-            Selesai
+            {t('close', "Tutup")}
           </Button>
         ]}
       >
         <div className="space-y-4 pt-2">
           <p className="text-sm text-slate-600">
-            Berikut adalah API Key resmi untuk akun <b>{refreshedKeyModal.username}</b>. Kunci ini siap digunakan untuk otentikasi REST API dan GeoServer Service:
+            {t('refreshedKeyNoticeDesc', "Kunci rahasia berikut telah digenerate. Simpan atau berikan kunci ini secara aman ke pengguna:")}
           </p>
           <div className="bg-slate-900 text-emerald-400 p-4 rounded-xl font-mono text-xs select-all break-all border border-slate-800 shadow-inner flex items-center justify-between gap-2">
             <span>{refreshedKeyModal.key}</span>
@@ -919,10 +1054,182 @@ const Admin = () => {
           <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg flex items-start gap-2">
             <span className="text-amber-600 text-sm">⚠️</span>
             <p className="text-xs text-amber-800 leading-relaxed m-0">
-              Salin dan berikan kunci ini secara aman kepada pengguna bersangkutan. Pengguna juga dapat melihat atau mengunduh kunci ini dari menu <b>API Key (S2S)</b> di akun mereka.
+              {t('keySecureNoticeWarning', 'Salin dan berikan kunci ini secara aman kepada pengguna bersangkutan. Pengguna juga dapat melihat atau mengunduh kunci ini dari menu API Key (S2S) di akun mereka.')}
             </p>
           </div>
         </div>
+      </Modal>
+
+      {/* Modal Terbitkan Kunci Baru untuk Pengguna */}
+      <Modal
+        title={
+          <div className="flex items-center gap-2 text-slate-800">
+            <KeyIcon className="w-5 h-5 text-indigo-600" />
+            <span>{t('generateApiKeyTitle', 'Terbitkan API Key Baru untuk Pengguna')}</span>
+          </div>
+        }
+        open={createKeyModal.open}
+        onCancel={() => setCreateKeyModal({ open: false, userId: null })}
+        footer={null}
+        destroyOnClose
+        className="max-w-md w-full"
+      >
+        {usersWithoutKey.length === 0 ? (
+          <div className="space-y-4 pt-2">
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center space-y-2">
+              <CheckCircleIcon className="w-9 h-9 text-emerald-600 mx-auto" />
+              <span className="font-bold text-emerald-900 text-sm block">
+                {t('allUsersHaveKeysTitle', 'Seluruh Pengguna Telah Memiliki API Key')}
+              </span>
+              <p className="text-xs text-emerald-700 m-0 leading-relaxed">
+                {t('allUsersHaveKeysDesc', 'Aturan sistem menegakkan 1 Pengguna = 1 API Key. Setiap akun pengguna terdaftar saat ini telah memiliki API Key aktif. Jika Anda ingin memperbarui nilai token untuk seorang pengguna, silakan gunakan tombol Perbarui (Reissue) pada tabel di bawah.')}
+              </p>
+            </div>
+            <div className="flex justify-end pt-2">
+              <Button type="primary" onClick={() => setCreateKeyModal({ open: false, userId: null })}>
+                {t('close', 'Tutup')}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Form
+            form={createKeyForm}
+            layout="vertical"
+            initialValues={{ userId: createKeyModal.userId || usersWithoutKey[0]?.id }}
+            onFinish={handleCreateKeySubmit}
+            className="pt-2 space-y-4"
+          >
+            <Form.Item
+              name="userId"
+              label={t('selectUser', 'Pilih Pengguna')}
+              rules={[{ required: true, message: t('selectUserRequired', 'Harap pilih pengguna yang akan dibuatkan kunci') }]}
+            >
+              <Select
+                placeholder={t('selectUserPlaceholder', 'Pilih pengguna...')}
+                showSearch
+                optionFilterProp="label"
+                className="w-full"
+              >
+                {usersWithoutKey.map(u => (
+                  <Select.Option key={u.id} value={u.id} label={`${u.username} (${u.email})`}>
+                    <div className="flex items-center justify-between py-0.5">
+                      <span>
+                        <span className="font-semibold text-slate-800">{u.username}</span>{" "}
+                        <span className="text-xs text-slate-400 font-mono">({u.email})</span>
+                      </span>
+                      <Tag color={u.role === "admin" ? "purple" : "blue"} className="text-[10px] m-0 uppercase font-mono">
+                        {u.role}
+                      </Tag>
+                    </div>
+                  </Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
+
+            <p className="text-xs text-slate-500 leading-relaxed">
+              {t('generateKeyDescAdmin', 'Sistem akan mendaftarkan 1 API Key resmi (PRIMARY jika Admin, STANDARD jika User) di database GeoServer Microservice dan menautkannya ke akun pengguna ini.')}
+            </p>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <Button onClick={() => setCreateKeyModal({ open: false, userId: null })}>
+                {t('cancel', 'Batal')}
+              </Button>
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={createKeyLoading}
+                className="bg-indigo-600 hover:bg-indigo-700 font-medium"
+              >
+                {t('generateApiKey', 'Terbitkan Kunci')}
+              </Button>
+            </div>
+          </Form>
+        )}
+      </Modal>
+
+      {/* Modal Ubah Batas Kuota Penyimpanan Spasial */}
+      <Modal
+        title={
+          <div className="flex items-center gap-2 text-slate-800">
+            <CircleStackIcon className="w-5 h-5 text-indigo-600" />
+            <span>{t('setStorageQuotaTitle', 'Atur Batas Kuota Penyimpanan')}: {quotaModal.keyName}</span>
+          </div>
+        }
+        open={quotaModal.open}
+        onCancel={() => setQuotaModal({ open: false, keyId: null, keyName: "", currentMb: 500 })}
+        footer={null}
+        destroyOnClose
+        className="max-w-md w-full"
+      >
+        <Form
+          form={quotaForm}
+          layout="vertical"
+          onFinish={handleUpdateQuotaSubmit}
+          initialValues={{ quota_mb: quotaModal.currentMb }}
+          className="pt-2 space-y-4"
+        >
+          <Form.Item
+            label={t('storageQuotaLimit', 'Batas Kuota Disk Spasial (MB)')}
+            extra={t('quotaExtraDesc', 'Setiap layer raster (GeoTIFF) dan tabel vektor (PostGIS) milik API Key ini akan dibatasi oleh batas kuota ini.')}
+          >
+            <Space.Compact className="w-full">
+              <Form.Item
+                name="quota_mb"
+                noStyle
+                rules={[
+                  { required: true, message: t('quotaRequired', 'Batas kuota wajib diisi') },
+                  { type: "number", min: 1, max: 102400, message: t('quotaRangeError', 'Batas kuota harus antara 1 MB hingga 102.400 MB (100 GB)') }
+                ]}
+              >
+                <InputNumber 
+                  className="w-full text-sm font-mono" 
+                  step={100}
+                  min={1}
+                  max={102400}
+                />
+              </Form.Item>
+              <Button disabled className="bg-slate-50 text-slate-500 font-mono text-xs">
+                MB
+              </Button>
+            </Space.Compact>
+          </Form.Item>
+
+          <div className="space-y-1.5">
+            <span className="text-xs font-semibold text-slate-600">{t('quickPresets', 'Pilihan Cepat (Presets):')}</span>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: `500 MB (${t('defaultPreset', 'Default')})`, mb: 500 },
+                { label: "1 GB", mb: 1024 },
+                { label: "2 GB", mb: 2048 },
+                { label: "5 GB", mb: 5120 },
+                { label: "10 GB", mb: 10240 }
+              ].map(preset => (
+                <button
+                  key={preset.mb}
+                  type="button"
+                  onClick={() => quotaForm.setFieldsValue({ quota_mb: preset.mb })}
+                  className="px-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-300 text-slate-700 hover:text-indigo-600 transition-colors font-medium cursor-pointer"
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button onClick={() => setQuotaModal({ open: false, keyId: null, keyName: "", currentMb: 500 })}>
+              {t('cancel', 'Batal')}
+            </Button>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={quotaLoading}
+              className="bg-indigo-600 hover:bg-indigo-700 font-medium"
+            >
+              {t('saveQuotaBtn', 'Simpan Kuota')}
+            </Button>
+          </div>
+        </Form>
       </Modal>
     </div>
   );

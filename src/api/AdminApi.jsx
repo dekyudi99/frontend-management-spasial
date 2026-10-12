@@ -14,8 +14,10 @@ const adminApi = {
     // 2. User API Key Management (Admin override)
     toggleUserKey: (userId) => axiosClient.post(`/admin/users/${userId}/api-key/toggle`),
     toggleKeyByMicroserviceId: (keyId) => axiosClient.post(`/admin/keys/${keyId}/toggle`),
+    rotateKeyByMicroserviceId: (keyId) => axiosClient.post(`/admin/keys/${keyId}/rotate`),
     refreshUserKey: (userId) => axiosClient.post(`/admin/users/${userId}/api-key/refresh`),
     generateUserKey: (userId) => axiosClient.post(`/admin/users/${userId}/api-key/generate`),
+    updateKeyQuota: (keyId, quotaMb) => axiosClient.patch(`/admin/keys/${keyId}/quota`, { quota_mb: quotaMb }),
 
     // 3. System Logs (via Backend Admin Proxy)
     getLogs: (params) => axiosClient.get("/admin/logs", { params }),

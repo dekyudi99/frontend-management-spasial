@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { MapContainer, TileLayer, WMSTileLayer } from "react-leaflet";
+import { MapContainer, TileLayer, WMSTileLayer, ZoomControl } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import {
   Layers,
@@ -12,6 +12,8 @@ import {
   Square,
   ArrowDownUp,
   Trash2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Button, Spin, Pagination, message, Tabs, Badge, Select, Tag, Popconfirm } from "antd";
 import { LockOutlined } from "@ant-design/icons";
@@ -50,6 +52,7 @@ const Layer = () => {
   const [openGroupModal, setOpenGroupModal] = useState(false);
   const [editingGroupId, setEditingGroupId] = useState(null);
   const [stylingLayer, setStylingLayer] = useState(null);
+  const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
 
   // Base layer state
   const [activeBaseLayer, setActiveBaseLayer] = useState(() => {
@@ -403,459 +406,485 @@ const Layer = () => {
   }
 
   return (
-    <div className="p-3 sm:p-5 md:p-6 bg-slate-50 min-h-[calc(100vh-64px)] font-sans">
-      {/* ── Header (DRY PageHeader Component) ─────────────────────────── */}
-      <PageHeader
-        icon={Layers}
-        title={t('layerPageTitle', 'Layer & Group Management')}
-        subtitle={t('layerPageSubtitle', 'Manage, reorder layers (drag & drop), create Layer Groups, and preview via GeoServer WMS.')}
-        iconBgColor="bg-blue-50"
-        iconColor="text-blue-600"
-        className="mb-4 sm:mb-6"
-        extra={
-          <Button
-            onClick={() => setOpenLayerModal(true)}
-            type="primary"
-            icon={<Plus className="w-4 h-4" />}
-            className="flex items-center gap-1.5 !bg-blue-600 hover:!bg-blue-500"
-          >
-            {t('addNewLayer', 'Add New Layer')}
-          </Button>
-        }
-      />
+    <div className="relative w-full h-[calc(100vh-64px)] overflow-hidden font-sans">
+      {/* ── 1. FULLSCREEN MAP CANVAS ────────────────────────────────────────── */}
+      <div className="absolute inset-0 w-full h-full z-0">
+        <MapContainer
+          zoomControl={false}
+          center={[-2.5, 118.0]}
+          zoom={5}
+          minZoom={3}
+          maxZoom={18}
+          maxBounds={[[-85, -180], [85, 180]]}
+          maxBoundsViscosity={0.9}
+          scrollWheelZoom
+          className="w-full h-full"
+        >
+          <ZoomControl position="topright" />
 
-      {/* ── Main Grid Layout ─────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
-        {/* LEFT COLUMN: Layer & Group List (col-span-5) */}
-        <div className="order-2 lg:order-1 lg:col-span-5 space-y-3">
-          <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
-            {/* Tab Navigation: Single Layers vs Layer Groups */}
-            <div className="px-4 pt-3 border-b border-slate-100 bg-white">
-              <Tabs
-                activeKey={activeTab}
-                onChange={setActiveTab}
-                items={[
-                  {
-                    key: "layers",
-                    label: (
-                      <span className="flex items-center gap-2 text-sm font-medium">
-                        {t('tabSingleLayers', 'Single Layers')}
-                        <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-semibold">
-                          {layers.length}
-                        </span>
-                      </span>
-                    ),
-                  },
-                  {
-                    key: "groups",
-                    label: (
-                      <span className="flex items-center gap-2 text-sm font-medium">
-                        {t('tabLayerGroups', 'Layer Groups')}
-                        <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-semibold">
-                          {layerGroups.length}
-                        </span>
-                      </span>
-                    ),
-                  },
-                ]}
+          <TileLayer
+            key={currentBaseLayer.id}
+            attribution={currentBaseLayer.attribution}
+            url={currentBaseLayer.url}
+            maxZoom={currentBaseLayer.maxZoom || 19}
+            noWrap={true}
+          />
+
+          {/* Controller fly-to ke bbox layer / group terpilih */}
+          <MapFlyController
+            selectedLayer={selectedLayer}
+            selectedGroup={selectedGroup}
+            flyTrigger={flyTrigger}
+          />
+
+          {/* Render Individual WMS Layers:
+              Array di-reverse agar item teratas di list (#1) dirender terakhir di DOM
+              dan memiliki zIndex paling tinggi, sehingga tampil di tumpukan paling atas pada peta */}
+          {[...layers].reverse().map((layer, revIdx) => {
+            if (!layer.visible || !layer.wms_url) return null;
+            const lyrName = layer.geoserver_name || layer.table_name || layer.store_name || layer.layer_name;
+            return (
+              <WMSTileLayer
+                key={`layer-${layer.id}-${layerSettings[layer.id]?.styleUpdatedAt || 0}`}
+                url={layer.wms_url}
+                zIndex={10 + revIdx}
+                params={{
+                  layers: `${layer.workspace_name}:${lyrName}`,
+                  format: "image/png",
+                  transparent: true,
+                  version: "1.1.1",
+                  _t: layerSettings[layer.id]?.styleUpdatedAt || undefined,
+                }}
+                opacity={1}
               />
+            );
+          })}
+
+          {/* Render Layer Groups WMS (Group visual dengan instant cache-busting _t dan penanganan mode GeoServer) */}
+          {layerGroups.map((group) => {
+            if (!group.visible || !group.wms_url) return null;
+            const groupTs = groupSettings[group.id]?.updatedAt || 0;
+            const mode = String(group.mode || "SINGLE").toUpperCase();
+            const allLayers = Array.isArray(group.layers) ? group.layers : [];
+            const activeSublayerIds = groupSublayerSettings[group.id];
+
+            let layersParam = group.wms_layers_param;
+
+            if (mode === "CONTAINER") {
+              // GeoServer WMS tidak mengizinkan request GetMap langsung pada container group
+              const selectedList = activeSublayerIds !== undefined
+                ? allLayers.filter((l) => activeSublayerIds.includes(l.id || l.layer_id))
+                : allLayers;
+              if (selectedList.length === 0) return null;
+              layersParam = selectedList
+                .map((l) => `${l.workspace_name || group.workspace_name}:${l.geoserver_name}`)
+                .join(",");
+            } else if (mode === "NAMED" && activeSublayerIds !== undefined && activeSublayerIds.length < allLayers.length) {
+              // Jika pengguna memilih sebagian sublayer dalam mode NAMED
+              const selectedList = allLayers.filter((l) => activeSublayerIds.includes(l.id || l.layer_id));
+              if (selectedList.length === 0) return null;
+              layersParam = selectedList
+                .map((l) => `${l.workspace_name || group.workspace_name}:${l.geoserver_name}`)
+                .join(",");
+            }
+
+            if (!layersParam) return null;
+
+            return (
+              <WMSTileLayer
+                key={`group-${group.id}-${groupTs}-${layersParam}`}
+                url={group.wms_url}
+                zIndex={50}
+                params={{
+                  layers: layersParam,
+                  format: "image/png",
+                  transparent: true,
+                  version: "1.1.1",
+                  _t: groupTs || undefined,
+                }}
+                opacity={1}
+              />
+            );
+          })}
+        </MapContainer>
+
+        {/* Interactive Base Layer Switcher (Standar, Satelit, Medan) */}
+        <LayerBaseControl
+          activeLayer={activeBaseLayer}
+          onSelectLayer={handleSelectBaseLayer}
+        />
+
+        {/* Dynamic Map Legend Overlay */}
+        <MapLegend
+          activeLayers={layers.filter((l) => l.visible)}
+          activeGroups={layerGroups.filter((g) => g.visible)}
+        />
+      </div>
+
+      {/* ── 2. TOP RIGHT FLOATING ENGINE STATUS ───────────────────────────── */}
+      <div className="absolute top-3.5 right-14 z-[400] hidden sm:flex items-center gap-2.5 bg-white/90 backdrop-blur-md px-3.5 py-1.5 rounded-full shadow-lg border border-slate-200/80 pointer-events-auto">
+        <span className="relative flex h-2 w-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+        </span>
+        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 font-mono">
+          {t('wmsLiveEngine', 'WMS Engine')}
+        </span>
+        {visibleLayerCount > 0 && (
+          <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+            {visibleLayerCount} {t('activeLayersCount', 'Active')}
+          </span>
+        )}
+        {selectedLayer && (
+          <span className="text-[11px] text-blue-600 font-medium flex items-center gap-1 truncate max-w-[150px]">
+            <Navigation2 className="w-3 h-3 flex-shrink-0" />
+            {selectedLayer.display_name || selectedLayer.layer_name}
+          </span>
+        )}
+      </div>
+
+      {/* ── 3. FLOATING COLLAPSIBLE LAYER & GROUP PANEL ───────────────────── */}
+      {isPanelCollapsed ? (
+        // Mode Terlipat (Compact Floating Pill Button)
+        <div className="absolute top-3.5 left-3.5 z-[1000] animate-in fade-in zoom-in-95 duration-200">
+          <button
+            type="button"
+            onClick={() => setIsPanelCollapsed(false)}
+            className="flex items-center gap-2.5 px-3.5 py-2.5 bg-white/95 hover:bg-white backdrop-blur-md border border-slate-200/90 shadow-xl rounded-2xl cursor-pointer transition-all hover:scale-102 group"
+          >
+            <div className="w-7 h-7 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+              <Layers className="w-4 h-4" />
+            </div>
+            <div className="text-left">
+              <span className="text-xs font-bold text-slate-800 block">
+                {t('layerPageTitle', 'Layer & Group')}
+              </span>
+              <span className="text-[10px] text-slate-400 block font-mono">
+                {layers.length} Layers • {layerGroups.length} Groups
+              </span>
+            </div>
+            {visibleLayerCount > 0 && (
+              <span className="text-[10px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded-full">
+                {visibleLayerCount} Aktif
+              </span>
+            )}
+            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700 ml-0.5 transition-transform" />
+          </button>
+        </div>
+      ) : (
+        // Mode Terbuka (Floating Panel Drawer Card)
+        <div
+          className="absolute top-3.5 left-3.5 z-[1000] w-[370px] sm:w-[430px] max-w-[calc(100vw-28px)] max-h-[calc(100vh-88px)] flex flex-col bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden animate-in fade-in slide-in-from-left-4 duration-200 pointer-events-auto"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
+          onWheel={(e) => e.stopPropagation()}
+        >
+          {/* Header Panel Mengambang */}
+          <div className="p-3 bg-gradient-to-r from-slate-50 to-blue-50/20 border-b border-slate-100 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg border border-blue-100">
+                <Layers className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-xs font-bold text-slate-800 leading-tight">
+                  {t('layerPageTitle', 'Layer & Group Management')}
+                </h2>
+                <span className="text-[10px] text-slate-400 block">
+                  {layers.length} Layers • {layerGroups.length} Groups ({visibleLayerCount} Aktif)
+                </span>
+              </div>
             </div>
 
-            {/* Filter & Search Toolbar */}
-            <div className="p-3 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row gap-2">
-              {/* Workspace Filter Dropdown */}
-              <Select
-                allowClear
-                placeholder={t('allWorkspaces', 'All Workspaces')}
-                value={selectedWorkspaceId}
-                onChange={(val) => {
-                  setSelectedWorkspaceId(val || null);
+            <div className="flex items-center gap-1">
+              <Button
+                size="small"
+                type="primary"
+                icon={<Plus className="w-3.5 h-3.5" />}
+                onClick={() => setOpenLayerModal(true)}
+                className="!text-[11px] !bg-blue-600 hover:!bg-blue-500 !h-7 !px-2 rounded-lg font-medium"
+              >
+                {t('addNewLayer', 'Add Layer')}
+              </Button>
+
+              <button
+                type="button"
+                onClick={() => setIsPanelCollapsed(true)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 rounded-lg transition cursor-pointer"
+                title={t('collapsePanel', 'Ciutkan Panel')}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Tab Navigation: Single Layers vs Layer Groups */}
+          <div className="px-3 pt-1.5 border-b border-slate-100 bg-white shrink-0">
+            <Tabs
+              activeKey={activeTab}
+              onChange={setActiveTab}
+              items={[
+                {
+                  key: "layers",
+                  label: (
+                    <span className="flex items-center gap-1.5 text-xs font-semibold">
+                      {t('tabSingleLayers', 'Single Layers')}
+                      <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded-full font-bold">
+                        {layers.length}
+                      </span>
+                    </span>
+                  ),
+                },
+                {
+                  key: "groups",
+                  label: (
+                    <span className="flex items-center gap-1.5 text-xs font-semibold">
+                      {t('tabLayerGroups', 'Layer Groups')}
+                      <span className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.2 rounded-full font-bold">
+                        {layerGroups.length}
+                      </span>
+                    </span>
+                  ),
+                },
+              ]}
+            />
+          </div>
+
+          {/* Filter & Search Toolbar */}
+          <div className="p-2.5 border-b border-slate-100 bg-slate-50/70 flex gap-2 shrink-0">
+            <Select
+              allowClear
+              placeholder={t('allWorkspaces', 'All Workspaces')}
+              value={selectedWorkspaceId}
+              onChange={(val) => {
+                setSelectedWorkspaceId(val || null);
+                setPage(1);
+              }}
+              className="w-32 sm:w-36 text-xs shrink-0"
+              size="small"
+            >
+              {userWorkspaces.map((ws) => (
+                <Select.Option key={ws.id || ws.ws_name} value={String(ws.id || ws.ws_name)}>
+                  {ws.display_name || ws.name || ws.id}
+                </Select.Option>
+              ))}
+            </Select>
+
+            <div className="relative flex-1">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
+              <input
+                type="text"
+                placeholder={
+                  activeTab === "layers"
+                    ? t('searchLayerPlaceholder', 'Search layer...')
+                    : t('searchGroupPlaceholder', 'Search group...')
+                }
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
                   setPage(1);
                 }}
-                className="w-full sm:w-44 text-xs shrink-0"
-              >
-                {userWorkspaces.map((ws) => (
-                  <Select.Option key={ws.id || ws.ws_name} value={String(ws.id || ws.ws_name)}>
-                    {ws.display_name || ws.name || ws.id}
-                  </Select.Option>
-                ))}
-              </Select>
-
-              {/* Search Box */}
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  placeholder={
-                    activeTab === "layers"
-                      ? t('searchLayerPlaceholder', 'Search layer name...')
-                      : t('searchGroupPlaceholder', 'Search layer group name...')
-                  }
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setPage(1);
-                  }}
-                  className="w-full pl-9 pr-4 py-1.5 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                />
-              </div>
+                className="w-full pl-8 pr-3 py-1 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
             </div>
+          </div>
 
-            {/* TAB CONTENT: Single Layers */}
-            {activeTab === "layers" && (
-              <>
-                {/* Floating Checklist Toolbar when layers are selected */}
-                <div className="px-4 py-2 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between text-xs text-slate-600">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleSelectAll}
-                      className="flex items-center gap-1.5 text-slate-600 hover:text-blue-600 font-medium cursor-pointer"
-                    >
-                      {checkedLayerIds.length > 0 && checkedLayerIds.length === filteredLayers.length ? (
-                        <CheckSquare className="w-4 h-4 text-blue-600" />
-                      ) : (
-                        <Square className="w-4 h-4 text-slate-400" />
-                      )}
-                      <span>{t('selectAll', 'Select All')} ({checkedLayerIds.length}/{filteredLayers.length})</span>
-                    </button>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 text-slate-400 text-[11px]">
-                    <ArrowDownUp className="w-3.5 h-3.5" />
-                    <span>{t('dragToReorder', 'Drag handle to reorder')}</span>
-                  </div>
+          {/* TAB CONTENT: Single Layers */}
+          {activeTab === "layers" && (
+            <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col">
+              {/* Floating Checklist Toolbar when layers are selected */}
+              <div className="px-3 py-1.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between text-xs text-slate-600 shrink-0">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleSelectAll}
+                    className="flex items-center gap-1.5 text-slate-600 hover:text-blue-600 font-medium cursor-pointer"
+                  >
+                    {checkedLayerIds.length > 0 && checkedLayerIds.length === filteredLayers.length ? (
+                      <CheckSquare className="w-4 h-4 text-blue-600" />
+                    ) : (
+                      <Square className="w-4 h-4 text-slate-400" />
+                    )}
+                    <span>{t('selectAll', 'Select All')} ({checkedLayerIds.length}/{filteredLayers.length})</span>
+                  </button>
                 </div>
 
-                {/* Banner CTA when layers are checked */}
-                {checkedLayerIds.length > 0 && (
-                  <div className="mx-3 mt-3 p-2.5 bg-indigo-50 border border-indigo-200/80 rounded-xl flex items-center justify-between gap-2 animate-in fade-in duration-200 flex-wrap">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-indigo-900">
-                      <CheckCircle2 className="w-4 h-4 text-indigo-600" />
-                      <span>{t('layersCountSelected', '{count} layers selected', { count: checkedLayerIds.length })}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 flex-wrap">
+                <div className="flex items-center gap-1.5 text-slate-400 text-[11px]">
+                  <ArrowDownUp className="w-3.5 h-3.5" />
+                  <span>{t('dragToReorder', 'Drag handle to reorder')}</span>
+                </div>
+              </div>
+
+              {/* Banner CTA when layers are checked */}
+              {checkedLayerIds.length > 0 && (
+                <div className="mx-2.5 mt-2 p-2 bg-indigo-50 border border-indigo-200/80 rounded-xl flex items-center justify-between gap-1.5 animate-in fade-in duration-200 flex-wrap shrink-0">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-indigo-900">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>{t('layersCountSelected', '{count} layers selected', { count: checkedLayerIds.length })}</span>
+                  </div>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <Button
+                      size="small"
+                      type="primary"
+                      onClick={() => setOpenGroupModal(true)}
+                      disabled={isBatchDeleting}
+                      className="!bg-indigo-600 hover:!bg-indigo-500 !text-xs !font-medium"
+                    >
+                      {t('saveToGroup', 'Save to Group')}
+                    </Button>
+
+                    <Popconfirm
+                      title={t('deleteSelectedLayersTitle', `Hapus ${checkedLayerIds.length} Layer Terpilih?`)}
+                      description={t(
+                        'deleteSelectedLayersDesc',
+                        `Apakah Anda yakin ingin menghapus ${checkedLayerIds.length} layer terpilih secara permanen? Data di GeoServer dan database akan dihapus.`
+                      )}
+                      onConfirm={() => batchDeleteMutation.mutate(checkedLayerIds)}
+                      okText={t('delete', 'Hapus')}
+                      cancelText={t('cancel', 'Batal')}
+                      okButtonProps={{ danger: true, loading: isBatchDeleting }}
+                    >
                       <Button
                         size="small"
-                        type="primary"
-                        onClick={() => setOpenGroupModal(true)}
-                        disabled={isBatchDeleting}
-                        className="!bg-indigo-600 hover:!bg-indigo-500 !text-xs !font-medium"
+                        danger
+                        loading={isBatchDeleting}
+                        icon={<Trash2 className="w-3 h-3" />}
+                        className="!text-xs !font-medium"
                       >
-                        {t('saveToGroup', 'Save to Group')}
+                        {t('deleteSelected', `Hapus (${checkedLayerIds.length})`)}
                       </Button>
+                    </Popconfirm>
 
-                      <Popconfirm
-                        title={t('deleteSelectedLayersTitle', `Hapus ${checkedLayerIds.length} Layer Terpilih?`)}
-                        description={t(
-                          'deleteSelectedLayersDesc',
-                          `Apakah Anda yakin ingin menghapus ${checkedLayerIds.length} layer terpilih secara permanen? Data di GeoServer dan database akan dihapus.`
-                        )}
-                        onConfirm={() => batchDeleteMutation.mutate(checkedLayerIds)}
-                        okText={t('delete', 'Hapus')}
-                        cancelText={t('cancel', 'Batal')}
-                        okButtonProps={{ danger: true, loading: isBatchDeleting }}
-                      >
-                        <Button
-                          size="small"
-                          danger
-                          loading={isBatchDeleting}
-                          icon={<Trash2 className="w-3.5 h-3.5" />}
-                          className="!text-xs !font-medium"
-                        >
-                          {t('deleteSelected', `Hapus (${checkedLayerIds.length})`)}
-                        </Button>
-                      </Popconfirm>
-
-                      <button
-                        onClick={() => setCheckedLayerIds([])}
-                        disabled={isBatchDeleting}
-                        className="text-xs text-slate-500 hover:text-slate-700 px-2 py-1 disabled:opacity-50"
-                      >
-                        {t('cancel', 'Cancel')}
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => setCheckedLayerIds([])}
+                      disabled={isBatchDeleting}
+                      className="text-xs text-slate-500 hover:text-slate-700 px-1.5 py-0.5 disabled:opacity-50"
+                    >
+                      {t('cancel', 'Cancel')}
+                    </button>
                   </div>
-                )}
-
-                {/* List of Layers (Drag & Drop enabled) */}
-                <Spin
-                  spinning={isBatchDeleting}
-                  tip={t('deletingSelectedLayers', `Sedang menghapus ${checkedLayerIds.length} layer terpilih...`)}
-                >
-                  <div className="p-3 space-y-2.5 max-h-[520px] overflow-y-auto">
-                    {isLoadingLayers ? (
-                      <div className="text-center py-10">
-                        <Spin tip={t('loadingLayers', 'Loading layers list...')} />
-                      </div>
-                    ) : filteredLayers.length === 0 ? (
-                      <div className="text-center py-10 text-slate-400">
-                        <Layers className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                        <p className="text-sm">{t('noLayersFound', 'No layers found')}</p>
-                        <p className="text-xs mt-1">{t('clickAddLayerHint', 'Click "Add New Layer" to upload GIS data')}</p>
-                      </div>
-                    ) : (
-                      filteredLayers.map((layer, idx) => (
-                        <LayerCard
-                          key={layer.id}
-                          layer={layer}
-                          index={idx}
-                          isSelected={selectedLayerId === layer.id}
-                          isChecked={checkedLayerIds.includes(layer.id)}
-                          onSelect={handleSelectLayer}
-                          onToggleCheck={handleToggleCheck}
-                          onToggleVisibility={toggleLayerVisibility}
-                          onOpenStyle={setStylingLayer}
-                          onDelete={(layerOrId) => deleteLayerMutation.mutate(layerOrId)}
-                          isDeleting={deletingLayerId === layer.id || (isBatchDeleting && checkedLayerIds.includes(layer.id))}
-                          // Drag & Drop
-                          onDragStart={handleDragStart}
-                          onDragOver={handleDragOver}
-                          onDrop={handleDrop}
-                          onDragEnd={handleDragEnd}
-                          isDragging={draggedIndex === idx}
-                        />
-                      ))
-                    )}
-
-                    {/* Pagination */}
-                    {pagination && pagination.total > 0 && (
-                      <div className="flex justify-center mt-3 pt-2 border-t border-slate-100">
-                        <Pagination
-                          current={pagination.page}
-                          pageSize={pagination.size}
-                          total={pagination.total}
-                          showSizeChanger
-                          pageSizeOptions={["3", "6", "12"]}
-                          size="small"
-                          showTotal={(total) => `${total} ${t('layersAvailable', 'layers')}`}
-                          onChange={(newPage, newPageSize) => {
-                            setPage(newPage);
-                            setPageSize(newPageSize);
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </Spin>
-              </>
-            )}
-
-            {/* TAB CONTENT: Layer Group */}
-            {activeTab === "groups" && (
-              <div className="p-3 space-y-2.5 max-h-[540px] overflow-y-auto">
-                <div className="flex items-center justify-between px-1 pb-1">
-                  <span className="text-xs text-slate-400">
-                    {t('groupInfoHint', 'Layer Group combines multi-layers into a single WMS request')}
-                  </span>
-                  <Button
-                    size="small"
-                    type="link"
-                    icon={<Plus className="w-3.5 h-3.5" />}
-                    onClick={() => {
-                      if (checkedLayerIds.length === 0) {
-                        message.info(t('selectLayersToGroupFirst', "Check layers in the 'Single Layers' tab to create a group"));
-                        setActiveTab("layers");
-                      } else {
-                        setOpenGroupModal(true);
-                      }
-                    }}
-                    className="!p-0 !text-xs text-blue-600"
-                  >
-                    {t('newGroup', 'New Group')}
-                  </Button>
                 </div>
+              )}
 
-                {isLoadingGroups ? (
-                  <div className="text-center py-10">
-                    <Spin tip={t('loadingGroups', 'Loading layer groups...')} />
-                  </div>
-                ) : filteredGroups.length === 0 ? (
-                  <div className="text-center py-10 text-slate-400">
-                    <FolderPlus className="w-10 h-10 mx-auto mb-2 opacity-40 text-indigo-400" />
-                    <p className="text-sm font-medium">{t('noGroupsYet', 'No Layer Groups Yet')}</p>
-                    <p className="text-xs mt-1 max-w-xs mx-auto">
-                      {t('createGroupHint', 'Check layers in the "Single Layers" tab, then click "Save to Group".')}
-                    </p>
-                  </div>
-                ) : (
-                  filteredGroups.map((group) => (
-                    <LayerGroupCard
-                      key={group.id}
-                      group={group}
-                      isSelected={selectedGroupId === group.id}
-                      isVisible={group.visible}
-                      onSelect={handleSelectGroup}
-                      onToggleVisibility={toggleGroupVisibility}
-                      onEdit={(id) => setEditingGroupId(id)}
-                      onDelete={(id) => deleteGroupMutation.mutate(id)}
-                      selectedSublayerIds={groupSublayerSettings[group.id]}
-                      onToggleSublayer={handleToggleGroupSublayer}
-                    />
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* RIGHT COLUMN: Peta WMS Live Preview (col-span-7) */}
-        <div className="order-1 lg:order-2 lg:col-span-7">
-          <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden flex flex-col h-[360px] sm:h-[480px] lg:h-[620px]">
-            {/* Map Header Indicator */}
-            <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between bg-white z-10 flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-                </span>
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  {t('wmsLiveEngine', 'WMS Live Engine')}
-                </span>
-                {selectedLayer && (
-                  <span className="text-[11px] text-blue-600 font-medium flex items-center gap-1 ml-1 truncate max-w-[160px]">
-                    <Navigation2 className="w-3 h-3 flex-shrink-0" />
-                    {selectedLayer.display_name || selectedLayer.layer_name}
-                  </span>
-                )}
-                {selectedGroup && (
-                  <span className="text-[11px] text-indigo-600 font-medium flex items-center gap-1 ml-1 truncate max-w-[160px]">
-                    <Navigation2 className="w-3 h-3 flex-shrink-0" />
-                    {selectedGroup.title}
-                  </span>
-                )}
-              </div>
-
-              {/* Active Layer & Group Status */}
-              <div className="flex items-center gap-2">
-                {visibleLayerCount > 0 && (
-                  <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
-                    {visibleLayerCount} {t('activeLayersCount', 'Active Layers')}
-                  </span>
-                )}
-                {visibleGroupCount > 0 && (
-                  <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
-                    {visibleGroupCount} {t('activeGroupsCount', 'Active Groups')}
-                  </span>
-                )}
-                {visibleLayerCount === 0 && visibleGroupCount === 0 && (
-                  <span className="text-xs text-slate-400">{t('mapStandby', 'Map standby')}</span>
-                )}
-              </div>
-            </div>
-
-            {/* Map Canvas */}
-            <div className="flex-1 relative z-0">
-              <MapContainer
-                center={[-2.5, 118.0]}
-                zoom={5}
-                minZoom={3}
-                maxZoom={18}
-                maxBounds={[[-85, -180], [85, 180]]}
-                maxBoundsViscosity={0.9}
-                scrollWheelZoom
-                className="w-full h-full"
+              {/* List of Layers (Drag & Drop enabled) */}
+              <Spin
+                spinning={isBatchDeleting}
+                tip={t('deletingSelectedLayers', `Sedang menghapus ${checkedLayerIds.length} layer terpilih...`)}
               >
-                <TileLayer
-                  key={currentBaseLayer.id}
-                  attribution={currentBaseLayer.attribution}
-                  url={currentBaseLayer.url}
-                  maxZoom={currentBaseLayer.maxZoom || 19}
-                  noWrap={true}
-                />
+                <div className="p-2.5 space-y-2">
+                  {isLoadingLayers ? (
+                    <div className="text-center py-10">
+                      <Spin tip={t('loadingLayers', 'Loading layers list...')} />
+                    </div>
+                  ) : filteredLayers.length === 0 ? (
+                    <div className="text-center py-10 text-slate-400">
+                      <Layers className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                      <p className="text-sm">{t('noLayersFound', 'No layers found')}</p>
+                      <p className="text-xs mt-1">{t('clickAddLayerHint', 'Click "Add New Layer" to upload GIS data')}</p>
+                    </div>
+                  ) : (
+                    filteredLayers.map((layer, idx) => (
+                      <LayerCard
+                        key={layer.id}
+                        layer={layer}
+                        index={idx}
+                        isSelected={selectedLayerId === layer.id}
+                        isChecked={checkedLayerIds.includes(layer.id)}
+                        onSelect={handleSelectLayer}
+                        onToggleCheck={handleToggleCheck}
+                        onToggleVisibility={toggleLayerVisibility}
+                        onOpenStyle={setStylingLayer}
+                        onDelete={(layerOrId) => deleteLayerMutation.mutate(layerOrId)}
+                        isDeleting={deletingLayerId === layer.id || (isBatchDeleting && checkedLayerIds.includes(layer.id))}
+                        // Drag & Drop
+                        onDragStart={handleDragStart}
+                        onDragOver={handleDragOver}
+                        onDrop={handleDrop}
+                        onDragEnd={handleDragEnd}
+                        isDragging={draggedIndex === idx}
+                      />
+                    ))
+                  )}
 
-                {/* Controller fly-to ke bbox layer / group terpilih */}
-                <MapFlyController
-                  selectedLayer={selectedLayer}
-                  selectedGroup={selectedGroup}
-                  flyTrigger={flyTrigger}
-                />
-
-                {/* Render Individual WMS Layers:
-                    Array di-reverse agar item teratas di list (#1) dirender terakhir di DOM
-                    dan memiliki zIndex paling tinggi, sehingga tampil di tumpukan paling atas pada peta */}
-                {[...layers].reverse().map((layer, revIdx) => {
-                  if (!layer.visible || !layer.wms_url) return null;
-                  const lyrName = layer.geoserver_name || layer.table_name || layer.store_name || layer.layer_name;
-                  return (
-                    <WMSTileLayer
-                      key={`layer-${layer.id}-${layerSettings[layer.id]?.styleUpdatedAt || 0}`}
-                      url={layer.wms_url}
-                      zIndex={10 + revIdx}
-                      params={{
-                        layers: `${layer.workspace_name}:${lyrName}`,
-                        format: "image/png",
-                        transparent: true,
-                        version: "1.1.1",
-                        _t: layerSettings[layer.id]?.styleUpdatedAt || undefined,
-                      }}
-                      opacity={1}
-                    />
-                  );
-                })}
-
-                {/* Render Layer Groups WMS (Group visual dengan instant cache-busting _t dan penanganan mode GeoServer) */}
-                {layerGroups.map((group) => {
-                  if (!group.visible || !group.wms_url) return null;
-                  const groupTs = groupSettings[group.id]?.updatedAt || 0;
-                  const mode = String(group.mode || "SINGLE").toUpperCase();
-                  const allLayers = Array.isArray(group.layers) ? group.layers : [];
-                  const activeSublayerIds = groupSublayerSettings[group.id];
-
-                  let layersParam = group.wms_layers_param;
-
-                  if (mode === "CONTAINER") {
-                    // GeoServer WMS tidak mengizinkan request GetMap langsung pada container group
-                    const selectedList = activeSublayerIds !== undefined
-                      ? allLayers.filter((l) => activeSublayerIds.includes(l.id || l.layer_id))
-                      : allLayers;
-                    if (selectedList.length === 0) return null;
-                    layersParam = selectedList
-                      .map((l) => `${l.workspace_name || group.workspace_name}:${l.geoserver_name}`)
-                      .join(",");
-                  } else if (mode === "NAMED" && activeSublayerIds !== undefined && activeSublayerIds.length < allLayers.length) {
-                    // Jika pengguna memilih sebagian sublayer dalam mode NAMED
-                    const selectedList = allLayers.filter((l) => activeSublayerIds.includes(l.id || l.layer_id));
-                    if (selectedList.length === 0) return null;
-                    layersParam = selectedList
-                      .map((l) => `${l.workspace_name || group.workspace_name}:${l.geoserver_name}`)
-                      .join(",");
-                  }
-
-                  if (!layersParam) return null;
-
-                  return (
-                    <WMSTileLayer
-                      key={`group-${group.id}-${groupTs}-${layersParam}`}
-                      url={group.wms_url}
-                      zIndex={50}
-                      params={{
-                        layers: layersParam,
-                        format: "image/png",
-                        transparent: true,
-                        version: "1.1.1",
-                        _t: groupTs || undefined,
-                      }}
-                      opacity={1}
-                    />
-                  );
-                })}
-              </MapContainer>
-
-              {/* Interactive Base Layer Switcher (Standar, Satelit, Medan) */}
-              <LayerBaseControl
-                activeLayer={activeBaseLayer}
-                onSelectLayer={handleSelectBaseLayer}
-              />
-
-              {/* Dynamic Map Legend Overlay */}
-              <MapLegend
-                activeLayers={layers.filter((l) => l.visible)}
-                activeGroups={layerGroups.filter((g) => g.visible)}
-              />
+                  {/* Pagination */}
+                  {pagination && pagination.total > 0 && (
+                    <div className="flex justify-center mt-3 pt-2 border-t border-slate-100">
+                      <Pagination
+                        current={pagination.page}
+                        pageSize={pagination.size}
+                        total={pagination.total}
+                        showSizeChanger
+                        pageSizeOptions={["3", "6", "12"]}
+                        size="small"
+                        showTotal={(total) => `${total} ${t('layersAvailable', 'layers')}`}
+                        onChange={(newPage, newPageSize) => {
+                          setPage(newPage);
+                          setPageSize(newPageSize);
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              </Spin>
             </div>
-          </div>
+          )}
+
+          {/* TAB CONTENT: Layer Group */}
+          {activeTab === "groups" && (
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-2.5 space-y-2">
+              <div className="flex items-center justify-between px-1 pb-1">
+                <span className="text-[11px] text-slate-400">
+                  {t('groupInfoHint', 'Layer Group combines multi-layers into a single WMS request')}
+                </span>
+                <Button
+                  size="small"
+                  type="link"
+                  icon={<Plus className="w-3.5 h-3.5" />}
+                  onClick={() => {
+                    if (checkedLayerIds.length === 0) {
+                      message.info(t('selectLayersToGroupFirst', "Check layers in the 'Single Layers' tab to create a group"));
+                      setActiveTab("layers");
+                    } else {
+                      setOpenGroupModal(true);
+                    }
+                  }}
+                  className="!p-0 !text-xs text-blue-600"
+                >
+                  {t('newGroup', 'New Group')}
+                </Button>
+              </div>
+
+              {isLoadingGroups ? (
+                <div className="text-center py-10">
+                  <Spin tip={t('loadingGroups', 'Loading layer groups...')} />
+                </div>
+              ) : filteredGroups.length === 0 ? (
+                <div className="text-center py-10 text-slate-400">
+                  <FolderPlus className="w-10 h-10 mx-auto mb-2 opacity-40 text-indigo-400" />
+                  <p className="text-sm font-medium">{t('noGroupsYet', 'No Layer Groups Yet')}</p>
+                  <p className="text-xs mt-1 max-w-xs mx-auto">
+                    {t('createGroupHint', 'Check layers in the "Single Layers" tab, then click "Save to Group".')}
+                  </p>
+                </div>
+              ) : (
+                filteredGroups.map((group) => (
+                  <LayerGroupCard
+                    key={group.id}
+                    group={group}
+                    isSelected={selectedGroupId === group.id}
+                    isVisible={group.visible}
+                    onSelect={handleSelectGroup}
+                    onToggleVisibility={toggleGroupVisibility}
+                    onEdit={(id) => setEditingGroupId(id)}
+                    onDelete={(id) => deleteGroupMutation.mutate(id)}
+                    selectedSublayerIds={groupSublayerSettings[group.id]}
+                    onToggleSublayer={handleToggleGroupSublayer}
+                  />
+                ))
+              )}
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
       {/* Modal Upload Layer */}
       <LayerModal

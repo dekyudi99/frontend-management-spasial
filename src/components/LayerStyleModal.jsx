@@ -806,205 +806,246 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
               <div className="p-3.5 bg-gradient-to-b from-slate-50 to-slate-100/70 border border-slate-200 rounded-xl">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                    <Sliders className="w-3 h-3 text-teal-600" /> Pratinjau Tampilan (Live Preview)
+                    <Sliders className="w-3 h-3 text-teal-600" /> {t("livePreview", "Pratinjau Tampilan (Live Preview)")}
                   </span>
-                  <span className="text-[10px] text-slate-400 font-mono">SLD Vector Preview</span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    {layer?.geom_type || (isPoint ? "Point" : isLine ? "Line" : "Polygon")}
+                  </span>
                 </div>
 
-                <div className="h-20 bg-white rounded-lg border border-slate-200 flex items-center justify-around px-4 relative overflow-hidden shadow-inner">
+                <div className="h-20 bg-white rounded-lg border border-slate-200 flex items-center justify-center px-4 relative overflow-hidden shadow-inner">
                   {/* Preview Polygon */}
-                  <div className={`flex flex-col items-center gap-1 ${isPolygon ? "opacity-100 ring-1 ring-teal-400/40 p-1 rounded-md bg-teal-50/30" : "opacity-60"}`}>
-                    <svg width="44" height="44" className="drop-shadow-xs">
-                      <polygon
-                        points="22,4 40,16 34,40 10,40 4,16"
-                        fill={fillColor}
-                        fillOpacity={fillOpacity}
-                        stroke={strokeColor}
-                        strokeWidth={strokeWidth}
-                        strokeOpacity={strokeOpacity}
-                        strokeDasharray={svgDashArray}
-                      />
-                    </svg>
-                    <span className={`text-[9px] font-medium ${isPolygon ? "text-teal-700 font-bold" : "text-slate-400"}`}>
-                      Poligon {isPolygon && "•"}
-                    </span>
-                  </div>
+                  {isPolygon && (
+                    <div className="flex items-center gap-4 py-1">
+                      <svg width="52" height="52" className="drop-shadow-xs shrink-0">
+                        <polygon
+                          points="26,4 48,18 40,48 12,48 4,18"
+                          fill={fillColor}
+                          fillOpacity={fillOpacity}
+                          stroke={strokeColor}
+                          strokeWidth={strokeWidth}
+                          strokeOpacity={strokeOpacity}
+                          strokeDasharray={svgDashArray}
+                        />
+                      </svg>
+                      <div className="text-left">
+                        <span className="text-xs font-bold text-teal-800 block">
+                          {t("previewPolygonArea", "Pratinjau Area Poligon")}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono block">
+                          Fill: {fillColor} ({Math.round(fillOpacity * 100)}%) • Stroke: {strokeColor} ({strokeWidth}px)
+                        </span>
+                        {strokeDash !== "solid" && (
+                          <span className="text-[10px] text-teal-600 font-medium">
+                            {t("strokePattern", "Pola Garis")}: {strokeDash === "dashed" ? t("dashedLine", "Putus-putus") : t("dottedLine", "Titik-titik")}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Preview Line */}
-                  <div className={`flex flex-col items-center gap-1 ${isLine ? "opacity-100 ring-1 ring-teal-400/40 p-1 rounded-md bg-teal-50/30" : "opacity-60"}`}>
-                    <svg width="44" height="44">
-                      <path
-                        d="M 4,36 Q 22,4 40,36"
-                        fill="none"
-                        stroke={strokeColor}
-                        strokeWidth={strokeWidth}
-                        strokeOpacity={strokeOpacity}
-                        strokeLinecap="round"
-                        strokeDasharray={svgDashArray}
-                      />
-                    </svg>
-                    <span className={`text-[9px] font-medium ${isLine ? "text-teal-700 font-bold" : "text-slate-400"}`}>
-                      Garis {isLine && "•"}
-                    </span>
-                  </div>
+                  {isLine && (
+                    <div className="flex items-center gap-4 py-1">
+                      <svg width="64" height="44" className="shrink-0">
+                        <path
+                          d="M 4,36 Q 32,4 60,36"
+                          fill="none"
+                          stroke={strokeColor}
+                          strokeWidth={strokeWidth}
+                          strokeOpacity={strokeOpacity}
+                          strokeLinecap="round"
+                          strokeDasharray={svgDashArray}
+                        />
+                      </svg>
+                      <div className="text-left">
+                        <span className="text-xs font-bold text-teal-800 block">
+                          {t("previewLineString", "Pratinjau Garis Vektor")}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono block">
+                          Warna: {strokeColor} • Tebal: {strokeWidth}px • Opacity: {Math.round(strokeOpacity * 100)}%
+                        </span>
+                        {strokeDash !== "solid" && (
+                          <span className="text-[10px] text-teal-600 font-medium">
+                            {t("strokePattern", "Pola Garis")}: {strokeDash === "dashed" ? t("dashedLine", "Putus-putus") : t("dottedLine", "Titik-titik")}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Preview Point with Dynamic Marker Shape or SVG Icon */}
-                  <div className={`flex flex-col items-center gap-1 ${isPoint ? "opacity-100 ring-1 ring-teal-400/40 p-1 rounded-md bg-teal-50/30" : "opacity-60"}`}>
-                    <svg width="44" height="44">
-                      {renderPointPreview()}
-                    </svg>
-                    <span className={`text-[9px] font-medium capitalize truncate max-w-[100px] text-center ${isPoint ? "text-teal-700 font-bold" : "text-slate-400"}`}>
-                      {markerType === "icon" ? `${(selectedIcon || "").split(/[-_.]/)[0] || "Icon"}` : mark} ({pointSize}px) {isPoint && "•"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Pilihan Bentuk Marker (Point Mark) atau Icon SVG */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-semibold text-slate-700">
-                    Bentuk Marker Titik (Point Marker)
-                  </label>
-                  {/* Toggle Mode: Bentuk Standar vs Icon SVG */}
-                  <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-                    <button
-                      type="button"
-                      onClick={() => setMarkerType("shape")}
-                      className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition cursor-pointer ${
-                        markerType === "shape"
-                          ? "bg-white text-teal-700 shadow-xs font-semibold"
-                          : "text-slate-500 hover:text-slate-800"
-                      }`}
-                    >
-                      Bentuk Geometri
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMarkerType("icon");
-                        if (!selectedIcon && availableIcons.length > 0) {
-                          setSelectedIcon(availableIcons[0].filename || availableIcons[0].id);
-                        }
-                      }}
-                      className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition cursor-pointer flex items-center gap-1 ${
-                        markerType === "icon"
-                          ? "bg-white text-teal-700 shadow-xs font-semibold"
-                          : "text-slate-500 hover:text-slate-800"
-                      }`}
-                    >
-                      <ImageIcon className="w-3.5 h-3.5 text-teal-600" />
-                      Icon SVG
-                    </button>
-                  </div>
-                </div>
-
-                {markerType === "shape" ? (
-                  <div className="grid grid-cols-5 gap-1.5">
-                    {MARK_OPTIONS.map((opt) => {
-                      const IconComponent = opt.icon;
-                      const isSelected = mark === opt.id;
-                      return (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          onClick={() => setMark(opt.id)}
-                          className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg border text-xs font-medium transition cursor-pointer ${
-                            isSelected
-                              ? "border-teal-500 bg-teal-50 text-teal-800 font-semibold shadow-xs ring-1 ring-teal-200"
-                              : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:border-slate-300"
-                          }`}
-                        >
-                          <IconComponent className={`w-3.5 h-3.5 ${isSelected ? "text-teal-600" : "text-slate-400"}`} />
-                          <span className="text-[10px]">{opt.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="space-y-2.5 p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-medium text-slate-600">
-                        Pilih Icon SVG yang Tersedia ({availableIcons.length}):
-                      </span>
+                  {isPoint && (
+                    <div className="flex items-center gap-4 py-1">
+                      <svg width="44" height="44" className="shrink-0">
+                        {renderPointPreview()}
+                      </svg>
+                      <div className="text-left">
+                        <span className="text-xs font-bold text-teal-800 block capitalize">
+                          {t("previewPointMarker", "Pratinjau Marker Titik")} ({markerType === "icon" ? `${(selectedIcon || "").split(/[-_.]/)[0] || "Icon"}` : mark})
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono block">
+                          Ukuran: {pointSize}px • Fill: {fillColor} • Border: {strokeColor} ({strokeWidth}px)
+                        </span>
+                      </div>
                     </div>
-
-                    {loadingIcons ? (
-                      <div className="flex items-center justify-center py-4">
-                        <Spin size="small" />
-                        <span className="ml-2 text-xs text-slate-500">Memuat koleksi icon...</span>
-                      </div>
-                    ) : availableIcons.length === 0 ? (
-                      <div className="text-center py-4 text-xs text-slate-400">
-                        Belum ada icon SVG tersedia.
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-5 gap-2 max-h-36 overflow-y-auto p-1 custom-scrollbar">
-                        {availableIcons.map((ic) => {
-                          const isSelected = selectedIcon === ic.filename || selectedIcon === ic.id;
-                          const iconUrl = ic.url.startsWith("http")
-                            ? ic.url
-                            : `${GEOSERVER_BASE_URL}${ic.url.startsWith("/") ? "" : "/"}${ic.url}`;
-
-                          return (
-                            <button
-                              key={ic.id}
-                              type="button"
-                              onClick={() => setSelectedIcon(ic.filename || ic.id)}
-                              title={ic.name}
-                              className={`flex flex-col items-center gap-1 p-2 rounded-xl border transition-all cursor-pointer bg-white ${
-                                isSelected
-                                  ? "border-teal-500 bg-teal-50/80 ring-2 ring-teal-300 shadow-xs"
-                                  : "border-slate-200 hover:border-slate-300 hover:bg-slate-100/60"
-                              }`}
-                            >
-                              <div className="w-7 h-7 flex items-center justify-center p-0.5">
-                                <img
-                                  src={iconUrl}
-                                  alt={ic.name}
-                                  className="w-full h-full object-contain pointer-events-none"
-                                  loading="lazy"
-                                />
-                              </div>
-                              <span className="text-[9px] font-medium text-slate-600 truncate w-full text-center">
-                                {ic.name}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
+
+              {/* Pilihan Bentuk Marker (Point Mark) atau Icon SVG - KHUSUS DATA TITIK (POINT) */}
+              {isPoint && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-semibold text-slate-700">
+                      {t("pointMarkerShape", "Bentuk Marker Titik (Point Marker)")}
+                    </label>
+                    {/* Toggle Mode: Bentuk Standar vs Icon SVG */}
+                    <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => setMarkerType("shape")}
+                        className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition cursor-pointer ${
+                          markerType === "shape"
+                            ? "bg-white text-teal-700 shadow-xs font-semibold"
+                            : "text-slate-500 hover:text-slate-800"
+                        }`}
+                      >
+                        {t("geometricShape", "Bentuk Geometri")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMarkerType("icon");
+                          if (!selectedIcon && availableIcons.length > 0) {
+                            setSelectedIcon(availableIcons[0].filename || availableIcons[0].id);
+                          }
+                        }}
+                        className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition cursor-pointer flex items-center gap-1 ${
+                          markerType === "icon"
+                            ? "bg-white text-teal-700 shadow-xs font-semibold"
+                            : "text-slate-500 hover:text-slate-800"
+                        }`}
+                      >
+                        <ImageIcon className="w-3.5 h-3.5 text-teal-600" />
+                        {t("svgIcon", "Icon SVG")}
+                      </button>
+                    </div>
+                  </div>
+
+                  {markerType === "shape" ? (
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {MARK_OPTIONS.map((opt) => {
+                        const IconComponent = opt.icon;
+                        const isSelected = mark === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => setMark(opt.id)}
+                            className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg border text-xs font-medium transition cursor-pointer ${
+                              isSelected
+                                ? "border-teal-500 bg-teal-50 text-teal-800 font-semibold shadow-xs ring-1 ring-teal-200"
+                                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:border-slate-300"
+                            }`}
+                          >
+                            <IconComponent className={`w-3.5 h-3.5 ${isSelected ? "text-teal-600" : "text-slate-400"}`} />
+                            <span className="text-[10px]">{opt.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-medium text-slate-600">
+                          {t("availableIconsCount", "Pilih Icon SVG yang Tersedia")}: ({availableIcons.length}):
+                        </span>
+                      </div>
+
+                      {loadingIcons ? (
+                        <div className="flex items-center justify-center py-4">
+                          <Spin size="small" />
+                          <span className="ml-2 text-xs text-slate-500">{t("loadingIcons", "Memuat koleksi icon...")}</span>
+                        </div>
+                      ) : availableIcons.length === 0 ? (
+                        <div className="text-center py-4 text-xs text-slate-400">
+                          {t("noIconsAvailable", "Belum ada icon SVG tersedia.")}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-5 gap-2 max-h-36 overflow-y-auto p-1 custom-scrollbar">
+                          {availableIcons.map((ic) => {
+                            const isSelected = selectedIcon === ic.filename || selectedIcon === ic.id;
+                            const iconUrl = ic.url.startsWith("http")
+                              ? ic.url
+                              : `${GEOSERVER_BASE_URL}${ic.url.startsWith("/") ? "" : "/"}${ic.url}`;
+
+                            return (
+                              <button
+                                key={ic.id}
+                                type="button"
+                                onClick={() => setSelectedIcon(ic.filename || ic.id)}
+                                title={ic.name}
+                                className={`flex flex-col items-center gap-1 p-2 rounded-xl border transition-all cursor-pointer bg-white ${
+                                  isSelected
+                                    ? "border-teal-500 bg-teal-50/80 ring-2 ring-teal-300 shadow-xs"
+                                    : "border-slate-200 hover:border-slate-300 hover:bg-slate-100/60"
+                                }`}
+                              >
+                                <div className="w-7 h-7 flex items-center justify-center p-0.5">
+                                  <img
+                                    src={iconUrl}
+                                    alt={ic.name}
+                                    className="w-full h-full object-contain pointer-events-none"
+                                    loading="lazy"
+                                  />
+                                </div>
+                                <span className="text-[9px] font-medium text-slate-600 truncate w-full text-center">
+                                  {ic.name}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Form Kontrol Warna */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                {/* Fill Color */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Warna Isian (Fill Color)
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={fillColor}
-                      onChange={(e) => setFillColor(e.target.value)}
-                      className="w-8 h-8 rounded-lg border border-slate-300 p-0.5 cursor-pointer bg-white shrink-0"
-                    />
-                    <input
-                      type="text"
-                      value={fillColor}
-                      onChange={(e) => setFillColor(e.target.value)}
-                      className="w-full px-2.5 py-1.5 text-xs font-mono uppercase border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500"
-                    />
+              <div className={`grid grid-cols-1 ${isLine ? "" : "sm:grid-cols-2"} gap-3.5`}>
+                {/* Fill Color - Hanya untuk Polygon dan Point */}
+                {!isLine && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      {t("fillColor", "Warna Isian (Fill Color)")}
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={fillColor}
+                        onChange={(e) => setFillColor(e.target.value)}
+                        className="w-8 h-8 rounded-lg border border-slate-300 p-0.5 cursor-pointer bg-white shrink-0"
+                      />
+                      <input
+                        type="text"
+                        value={fillColor}
+                        onChange={(e) => setFillColor(e.target.value)}
+                        className="w-full px-2.5 py-1.5 text-xs font-mono uppercase border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500"
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Stroke Color */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Warna Garis Tepi (Stroke Color)
+                    {isLine
+                      ? t("lineColor", "Warna Garis (Line Color)")
+                      : isPoint
+                      ? t("pointBorderColor", "Warna Border Titik (Border Color)")
+                      : t("strokeColor", "Warna Garis Tepi (Stroke Color)")}
                   </label>
                   <div className="flex items-center gap-2">
                     <input
@@ -1023,54 +1064,64 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
                 </div>
               </div>
 
-              {/* Tipe Garis Tepi (Stroke Style) */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Pola Garis Tepi (Stroke Style)
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {STROKE_DASH_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => setStrokeDash(opt.id)}
-                      className={`py-1.5 px-3 rounded-lg border text-xs font-medium text-center transition cursor-pointer ${
-                        strokeDash === opt.id
-                          ? "border-teal-500 bg-teal-50 text-teal-800 font-semibold ring-1 ring-teal-200"
-                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
+              {/* Tipe Garis Tepi (Stroke Style) - Khusus untuk Polygon dan Line */}
+              {!isPoint && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    {isLine
+                      ? t("lineStyle", "Pola Garis (Line Style)")
+                      : t("strokeStyle", "Pola Garis Tepi (Stroke Style)")}
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {STROKE_DASH_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setStrokeDash(opt.id)}
+                        className={`py-1.5 px-3 rounded-lg border text-xs font-medium text-center transition cursor-pointer ${
+                          strokeDash === opt.id
+                            ? "border-teal-500 bg-teal-50 text-teal-800 font-semibold ring-1 ring-teal-200"
+                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Slider Transparansi & Ukuran */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
-                {/* Fill Opacity */}
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1 font-semibold text-slate-700">
-                    <span>Transparansi Isian (Fill Opacity)</span>
-                    <span className="font-mono text-teal-700 text-[10px] bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
-                      {Math.round(fillOpacity * 100)}%
-                    </span>
+              <div className={`grid grid-cols-1 ${isPolygon ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-3.5 pt-1`}>
+                {/* Fill Opacity - Hanya untuk Polygon dan Point */}
+                {!isLine && (
+                  <div>
+                    <div className="flex items-center justify-between text-xs mb-1 font-semibold text-slate-700">
+                      <span>{t("fillOpacity", "Transparansi Isian (Fill Opacity)")}</span>
+                      <span className="font-mono text-teal-700 text-[10px] bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
+                        {Math.round(fillOpacity * 100)}%
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={fillOpacity}
+                      onChange={(e) => setFillOpacity(parseFloat(e.target.value))}
+                      className="w-full accent-teal-600 h-1.5 bg-slate-200 rounded-lg cursor-pointer"
+                    />
                   </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={fillOpacity}
-                    onChange={(e) => setFillOpacity(parseFloat(e.target.value))}
-                    className="w-full accent-teal-600 h-1.5 bg-slate-200 rounded-lg cursor-pointer"
-                  />
-                </div>
+                )}
 
                 {/* Stroke Opacity */}
                 <div>
                   <div className="flex items-center justify-between text-xs mb-1 font-semibold text-slate-700">
-                    <span>Transparansi Garis (Stroke Opacity)</span>
+                    <span>
+                      {isLine
+                        ? t("lineOpacity", "Transparansi Garis (Line Opacity)")
+                        : t("strokeOpacity", "Transparansi Garis (Stroke Opacity)")}
+                    </span>
                     <span className="font-mono text-teal-700 text-[10px] bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
                       {Math.round(strokeOpacity * 100)}%
                     </span>
@@ -1089,7 +1140,13 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
                 {/* Stroke Width */}
                 <div>
                   <div className="flex items-center justify-between text-xs mb-1 font-semibold text-slate-700">
-                    <span>Ketebalan Garis (Stroke Width)</span>
+                    <span>
+                      {isPoint
+                        ? t("pointBorderWidth", "Tebal Border Titik")
+                        : isLine
+                        ? t("lineWidth", "Ketebalan Garis (Line Width)")
+                        : t("strokeWidth", "Ketebalan Garis (Stroke Width)")}
+                    </span>
                     <span className="font-mono text-teal-700 text-[10px] bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
                       {strokeWidth} px
                     </span>
@@ -1105,24 +1162,26 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
                   />
                 </div>
 
-                {/* Point Size */}
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1 font-semibold text-slate-700">
-                    <span>Ukuran Marker Titik (Point Size)</span>
-                    <span className="font-mono text-teal-700 text-[10px] bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
-                      {pointSize} px
-                    </span>
+                {/* Point Size - KHUSUS UNTUK DATA TITIK */}
+                {isPoint && (
+                  <div>
+                    <div className="flex items-center justify-between text-xs mb-1 font-semibold text-slate-700">
+                      <span>{t("pointSize", "Ukuran Marker Titik (Point Size)")}</span>
+                      <span className="font-mono text-teal-700 text-[10px] bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
+                        {pointSize} px
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="4"
+                      max="24"
+                      step="1"
+                      value={pointSize}
+                      onChange={(e) => setPointSize(parseInt(e.target.value, 10))}
+                      className="w-full accent-teal-600 h-1.5 bg-slate-200 rounded-lg cursor-pointer"
+                    />
                   </div>
-                  <input
-                    type="range"
-                    min="4"
-                    max="24"
-                    step="1"
-                    value={pointSize}
-                    onChange={(e) => setPointSize(parseInt(e.target.value, 10))}
-                    className="w-full accent-teal-600 h-1.5 bg-slate-200 rounded-lg cursor-pointer"
-                  />
-                </div>
+                )}
               </div>
             </div>
           ) : (
