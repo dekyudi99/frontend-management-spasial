@@ -27,6 +27,7 @@ import {
   loadSavedCustomRamps,
   saveCustomRampsToStorage,
   generateClassificationClasses,
+  calculateBreaks,
   findMatchingColorRamp,
 } from "../utils/styleConstants";
 import { useLanguage } from "../context/LanguageContext";
@@ -282,13 +283,46 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
     classesCount = nClasses,
     classMethod = method,
     rampId = colorRamp,
-    incomingStats = null
+    incomingStats = null,
+    preserveSymbols = false
   ) => {
+    const currentStats = incomingStats || stats;
+    const minVal = currentStats?.min ?? 0;
+    const maxVal = currentStats?.max ?? 100;
+
+    // Jika preserveSymbols aktif (misal klik tombol Classify... saat user sudah punya simbol/warna sendiri)
+    if (preserveSymbols && classes && classes.length > 0) {
+      setCalculating(true);
+      try {
+        const count = classes.length;
+        const actualMethod = classMethod === "manual" ? "equal_interval" : classMethod;
+        const breaks = calculateBreaks(minVal, maxVal, count, actualMethod);
+        const updatedClasses = classes.map((item, i) => {
+          const bMin = breaks[i];
+          const bMax = breaks[i + 1] !== undefined ? breaks[i + 1] : bMin;
+          return {
+            ...item,
+            min: bMin,
+            max: bMax,
+            quantity: bMax,
+            label: `${bMin} - ${bMax}`,
+          };
+        });
+        setClasses(updatedClasses);
+        setNClasses(updatedClasses.length);
+        setStyleType("intervals");
+      } catch (err) {
+        console.warn("Re-classify intervals error:", err);
+      } finally {
+        setCalculating(false);
+      }
+      return;
+    }
+
     const activeRamps = detectedLayerRamp ? [detectedLayerRamp, ...allRamps] : allRamps;
     const selectedRamp = activeRamps.find((r) => r.id === rampId) || allRamps[0];
     const colors = selectedRamp?.colors || ["#00e5ff", "#0044ff", "#ff00ee"];
     const count = Number(classesCount) || 10;
-    const currentStats = incomingStats || stats;
 
     setCalculating(true);
     try {
@@ -414,17 +448,21 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
     const lastCls = classes.length > 0 ? classes[classes.length - 1] : null;
     const lastQty = lastCls ? Number(lastCls.quantity || lastCls.max || 0) : 0;
     const newQty = Number((lastQty + 1).toFixed(2));
-    setClasses((prev) => [
-      ...prev,
-      {
-        min: lastQty,
-        max: newQty,
-        quantity: newQty,
-        color: "#3b82f6",
-        opacity: 1.0,
-        label: `${lastQty} - ${newQty}`,
-      },
-    ]);
+    setClasses((prev) => {
+      const updated = [
+        ...prev,
+        {
+          min: lastQty,
+          max: newQty,
+          quantity: newQty,
+          color: "#3b82f6",
+          opacity: 1.0,
+          label: `${lastQty} - ${newQty}`,
+        },
+      ];
+      setNClasses(updated.length);
+      return updated;
+    });
   };
 
   const removeClass = (index) => {
@@ -432,7 +470,11 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
       message.warning(t("minOneColorClass", "Minimal harus ada 1 kelas warna!"));
       return;
     }
-    setClasses((prev) => prev.filter((_, i) => i !== index));
+    setClasses((prev) => {
+      const updated = prev.filter((_, i) => i !== index);
+      setNClasses(updated.length);
+      return updated;
+    });
   };
 
   // Reset Style Vektor ke default
@@ -1234,7 +1276,8 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
                       onChange={(val) => {
                         setMethod(val);
                         if (val !== "manual") {
-                          handleRunClassification(nClasses, val, colorRamp);
+                          const preserve = classes && classes.length > 0;
+                          handleRunClassification(classes.length > 0 ? classes.length : nClasses, val, colorRamp, null, preserve);
                         }
                       }}
                       className="w-full text-xs"
@@ -1376,7 +1419,15 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
                     size="small"
                     type="default"
                     icon={<Calculator className="w-3.5 h-3.5 text-teal-600" />}
-                    onClick={() => handleRunClassification(nClasses, method, colorRamp)}
+                    onClick={() =>
+                      handleRunClassification(
+                        classes.length > 0 ? classes.length : nClasses,
+                        method,
+                        colorRamp,
+                        null,
+                        true
+                      )
+                    }
                     loading={calculating}
                     className="text-xs flex items-center gap-1 font-medium"
                   >

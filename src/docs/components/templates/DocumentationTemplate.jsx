@@ -138,6 +138,17 @@ export default function DocumentationTemplate({
       <footer className="mt-16 border-t border-slate-200 bg-white py-8 px-4 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto space-y-2">
           <p>© {new Date().getFullYear()} {appName} — {t("docFooterPlatform", "Integrated Spatial Data Management & Visualization Platform.")}</p>
+          <p className="text-slate-500">
+            Part of a Collaboration with{" "}
+            <a 
+              href="https://wefgis.com/" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-blue-600 hover:underline font-medium"
+            >
+              WEF GIS Project
+            </a>
+          </p>
           <p>
             {t("docFooterSupport", "Supports GeoServer WMS/WFS integration, PostGIS raster & vector, and self-service API Key Management.")}
           </p>

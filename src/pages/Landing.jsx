@@ -308,7 +308,20 @@ const Landing = () => {
             <span className="w-2 h-2 rounded-full bg-blue-400" />
             <span className="text-slate-300">{t("footerTagline", `${appName} Spatial Infrastructure Server`)}</span>
           </div>
-          <p>© {new Date().getFullYear()} {appName}. {t("allRightsReserved", "All rights reserved.")}</p>
+          <div className="text-center sm:text-left">
+            <p>© {new Date().getFullYear()} {appName}. {t("allRightsReserved", "All rights reserved.")}</p>
+            <p className="text-slate-400/80 mt-1">
+              Part of a Collaboration with{" "}
+              <a 
+                href="https://wefgis.com/" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-blue-400 hover:underline font-medium"
+              >
+                WEF GIS Project
+              </a>
+            </p>
+          </div>
           <div className="flex items-center gap-4 text-slate-400">
             <Link to="/documentation" className="hover:text-white transition-colors">{t("navDocumentation", "Docs")}</Link>
             <a href={docsUrl} target="_blank" rel="noreferrer" className="hover:text-white transition-colors">{t("apiDocs", "API")}</a>
