@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { message } from 'antd';
 import { 
   Layers, 
   Cpu, 
@@ -90,10 +91,18 @@ const getSystemMetrics = (t) => [
 const Landing = () => {
   const { t } = useLanguage();
   const [copiedSnippet, setCopiedSnippet] = useState(false);
-  const isAuthenticated = Boolean(localStorage.getItem("JWT_TOKEN"));
+  const isAuthenticated = Boolean(localStorage.getItem("JWT_TOKEN")) || 
+    (typeof window !== "undefined" && Object.keys(sessionStorage).some((k) => k.startsWith("oidc.user:")));
 
   useEffect(() => {
     document.title = `${appName} - Spatial Data Management System`;
+
+    const termMsg = sessionStorage.getItem('SESSION_TERMINATED_MSG');
+    if (termMsg) {
+      sessionStorage.removeItem('SESSION_TERMINATED_MSG');
+      sessionStorage.removeItem('SESSION_EXPIRED');
+      message.info(termMsg);
+    }
   }, []);
 
   const features = getFeatures(t);

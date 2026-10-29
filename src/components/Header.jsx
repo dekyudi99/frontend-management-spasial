@@ -15,6 +15,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useSidebar } from "../context/SidebarContext";
 import { useLanguage } from "../context/LanguageContext";
 import { availableLanguages } from "../i18n/translations";
+import useAuth from "../hooks/useAuth";
 
 const appName = import.meta.env.VITE_APP_NAME;
 const docsUrl = import.meta.env.VITE_API_DOCS;
@@ -26,8 +27,9 @@ const Header = ({ variant = "app" }) => {
     const queryClient = useQueryClient();
     const isDashboard = location.pathname.startsWith("/dashboard");
     const { isDesktopOpen, toggleDesktopSidebar, toggleMobileSidebar } = useSidebar();
-
-    const isAuthenticated = Boolean(localStorage.getItem("JWT_TOKEN"));
+    const { isAuthenticated, logout, user } = useAuth();
+    const userInitial = user?.name ? user.name.charAt(0).toUpperCase() : (user?.username ? user.username.charAt(0).toUpperCase() : 'U');
+    const displayName = user?.name || user?.username || 'User';
 
     const handleLogout = () => {
         Modal.confirm({
@@ -38,20 +40,22 @@ const Header = ({ variant = "app" }) => {
             cancelText: t('cancel', "Cancel"),
             okType: "danger",
             onOk() {
-                localStorage.removeItem("JWT_TOKEN");
-                localStorage.removeItem("astragis_s2s_key");
                 queryClient.clear();
-                navigate("/auth/login");
+                logout();
             },
         });
     };
 
+    const portalUrl = import.meta.env.VITE_PORTAL_URL || 'http://localhost:5170';
+
     const menuItems = [
         {
-            key: "profile",
-            icon: <UserIcon className="w-4 h-4" />,
-            label: t('profile', "Profile"),
-            onClick: () => navigate("/profile"),
+            key: "account",
+            icon: <UserIcon className="w-4 h-4 text-blue-400" />,
+            label: t('account', "Account"),
+            onClick: () => {
+                window.location.href = `${portalUrl}/profile`;
+            },
         },
         {
             type: "divider",
@@ -59,8 +63,8 @@ const Header = ({ variant = "app" }) => {
         {
             key: "logout",
             danger: true,
-            icon: <ArrowRightOnRectangleIcon className="w-4 h-4" />,
-            label: t('logout', "Logout"),
+            icon: <ArrowRightOnRectangleIcon className="w-4 h-4 text-red-400" />,
+            label: t('signOut', "Sign out"),
             onClick: handleLogout,
         },
     ];
@@ -206,32 +210,41 @@ const Header = ({ variant = "app" }) => {
                             placement="bottomRight"
                         >
                             <button
+                                type="button"
+                                aria-label="User account menu"
                                 className="
                                     flex
                                     items-center
-                                    justify-center
-                                    w-10
+                                    gap-2
                                     h-10
+                                    px-2.5
                                     rounded-lg
                                     border
                                     border-white/20
-                                    bg-blue-900
+                                    bg-blue-900/80
                                     text-white
                                     hover:bg-blue-800
                                     transition
+                                    cursor-pointer
                                 "
                             >
-                                <UserIcon className="w-5 h-5" />
+                                <span className="w-6 h-6 rounded-md bg-blue-500 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
+                                    {userInitial}
+                                </span>
+                                <span className="text-xs font-semibold max-w-[120px] truncate hidden sm:inline-block">
+                                    {displayName}
+                                </span>
                             </button>
                         </Dropdown>
                     ) : (
                         <Link
-                            to="/auth/login"
+                            to="/sso/start"
                             className="
                                 text-white
                                 hover:text-blue-300
                                 transition
                                 font-medium
+                                text-xs sm:text-sm
                             "
                         >
                             {t('signIn', 'Sign In')}

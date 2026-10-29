@@ -1,4 +1,4 @@
-﻿# AstraGIS Frontend
+# AstraGIS Frontend
 
 Frontend platform GIS berbasis web untuk pengelolaan, publikasi, dan visualisasi data spasial.
 
@@ -85,6 +85,14 @@ src/
 ├── pages/        # Halaman utama (Dashboard, Layer, Workspace, dsb.)
 └── utils/        # Utility functions (geoUtils, formatTanggal, dsb.)
 ```
+
+## Autentikasi SSO & Logout Terpusat
+
+Aplikasi ini menggunakan Keycloak OpenID Connect (OIDC) berbasis Authorization Code Flow dengan PKCE (S256). Logout terpusat didukung secara otomatis melalui mekanisme OP Session Monitoring (`check_session_iframe`) dengan interval 2 detik, event listener OIDC (`addUserSignedOut`, `addSilentRenewError`, `addAccessTokenExpired`), interceptor respons HTTP 401 (dengan retry silent renewal satu kali), serta pengecekan saat tab kembali aktif (`visibilitychange`/`focus` dengan throttle 15 detik). Ketika sesi Keycloak diakhiri di aplikasi lain (misal Grovia) atau di konsol admin Keycloak, sesi lokal VoxaGIS akan dibersihkan tanpa memicu loop redirect. Batasan: Pada browser yang memblokir third-party cookies / iframe partition secara agresif, deteksi via iframe mungkin terhambat, namun sesi tetap dijamin keluar saat tab difokuskan kembali atau paling lambat saat masa berlaku token (5 menit) habis.
+
+### Rute Masuk Terpusat SSO (`/sso/start`)
+
+Aplikasi menyediakan rute masuk khusus `/sso/start?returnTo=<path>` yang memungkinkan Portal SSO langsung mengarahkan user ke dashboard atau path tujuan tanpa melalui landing page dan tanpa klik tombol manual. Rute ini memvalidasi parameter `returnTo` melalui `validateReturnTo` (`src/utils/ssoSecurity.js`) guna mencegah kerentanan Open Redirect. Parameter `returnTo` hanya diterima bila berupa path relatif internal yang diawali satu slash `/`, bukan protocol-relative (`//`), tidak mengandung skema URI (`http:`, `javascript:`, dsb.), dan bukan rute `/sso/start` itu sendiri. Jika user sudah memiliki sesi Keycloak aktif, proses login berjalan otomatis dan user langsung diarahkan ke path tujuan (default: `/dashboard`). Landing page publik (`/`) tetap berfungsi seperti biasa bagi pengguna umum.
 
 ## Dokumentasi API
 

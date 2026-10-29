@@ -1,34 +1,26 @@
-import React, { useState, useEffect } from 'react'
-import { Form, Button, message, Spin } from 'antd'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import React, { useEffect } from 'react'
+import { Button, Spin } from 'antd'
+import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import authApi from '../api/AuthApi'
-import OtpVerificationModal from '../components/auth/OtpVerificationModal'
 import { useLanguage } from '../context/LanguageContext'
 import ProfileIdentityCard from '../components/profile/ProfileIdentityCard'
-import ProfileSecurityCard from '../components/profile/ProfileSecurityCard'
-import ProfileEditForm from '../components/profile/ProfileEditForm'
-import ProfilePasswordForm from '../components/profile/ProfilePasswordForm'
 import BackButton from '../components/BackButton'
-import { UserCheck, AlertCircle } from 'lucide-react'
+import { UserCheck, AlertCircle, Key, ShieldCheck, ExternalLink, Globe } from 'lucide-react'
 import { formatDate } from '../utils/formatters'
+import { availableLanguages } from '../i18n/translations'
 
-const appName = import.meta.env.VITE_APP_NAME || 'AstraGIS'
+const appName = import.meta.env.VITE_APP_NAME || 'VoxaGIS'
+const portalUrl = import.meta.env.VITE_PORTAL_URL || 'http://localhost:5170'
 
 const Profile = () => {
-    const queryClient = useQueryClient()
-    const { language, t, translateApi } = useLanguage()
-    const [profileForm] = Form.useForm()
-    const [passwordForm] = Form.useForm()
-
-    // State untuk Pergantian Email via OTP Modal
-    const [isEmailOtpModalOpen, setIsEmailOtpModalOpen] = useState(false)
-    const [pendingNewEmail, setPendingNewEmail] = useState('')
+    const { language, setLanguage, t } = useLanguage()
 
     useEffect(() => {
-        document.title = `${t('profileTitle', 'Profile & Account Settings')} | ${appName}`
+        document.title = `${t('profileTitle', 'Profile & Settings')} | ${appName}`
     }, [language, t])
 
-    // Query Mengambil Data Profil Pengguna
+    // Query Mengambil Data Profil Pengguna dari SSO backend
     const {
         data: user,
         isLoading: isProfileLoading,
@@ -42,108 +34,6 @@ const Profile = () => {
         refetchOnMount: 'always',
     })
 
-    // Pastikan refetch saat komponen di-mount
-    useEffect(() => {
-        refetchProfile()
-    }, [refetchProfile])
-
-    // Set nilai form saat data user berhasil dimuat
-    useEffect(() => {
-        if (user) {
-            profileForm.setFieldsValue({
-                username: user.username,
-                email: user.email,
-            })
-        }
-    }, [user, profileForm])
-
-    // Mutation 1: Update Username
-    const updateProfileMutation = useMutation({
-        mutationFn: authApi.updateProfile,
-        onSuccess: (response) => {
-            const data = response?.data
-            message.success(translateApi(data?.detail) || t('saveChanges', 'Save Changes'))
-            if (data?.access_token) {
-                localStorage.setItem('JWT_TOKEN', data.access_token)
-            }
-            queryClient.invalidateQueries({ queryKey: ['userProfile'] })
-        },
-        onError: (error) => {
-            message.error(translateApi(error.response?.data?.detail) || t('profileUpdateFailed', 'Failed to update profile.'))
-        }
-    })
-
-    // Mutation 2: Kirim OTP untuk Pergantian Email Baru
-    const sendChangeEmailOtpMutation = useMutation({
-        mutationFn: authApi.sendChangeEmailOtp,
-        onSuccess: (response) => {
-            const rawDetail = response?.data?.detail
-            const fallbackMsg = t('otpSentEmail', { email: pendingNewEmail })
-            message.success(translateApi(rawDetail) || fallbackMsg)
-            setIsEmailOtpModalOpen(true)
-        },
-        onError: (error) => {
-            message.error(translateApi(error.response?.data?.detail) || t('otpSendFailed', 'Failed to send OTP to new email.'))
-        }
-    })
-
-    // Mutation 3: Ubah Password Akun
-    const changePasswordMutation = useMutation({
-        mutationFn: authApi.changePassword,
-        onSuccess: (response) => {
-            const data = response?.data
-            message.success(translateApi(data?.detail) || t('passwordChangeSuccess', 'Your password has been updated successfully!'))
-            passwordForm.resetFields()
-        },
-        onError: (error) => {
-            message.error(translateApi(error.response?.data?.detail) || t('passwordChangeFailed', 'Failed to change password.'))
-        }
-    })
-
-    // Handler Submit Form Profil (Username & Email)
-    const handleProfileSubmit = async (values) => {
-        const trimmedUsername = values.username?.trim()
-        const trimmedEmail = values.email?.trim().toLowerCase()
-        const currentEmail = user?.email?.toLowerCase()
-        const currentUsername = user?.username
-
-        const isUsernameChanged = trimmedUsername && trimmedUsername !== currentUsername
-        const isEmailChanged = trimmedEmail && trimmedEmail !== currentEmail
-
-        if (!isUsernameChanged && !isEmailChanged) {
-            message.info(t('noChanges', 'No changes were made.'))
-            return
-        }
-
-        // Jika username berubah, simpan username terlebih dahulu
-        if (isUsernameChanged) {
-            const userFormData = new FormData()
-            userFormData.append('username', trimmedUsername)
-            try {
-                await updateProfileMutation.mutateAsync(userFormData)
-            } catch {
-                return
-            }
-        }
-
-        // Jika email berubah, kirim OTP ke email baru dan buka modal OTP
-        if (isEmailChanged) {
-            setPendingNewEmail(trimmedEmail)
-            const emailFormData = new FormData()
-            emailFormData.append('new_email', trimmedEmail)
-            sendChangeEmailOtpMutation.mutate(emailFormData)
-        }
-    }
-
-    // Handler Submit Form Ubah Kata Sandi
-    const handlePasswordSubmit = (values) => {
-        const formData = new FormData()
-        formData.append('old_password', values.old_password)
-        formData.append('new_password', values.new_password)
-        changePasswordMutation.mutate(formData)
-    }
-
-    // Inisial untuk Avatar
     const userInitial = user?.username ? user.username.charAt(0).toUpperCase() : 'U'
 
     if (isProfileLoading) {
@@ -175,27 +65,28 @@ const Profile = () => {
     return (
         <div className='h-full overflow-y-auto bg-slate-50/60 p-4 sm:p-6 lg:p-8'>
             <div className='max-w-6xl mx-auto'>
-                {/* Reusable Back Button */}
+                {/* Back Navigation */}
                 <BackButton fallbackTo="/dashboard" />
 
                 {/* Header Title Section */}
                 <div className='mb-6 sm:mb-8'>
-                    <div className='flex items-center gap-2 text-teal-600 text-xs sm:text-sm font-semibold mb-1'>
+                    <div className='flex items-center gap-2 text-blue-600 text-xs sm:text-sm font-semibold mb-1'>
                         <UserCheck className='w-4 h-4' />
                         <span>{t('myAccount', 'My Account')}</span>
                     </div>
                     <h1 className='text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight'>
-                        {t('profileTitle', 'Profile & Account Settings')}
+                        {t('profileTitle', 'Profile & Application Settings')}
                     </h1>
                     <p className='text-slate-500 text-xs sm:text-sm mt-1'>
-                        {t('profileSubtitle', 'Manage your identity data, registered email, and account password security.')}
+                        {t('profileSubtitle', 'Identitas akun dikelola terpusat oleh Keycloak SSO. Pengaturan khusus aplikasi VoxaGIS tersedia di bawah.')}
                     </p>
                 </div>
 
-                {/* Main Content Grid (12-column layout) */}
+                {/* Main Content Grid */}
                 <div className='grid grid-cols-1 lg:grid-cols-12 gap-6 items-start'>
-                    {/* Left Column: Identity, Language Preferences, and Security Notices (4 Columns) */}
-                    <div className='lg:col-span-4 flex flex-col gap-6'>
+                    
+                    {/* Left Column: Read-Only Identity Card */}
+                    <div className='lg:col-span-5 flex flex-col gap-6'>
                         <ProfileIdentityCard
                             user={user}
                             userInitial={userInitial}
@@ -203,47 +94,95 @@ const Profile = () => {
                             t={t}
                         />
 
-                        <ProfileSecurityCard t={t} />
+                        {/* Central SSO Account Management Card */}
+                        <div className='bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs'>
+                            <div className='flex items-center gap-3 mb-3'>
+                                <div className='w-9 h-9 rounded-lg bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center shrink-0'>
+                                    <ShieldCheck className='w-5 h-5' />
+                                </div>
+                                <div>
+                                    <h3 className='text-sm font-bold text-slate-900'>Keycloak SSO</h3>
+                                    <p className='text-xs text-slate-500'>Manajemen Identitas Terpusat</p>
+                                </div>
+                            </div>
+                            <p className='text-xs text-slate-600 leading-relaxed mb-4'>
+                                Nama, email, kata sandi, dan role akun Anda dikelola secara terpusat oleh sistem Single Sign-On WEFGIS.
+                            </p>
+                            <a
+                                href={`${portalUrl}/profile`}
+                                className='w-full py-2.5 px-3 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center gap-2 transition shadow-xs'
+                            >
+                                <span>{t('manageInSsoPortal', 'Kelola Akun di SSO Portal')}</span>
+                                <ExternalLink className='w-3.5 h-3.5' />
+                            </a>
+                        </div>
                     </div>
 
-                    {/* Right Column: Edit Forms (8 Columns) */}
-                    <div className='lg:col-span-8 flex flex-col gap-6'>
-                        <ProfileEditForm
-                            form={profileForm}
-                            onFinish={handleProfileSubmit}
-                            loading={updateProfileMutation.isPending || sendChangeEmailOtpMutation.isPending}
-                            t={t}
-                        />
+                    {/* Right Column: App-Specific Settings */}
+                    <div className='lg:col-span-7 flex flex-col gap-6'>
+                        
+                        {/* 1. GeoServer API Key Settings Card */}
+                        <div className='bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs'>
+                            <div className='flex items-start justify-between gap-4 mb-4'>
+                                <div className='flex items-center gap-3'>
+                                    <div className='w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center shrink-0'>
+                                        <Key className='w-5 h-5' />
+                                    </div>
+                                    <div>
+                                        <h3 className='text-base font-bold text-slate-900'>GeoServer API Keys</h3>
+                                        <p className='text-xs text-slate-500 mt-0.5'>Kunci autentikasi Service-to-Service untuk layer & workspace spasial</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <p className='text-xs text-slate-600 leading-relaxed mb-5'>
+                                API Key digunakan oleh aplikasi client dan pipeline otomatis untuk mengakses GeoServer Microservice dan mempublikasikan data spasial.
+                            </p>
+                            <Link
+                                to="/dashboard/api-key"
+                                className='inline-flex items-center gap-2 py-2.5 px-4 rounded-xl text-xs font-semibold bg-slate-900 text-white hover:bg-slate-800 transition shadow-xs'
+                            >
+                                <Key className='w-3.5 h-3.5' />
+                                <span>{t('manageApiKeys', 'Buka Manajemen API Key')}</span>
+                            </Link>
+                        </div>
 
-                        <ProfilePasswordForm
-                            form={passwordForm}
-                            onFinish={handlePasswordSubmit}
-                            loading={changePasswordMutation.isPending}
-                            t={t}
-                        />
+                        {/* 2. Language Preference Card */}
+                        <div className='bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs'>
+                            <div className='flex items-center gap-3 mb-4'>
+                                <div className='w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0'>
+                                    <Globe className='w-5 h-5' />
+                                </div>
+                                <div>
+                                    <h3 className='text-base font-bold text-slate-900'>{t('changeLanguage', 'Language Preference')}</h3>
+                                    <p className='text-xs text-slate-500 mt-0.5'>Pilih bahasa pengantar antarmuka VoxaGIS</p>
+                                </div>
+                            </div>
+
+                            <div className='grid grid-cols-1 sm:grid-cols-3 gap-3'>
+                                {availableLanguages.map((l) => (
+                                    <button
+                                        key={l.code}
+                                        type='button'
+                                        onClick={() => setLanguage(l.code)}
+                                        className={`p-3 rounded-xl border text-left flex items-center gap-2.5 transition cursor-pointer ${
+                                            language === l.code
+                                                ? 'border-blue-500 bg-blue-50/50 text-blue-900 font-bold ring-2 ring-blue-500/20'
+                                                : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                                        }`}
+                                    >
+                                        <span className='text-xl leading-none'>{l.flag}</span>
+                                        <div className='min-w-0'>
+                                            <div className='text-xs truncate'>{l.nativeName}</div>
+                                            <div className='text-[10px] text-slate-400 uppercase font-semibold'>{l.code}</div>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </div>
-
-            {/* Modal Input OTP Khusus Pergantian Email Menggunakan Reusable Component */}
-            <OtpVerificationModal
-                open={isEmailOtpModalOpen}
-                onClose={() => setIsEmailOtpModalOpen(false)}
-                email={pendingNewEmail}
-                verifyFn={authApi.verifyChangeEmail}
-                resendFn={authApi.sendChangeEmailOtp}
-                emailParamName="new_email"
-                title={t('otpModalTitle', 'Verify New Email')}
-                subtitle={t('otpModalSubtitle', 'Email Change Verification')}
-                submitText={t('otpModalSubmit', 'Verify & Update Email')}
-                onSuccess={(data) => {
-                    setIsEmailOtpModalOpen(false)
-                    queryClient.invalidateQueries({ queryKey: ['userProfile'] })
-                    profileForm.setFieldsValue({
-                        email: pendingNewEmail
-                    })
-                }}
-            />
         </div>
     )
 }

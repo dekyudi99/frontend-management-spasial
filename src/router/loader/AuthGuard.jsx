@@ -1,13 +1,12 @@
 import { redirect } from "react-router-dom";
-import { message } from "antd";
 
 const authGuard = () => {
-    const token = localStorage.getItem("JWT_TOKEN")
+    const hasOidc = Object.keys(sessionStorage).some((k) => k.startsWith("oidc.user:"));
+    const legacyToken = localStorage.getItem("JWT_TOKEN");
 
-    if (!token) {
-        message.warning("Token anda Salah atau Sudah Kadaluarsa!")
-        throw redirect("/auth/login")
+    if (!hasOidc && !legacyToken) {
+        throw redirect("/sso/start");
     }
-}
+};
 
-export default authGuard
+export default authGuard;

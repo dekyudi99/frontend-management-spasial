@@ -1,4 +1,6 @@
 import axios from "axios"
+import { getOidcAccessToken, setOidcAccessToken, getOidcUserManager } from "../services/oidcTokenService"
+import { terminateLocalSession } from "../services/sessionTerminationService"
 
 const apiURL = import.meta.env.VITE_API_BASE_URL
 
@@ -11,7 +13,9 @@ const axiosClient = axios.create({
 
 axiosClient.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('JWT_TOKEN')
+        const oidcToken = getOidcAccessToken()
+        const legacyToken = localStorage.getItem('JWT_TOKEN')
+        const token = oidcToken || legacyToken
 
         if (token) {
             config.headers['Authorization'] = `Bearer ${token}`
@@ -24,7 +28,8 @@ axiosClient.interceptors.request.use(
     }
 )
 
-let isRedirecting = false
+let isRefreshing = false
+let refreshPromise = null
 
 axiosClient.interceptors.response.use(
     (response) => {
@@ -35,29 +40,45 @@ axiosClient.interceptors.response.use(
         return response;
     },
 
-    (error) => {
-        if (error.response?.status === 401) {
-            localStorage.removeItem("JWT_TOKEN")
+    async (error) => {
+        const originalRequest = error.config
 
-            const currentPath = window.location.pathname
-            const isAuthPage = currentPath.startsWith("/auth") || currentPath === "/"
+        if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+            originalRequest._retry = true
+            const userManager = getOidcUserManager()
 
-            // Cegah redirect loop jika sedang di halaman login/register
-            if (!isAuthPage && !isRedirecting) {
-                isRedirecting = true
+            // Jika sesi OIDC aktif, coba perbarui token sekali
+            if (userManager && getOidcAccessToken()) {
+                try {
+                    if (!isRefreshing) {
+                        isRefreshing = true
+                        refreshPromise = userManager.signinSilent().then((newUser) => {
+                            if (newUser?.access_token) {
+                                setOidcAccessToken(newUser.access_token)
+                                return newUser.access_token
+                            }
+                            return null
+                        }).finally(() => {
+                            isRefreshing = false
+                            refreshPromise = null
+                        })
+                    }
 
-                // Tandai bahwa sesi telah berakhir untuk notifikasi di Login.jsx
-                sessionStorage.setItem("SESSION_EXPIRED", "true")
-
-                // Simpan URL terakhir agar bisa dikembalikan setelah login
-                const currentFullUrl = window.location.pathname + window.location.search
-                if (currentFullUrl && !currentFullUrl.startsWith("/auth")) {
-                    sessionStorage.setItem("REDIRECT_AFTER_LOGIN", currentFullUrl)
+                    const newToken = await refreshPromise
+                    if (newToken) {
+                        originalRequest.headers = originalRequest.headers || {}
+                        originalRequest.headers['Authorization'] = `Bearer ${newToken}`
+                        return axiosClient(originalRequest)
+                    }
+                } catch {
+                    // Token renewal gagal (misal sesi Keycloak sudah berakhir di server)
                 }
-
-                // Langsung arahkan pengguna ke halaman login tanpa perlu refresh manual
-                window.location.replace("/auth/login")
             }
+
+            // Jika perbaruan token gagal atau bukan sesi OIDC yang valid
+            await terminateLocalSession('Sesi berakhir')
+        } else if (error.response?.status === 401) {
+            await terminateLocalSession('Sesi berakhir')
         }
 
         return Promise.reject(error)

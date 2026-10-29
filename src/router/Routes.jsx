@@ -1,4 +1,5 @@
 import { createBrowserRouter } from "react-router-dom";
+import AuthRoot from "./AuthRoot";
 import MainLayout from "../layout/MainLayout";
 import Landing from "../pages/Landing";
 import Documentation from "../pages/Documentation";
@@ -7,6 +8,8 @@ import Register from "../pages/auth/Register";
 import AuthLayout from "../layout/AuthLayout";
 import Login from "../pages/auth/Login";
 import ForgotPassword from "../pages/auth/ForgotPassword";
+import AuthCallbackPage from "../pages/auth/AuthCallbackPage";
+import SsoStartPage from "../pages/auth/SsoStartPage";
 import Dashboard from "../pages/Dashboard";
 import Profile from "../pages/Profile";
 import DashboardLayout from "../layout/DashboardLayout";
@@ -18,10 +21,21 @@ import authGuard from "./loader/AuthGuard";
 
 const routes = createBrowserRouter([
     {
-        path: "/",
-        element: <Landing/>,
-        errorElement: <NotFound/>
-    },
+        element: <AuthRoot />,
+        errorElement: <NotFound />,
+        children: [
+            {
+                path: "/",
+                element: <Landing />,
+            },
+            {
+                path: "/sso/start",
+                element: <SsoStartPage />,
+            },
+            {
+                path: "/auth/callback",
+                element: <AuthCallbackPage />,
+            },
     {
         element: <MainLayout/>,
         errorElement: <NotFound/>,
@@ -84,6 +98,8 @@ const routes = createBrowserRouter([
         element: <Documentation/>,
         errorElement:<NotFound/>
     },
+        ]
+    }
 ])
 
 export default routes;
