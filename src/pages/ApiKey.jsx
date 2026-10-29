@@ -264,10 +264,22 @@ const ApiKey = () => {
                                 size="small"
                                 disabled={!keyData?.is_active}
                                 onClick={handleCopyFullKey}
-                                icon={copied ? <ClipboardDocumentCheckIcon className="w-4 h-4" /> : <ClipboardDocumentIcon className="w-4 h-4" />}
-                                className={`flex items-center text-xs font-medium ${copied ? "!bg-emerald-600" : "!bg-blue-600 hover:!bg-blue-500"} border-none`}
+                                icon={
+                                  copied ? (
+                                    <ClipboardDocumentCheckIcon className="w-4 h-4 !text-white flex-shrink-0" />
+                                  ) : (
+                                    <ClipboardDocumentIcon className="w-4 h-4 !text-white flex-shrink-0" />
+                                  )
+                                }
+                                className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 h-auto text-xs font-semibold !text-white rounded-lg shadow-sm transition-all duration-200 border-none cursor-pointer ${
+                                  copied
+                                    ? "!bg-emerald-600 hover:!bg-emerald-500"
+                                    : "!bg-blue-600 hover:!bg-blue-500 active:!bg-blue-700"
+                                } disabled:!bg-slate-700 disabled:!text-slate-400`}
                               >
-                                {copied ? t('copied', "Tersalin!") : t('copyFullKey', 'Salin Kunci')}
+                                <span className="!text-white font-semibold tracking-wide">
+                                  {copied ? t('copied', "Tersalin!") : t('copyFullKey', 'Salin Kunci')}
+                                </span>
                               </Button>
                             </Tooltip>
                           </div>
