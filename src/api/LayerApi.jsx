@@ -1,5 +1,6 @@
 import axios from "axios";
 import { ensureS2SKey } from "./WorkspaceApi";
+import { extractApiError } from "../utils/wfsUtils";
 
 import { MICROSERVICE_API, GEOSERVER_BASE_URL } from "./microserviceConfig";
 
@@ -51,7 +52,7 @@ const layerApi = {
                 }
             };
         } catch (err) {
-            const errMsg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || "Gagal mempublikasikan layer ke GeoServer.";
+            const errMsg = extractApiError(err) || "Gagal mempublikasikan layer ke GeoServer.";
             throw new Error(errMsg);
         }
     },
@@ -142,6 +143,9 @@ const layerApi = {
                             symbology: item.symbology || null,
                             style_name: item.style_name || null,
                             wms_url: item.wms_url,
+                            service_mode: item.service_mode || "wms",
+                            gwc_ready: Boolean(item.gwc_ready),
+                            gwc_url: item.gwc_url || null,
                             created_at: item.created_at,
                             bbox: Array.isArray(item.bbox)
                                 ? item.bbox
@@ -223,7 +227,7 @@ const layerApi = {
                 }
             };
         } catch (err) {
-            const errMsg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || "Gagal menghapus layer di GeoServer.";
+            const errMsg = extractApiError(err) || "Gagal menghapus layer di GeoServer.";
             throw new Error(errMsg);
         }
     },
@@ -240,7 +244,7 @@ const layerApi = {
             );
             return res;
         } catch (err) {
-            const errMsg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || "Gagal menghapus beberapa layer terpilih.";
+            const errMsg = extractApiError(err) || "Gagal menghapus beberapa layer terpilih.";
             throw new Error(errMsg);
         }
     },
@@ -257,7 +261,29 @@ const layerApi = {
                 }
             };
         } catch (err) {
-            const errMsg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || "Gagal menerapkan style ke GeoServer.";
+            const errMsg = extractApiError(err) || "Gagal menerapkan style ke GeoServer.";
+            throw new Error(errMsg);
+        }
+    },
+
+    // 4b. Set Layer Service Mode (WMS or WMTS)
+    setServiceMode: async (layerId, mode, layerKind) => {
+        const headers = await getAuthHeaders(false);
+        try {
+            const res = await axios.patch(
+                `${MICROSERVICE_URL}/layers/${layerId}/service-mode`,
+                { mode, layer_kind: layerKind },
+                { headers }
+            );
+            return {
+                data: {
+                    success: true,
+                    data: res.data,
+                    detail: res.data?.message || `Mode tampilan layer berhasil diubah ke ${String(mode).toUpperCase()}.`
+                }
+            };
+        } catch (err) {
+            const errMsg = extractApiError(err) || "Gagal mengubah mode layer.";
             throw new Error(errMsg);
         }
     },
@@ -281,21 +307,77 @@ const layerApi = {
         }
     },
 
+    // 5b. Classify Raster (Shared Contract: POST /styles/raster-classify/{layer_id})
+    rasterClassify: async (layerId, { method = "natural_breaks", classes = 5 }, options = {}) => {
+        const headers = await getAuthHeaders(false);
+        const { normalizeClassificationMethod } = await import("../utils/styleConstants");
+        const normMethod = normalizeClassificationMethod(method);
+        const res = await axios.post(
+            `${MICROSERVICE_URL}/styles/raster-classify/${layerId}`,
+            { method: normMethod, classes: Number(classes) || 5 },
+            { headers, signal: options.signal }
+        );
+        return res.data;
+    },
+
     // 6. Preview Classification Classes (DRY helper on statistical data)
     classifyPreview: async (layerId, params = {}) => {
         try {
+            const count = Number(params.n_classes) || 10;
+            const rawMethod = params.method || "natural_breaks";
+            const colors = params.custom_colors || ["#00e5ff", "#0044ff", "#ff00ee"];
+            const { normalizeClassificationMethod, sampleRampColors, generateClassificationClasses } = await import("../utils/styleConstants");
+            const normMethod = normalizeClassificationMethod(rawMethod);
+
             const infoRes = await layerApi.getRasterInfo(layerId);
             const stats = infoRes?.data?.statistics || { min: 0, max: 100, mean: 50, std: 10 };
-            const count = Number(params.n_classes) || 10;
-            const method = params.method || "jenks";
-            const colors = params.custom_colors || ["#00e5ff", "#0044ff", "#ff00ee"];
 
-            const { generateClassificationClasses } = await import("../utils/styleConstants");
+            // Try backend statistical classification first if auto method
+            if (["natural_breaks", "quantile", "equal_interval"].includes(normMethod)) {
+                try {
+                    const classifyRes = await layerApi.rasterClassify(layerId, {
+                        method: normMethod,
+                        classes: count
+                    });
+                    const breaks = classifyRes?.breaks;
+                    if (Array.isArray(breaks) && breaks.length >= 2) {
+                        const effectiveCount = breaks.length - 1;
+                        const rampColors = sampleRampColors(colors, effectiveCount);
+                        const classes = [];
+                        for (let i = 0; i < effectiveCount; i++) {
+                            const bMin = breaks[i];
+                            const bMax = breaks[i + 1];
+                            classes.push({
+                                min: bMin,
+                                max: bMax,
+                                quantity: bMax,
+                                color: rampColors[i] || "#00e5ff",
+                                opacity: 1.0,
+                                label: `${bMin} - ${bMax}`,
+                                label_edited: false
+                            });
+                        }
+                        return {
+                            data: {
+                                success: true,
+                                data: {
+                                    classes,
+                                    statistics: stats,
+                                    notice: classifyRes.notice || null
+                                }
+                            }
+                        };
+                    }
+                } catch (classifyErr) {
+                    // Fall back to client calculation if API call fails
+                }
+            }
+
             const classes = generateClassificationClasses({
                 min: stats.min,
                 max: stats.max,
                 count,
-                method,
+                method: normMethod,
                 colors
             });
 
@@ -344,6 +426,47 @@ const layerApi = {
             return {
                 data: []
             };
+        }
+    },
+
+    // 8. WFS Capabilities: Layer Schema, Query Features, Identify, and Single Feature
+    getLayerSchema: async (layerId, signal) => {
+        const headers = await getAuthHeaders(false);
+        try {
+            const res = await axios.get(`${MICROSERVICE_URL}/layers/${layerId}/schema`, { headers, signal });
+            return res.data;
+        } catch (err) {
+            throw new Error(extractApiError(err));
+        }
+    },
+
+    queryLayerFeatures: async (layerId, payload = {}, signal) => {
+        const headers = await getAuthHeaders(false);
+        try {
+            const res = await axios.post(`${MICROSERVICE_URL}/layers/${layerId}/features/query`, payload, { headers, signal });
+            return res.data;
+        } catch (err) {
+            throw new Error(extractApiError(err));
+        }
+    },
+
+    identifyFeatures: async (layerId, payload, signal) => {
+        const headers = await getAuthHeaders(false);
+        try {
+            const res = await axios.post(`${MICROSERVICE_URL}/layers/${layerId}/features/identify`, payload, { headers, signal });
+            return res.data;
+        } catch (err) {
+            throw new Error(extractApiError(err));
+        }
+    },
+
+    getFeatureById: async (layerId, fid, signal) => {
+        const headers = await getAuthHeaders(false);
+        try {
+            const res = await axios.get(`${MICROSERVICE_URL}/layers/${layerId}/features/${encodeURIComponent(fid)}`, { headers, signal });
+            return res.data;
+        } catch (err) {
+            throw new Error(extractApiError(err));
         }
     }
 };

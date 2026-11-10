@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Modal, Button, Select, Input, message, Spin } from "antd";
+import { useState, useEffect, useReducer, useRef, useMemo, useCallback } from "react";
+import { Modal, Button, Select, Input, message, Spin, Tag, Tooltip, Alert } from "antd";
 import {
   Palette,
   Plus,
@@ -16,6 +16,8 @@ import {
   Sliders,
   RotateCcw,
   Image as ImageIcon,
+  AlertTriangle,
+  Combine,
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import layerApi from "../api/LayerApi";
@@ -23,12 +25,25 @@ import workspaceApi from "../api/WorkspaceApi";
 import { GEOSERVER_BASE_URL } from "../api/microserviceConfig";
 import {
   COLOR_RAMP_PREVIEWS,
+  QUALITATIVE_PALETTES,
   PRESETS,
+  CLASSIFICATION_METHODS,
   loadSavedCustomRamps,
   saveCustomRampsToStorage,
-  generateClassificationClasses,
-  calculateBreaks,
   findMatchingColorRamp,
+  normalizeClassificationMethod,
+  sampleRampColors,
+  equalIntervalBreaks,
+  uniqueValueClasses,
+  createInitialClassificationState,
+  getClassesFromState,
+  validateClassification,
+  classificationReducer,
+  toApplyPayload,
+  fromSavedSymbology,
+  formatBound,
+  formatClassLabel,
+  parseNumberInput,
 } from "../utils/styleConstants";
 import { useLanguage } from "../context/LanguageContext";
 
@@ -57,16 +72,59 @@ const STROKE_DASH_OPTIONS = [
   { id: "dotted", label: "Titik-titik", value: "2,4" },
 ];
 
+/**
+ * Komponen Input batas yang menerima "," dan "." serta hanya meng-commit saat onBlur
+ * agar tidak mengganggu pengetikan user.
+ */
+const BoundInput = ({ value, onCommit, disabled, className, placeholder }) => {
+  const [localText, setLocalText] = useState(value !== undefined && value !== null ? String(value) : "");
+
+  useEffect(() => {
+    setLocalText(value !== undefined && value !== null ? String(value) : "");
+  }, [value]);
+
+  const handleBlur = () => {
+    const parsed = parseNumberInput(localText);
+    if (parsed !== null && parsed !== value) {
+      onCommit(parsed);
+    } else {
+      setLocalText(value !== undefined && value !== null ? String(value) : "");
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.target.blur();
+    }
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      disabled={disabled}
+      value={localText}
+      placeholder={placeholder}
+      onChange={(e) => setLocalText(e.target.value)}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
+      className={className}
+    />
+  );
+};
+
 const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) => {
   const { t, translateApi } = useLanguage();
   const queryClient = useQueryClient();
   const isWorkspaceMode = Boolean(workspace);
 
-  // Deteksi tipe data
-  const isVector = !isWorkspaceMode && (
-    layer?.layer_type === "vector" ||
-    ["SHP", "GEOJSON", "KML", "KMZ"].includes(String(layer?.data_type || layer?.file_format || "").toUpperCase())
-  );
+  // Deteksi tipe data vektor
+  const isVector =
+    !isWorkspaceMode &&
+    (layer?.layer_type === "vector" ||
+      ["SHP", "GEOJSON", "KML", "KMZ"].includes(
+        String(layer?.data_type || layer?.file_format || "").toUpperCase()
+      ));
 
   const rawGeom = String(layer?.geom_type || layer?.geometry_type || "").toLowerCase();
   const isPoint = rawGeom.includes("point");
@@ -82,76 +140,138 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
   const [pointSize, setPointSize] = useState(8);
   const [mark, setMark] = useState("circle");
   const [strokeDash, setStrokeDash] = useState("solid");
-  const [markerType, setMarkerType] = useState("shape"); // "shape" | "icon"
+  const [markerType, setMarkerType] = useState("shape");
   const [selectedIcon, setSelectedIcon] = useState("agriculture-wheat-svgrepo-com.svg");
   const [availableIcons, setAvailableIcons] = useState([]);
   const [loadingIcons, setLoadingIcons] = useState(false);
 
-  // ==================== STATE RASTER ====================
-  const [method, setMethod] = useState("jenks"); // "jenks", "equal_interval", "quantile", "manual"
-  const [nClasses, setNClasses] = useState(10); // default 10 kelas
-  const [colorRamp, setColorRamp] = useState("cyan_blue_magenta");
-  const [styleType, setStyleType] = useState("intervals");
+  // ==================== STATE RASTER DENGAN REDUCER MURNI ====================
+  const [cState, cDispatch] = useReducer(classificationReducer, null, () =>
+    createInitialClassificationState()
+  );
 
-  // Custom Color Ramps State
-  const [customRamps, setCustomRamps] = useState(loadSavedCustomRamps);
-  const [detectedLayerRamp, setDetectedLayerRamp] = useState(null);
-  const [originalLayerClasses, setOriginalLayerClasses] = useState([]);
-  const [isSaveRampModalOpen, setIsSaveRampModalOpen] = useState(false);
-  const [newRampName, setNewRampName] = useState("");
-
-  // Raster stats & saved status
   const [loadingInfo, setLoadingInfo] = useState(false);
   const [calculating, setCalculating] = useState(false);
   const [stats, setStats] = useState(null);
+  const [statsError, setStatsError] = useState(null);
+  const [categoricalHint, setCategoricalHint] = useState(false);
+  const [presetWarning, setPresetWarning] = useState(null);
   const [hasSavedSymbology, setHasSavedSymbology] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState(null);
 
-  // Table classes: [{ min, max, quantity, color, opacity, label }]
-  const [classes, setClasses] = useState([]);
+  // Custom Color Ramps State
+  const [customRamps, setCustomRamps] = useState(loadSavedCustomRamps);
+  const [isSaveRampModalOpen, setIsSaveRampModalOpen] = useState(false);
+  const [newRampName, setNewRampName] = useState("");
 
-  // Gabungkan Standard Ramps dan Custom Ramps
-  const allRamps = [...COLOR_RAMP_PREVIEWS, ...customRamps];
+  // Refs untuk debounce & AbortController request klasifikasi otomatis
+  const abortControllerRef = useRef(null);
+  const debounceTimerRef = useRef(null);
+
+  // Daftar seluruh Color Ramp
+  const allRamps = useMemo(
+    () => [...COLOR_RAMP_PREVIEWS, ...QUALITATIVE_PALETTES, ...customRamps],
+    [customRamps]
+  );
+
+  // Kelas raster yang diturunkan dari breaks (Single source of truth)
+  const derivedClasses = useMemo(() => getClassesFromState(cState), [cState]);
+
+  // Validasi klasifikasi raster
+  const validation = useMemo(() => validateClassification(cState), [cState]);
+
+  // Helper eksekusi klasifikasi otomatis (Jenks / Quantile via API dengan AbortController + Debounce)
+  const runAutoClassification = useCallback(
+    (targetMethod, targetCount, targetRampId) => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+
+      const normMethod = normalizeClassificationMethod(targetMethod);
+      const count = Math.max(1, Math.min(50, Number(targetCount) || 5));
+
+      // 1. Equal Interval: dihitung lokal tanpa API
+      if (normMethod === CLASSIFICATION_METHODS.EQUAL_INTERVAL) {
+        const minVal = stats && Number.isFinite(stats.min) ? stats.min : 0;
+        const maxVal = stats && Number.isFinite(stats.max) ? stats.max : 100;
+        const breaks = equalIntervalBreaks(minVal, maxVal, count);
+        const selectedRamp = allRamps.find((r) => r.id === targetRampId) || allRamps[0];
+        const rampColors = sampleRampColors(selectedRamp.colors, count);
+
+        cDispatch({
+          type: "APPLY_AUTO_METHOD",
+          method: normMethod,
+          breaks,
+          rampColors,
+        });
+        return;
+      }
+
+      // 2. Natural Breaks & Quantile: panggil backend via endpoint raster-classify
+      if (
+        normMethod === CLASSIFICATION_METHODS.NATURAL_BREAKS ||
+        normMethod === CLASSIFICATION_METHODS.QUANTILE
+      ) {
+        if (!layer?.id) return;
+        setCalculating(true);
+
+        debounceTimerRef.current = setTimeout(async () => {
+          const controller = new AbortController();
+          abortControllerRef.current = controller;
+
+          try {
+            const res = await layerApi.rasterClassify(
+              layer.id,
+              { method: normMethod, classes: count },
+              { signal: controller.signal }
+            );
+
+            if (res && Array.isArray(res.breaks) && res.breaks.length >= 2) {
+              const selectedRamp = allRamps.find((r) => r.id === targetRampId) || allRamps[0];
+              const effCount = res.breaks.length - 1;
+              const rampColors = sampleRampColors(selectedRamp.colors, effCount);
+
+              cDispatch({
+                type: "APPLY_AUTO_METHOD",
+                method: normMethod,
+                breaks: res.breaks,
+                rampColors,
+              });
+
+              if (res.notice) {
+                message.info(res.notice);
+              }
+            }
+          } catch (err) {
+            if (err?.name === "CanceledError" || err?.name === "AbortError") {
+              return;
+            }
+            console.warn("Classification API error:", err);
+            const errDetail = err?.response?.data?.detail || "Gagal menghitung klasifikasi raster.";
+            message.error(errDetail);
+          } finally {
+            setCalculating(false);
+          }
+        }, 300);
+      }
+    },
+    [layer?.id, stats, allRamps]
+  );
 
   // Inisialisasi data saat modal dibuka
   useEffect(() => {
     if (!open) return;
 
-    // Mode 1: Workspace Default Style Mode
-    if (isWorkspaceMode) {
-      const sym = workspace?.default_style_config;
-      if (sym && sym.colors && sym.colors.length > 0) {
-        setStyleType(sym.style_type || "intervals");
-        setNClasses(sym.colors.length);
-        setClasses(
-          sym.colors.map((c) => ({
-            min: c.min,
-            max: c.max !== undefined ? c.max : c.quantity,
-            quantity: c.quantity !== undefined ? c.quantity : c.max,
-            color: c.color,
-            opacity: c.opacity ?? 1.0,
-            label: c.label || "",
-          }))
-        );
-        setHasSavedSymbology(true);
-        setLastSavedTime(sym.updated_at);
-      } else {
-        setHasSavedSymbology(false);
-        setLastSavedTime(null);
-        if (layer && layer.layer_type === "raster") {
-          handleRunClassification(10, "jenks", "cyan_blue_magenta");
-        } else {
-          handleRunClassification(10, "equal_interval", "cyan_blue_magenta");
-        }
-      }
-      return;
-    }
+    // Reset warnings & hints
+    setCategoricalHint(false);
+    setPresetWarning(null);
+    setStatsError(null);
 
-    // Mode 2: Layer Individual Style Mode
-    if (!layer) return;
-
+    // Mode Vektor
     if (isVector) {
-      // Inisialisasi Vector Style dari layer.symbology atau default
       const sym = layer?.symbology?.symbol || (typeof layer?.symbology === "object" ? layer?.symbology : null) || {};
       setFillColor(sym.fill_color || "#0d9488");
       setStrokeColor(sym.stroke_color || "#0f766e");
@@ -166,9 +286,7 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
 
       if (isIcon) {
         setMarkerType("icon");
-        if (iconName) {
-          setSelectedIcon(iconName);
-        }
+        if (iconName) setSelectedIcon(iconName);
       } else {
         setMarkerType("shape");
         setMark(rawMark);
@@ -176,208 +294,253 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
 
       loadVectorIcons(iconName);
 
-      if (sym.stroke_dasharray === "2,4") {
-        setStrokeDash("dotted");
-      } else if (sym.stroke_dasharray) {
-        setStrokeDash("dashed");
-      } else {
-        setStrokeDash("solid");
-      }
+      if (sym.stroke_dasharray === "2,4") setStrokeDash("dotted");
+      else if (sym.stroke_dasharray) setStrokeDash("dashed");
+      else setStrokeDash("solid");
 
       setHasSavedSymbology(Boolean(layer?.symbology));
       setLastSavedTime(layer?.symbology?.updated_at || null);
       return;
     }
 
-    // Helper untuk mengaplikasikan symbology ke state secara konsisten
-    const applySymbologyToState = (sym) => {
-      const rawClasses = sym.classes || sym.colors || [];
-      const formattedClasses = rawClasses.map((c, i) => ({
-        min: c.min !== undefined ? c.min : (c.quantity !== undefined ? c.quantity : i),
-        max: c.max !== undefined ? c.max : (c.quantity !== undefined ? c.quantity : i),
-        quantity: c.quantity !== undefined ? c.quantity : (c.max !== undefined ? c.max : i),
-        color: c.color || "#00e5ff",
-        opacity: c.opacity ?? 1.0,
-        label: c.label || (c.min !== undefined && c.max !== undefined ? `${c.min} - ${c.max}` : `Class ${i + 1}`),
-      }));
+    // Mode Raster
+    if (!layer?.id) return;
 
-      setStyleType(sym.style_type || "intervals");
-      setMethod(sym.classification_method || "manual");
-      setNClasses(sym.classes_count || formattedClasses.length);
-      setClasses(formattedClasses);
-      setOriginalLayerClasses(formattedClasses);
-      setHasSavedSymbology(true);
-      setLastSavedTime(sym.updated_at || null);
-
-      // Sinkronkan Color Ramp dropdown dengan warna layer saat ini
-      const classColors = formattedClasses.map((c) => c.color);
-      const matched = findMatchingColorRamp(classColors, allRamps);
-
-      if (sym.color_ramp && sym.color_ramp !== "custom" && allRamps.some((r) => r.id === sym.color_ramp)) {
-        setColorRamp(sym.color_ramp);
-        setDetectedLayerRamp(null);
-      } else if (matched) {
-        setColorRamp(matched.id);
-        setDetectedLayerRamp(null);
-      } else {
-        const detected = {
-          id: "layer_style",
-          name: t("layerCurrentStyle", "Style Layer Saat Ini"),
-          colors: classColors,
-        };
-        setDetectedLayerRamp(detected);
-        setColorRamp("layer_style");
-      }
-    };
-
-    // Jika layer prop sudah memiliki symbology dengan kelas tersimpan, inisialisasi langsung
-    const initialSym = (layer?.symbology && (layer.symbology.classes?.length > 0 || layer.symbology.colors?.length > 0))
-      ? layer.symbology
-      : null;
-
-    if (initialSym) {
-      applySymbologyToState(initialSym);
-    }
-
-    // Raster layer: fetch info & stats
     setLoadingInfo(true);
-    Promise.resolve(layerApi.getRasterInfo(layer.id))
+    layerApi
+      .getRasterInfo(layer.id)
       .then((res) => {
         const data = res?.data;
-        if (data?.statistics) {
-          setStats(data.statistics);
+        const currentStats = data?.statistics || null;
+        setStats(currentStats);
+
+        if (!currentStats && data?.statistics_error) {
+          setStatsError(data.statistics_error);
         }
 
-        const sym = (data?.saved_symbology && (data.saved_symbology.classes?.length > 0 || data.saved_symbology.colors?.length > 0))
-          ? data.saved_symbology
-          : initialSym;
+        // 1. Jika saved_symbology ada (version 2 atau data tersimpan): pulihkan apa adanya tanpa hitung ulang
+        if (data?.saved_symbology && Array.isArray(data.saved_symbology.classes) && data.saved_symbology.classes.length > 0) {
+          const restoredState = fromSavedSymbology(data.saved_symbology, currentStats);
+          cDispatch({
+            type: "APPLY_AUTO_METHOD",
+            method: restoredState.method,
+            breaks: restoredState.breaks,
+            rampColors: restoredState.colors,
+          });
+          // Pulihkan properti tambahan
+          if (restoredState.presetId) {
+            const p = PRESETS.find((item) => item.id === restoredState.presetId);
+            if (p) cDispatch({ type: "APPLY_PRESET", preset: p });
+          }
+          setHasSavedSymbology(true);
+          setLastSavedTime(data.saved_symbology.updated_at || null);
+          return;
+        }
 
-        if (sym && (sym.classes?.length > 0 || sym.colors?.length > 0)) {
-          applySymbologyToState(sym);
+        // 2. Jika tidak ada saved_symbology, tentukan default berdasarkan statistik:
+        setHasSavedSymbology(false);
+        setLastSavedTime(null);
+
+        // Kasus: Data kategorikal terdeteksi (is_integer dan unique_values <= 20)
+        if (
+          currentStats &&
+          currentStats.is_integer &&
+          Array.isArray(currentStats.unique_values) &&
+          currentStats.unique_values.length > 0 &&
+          currentStats.unique_values.length <= 20
+        ) {
+          setCategoricalHint(true);
+          const uClasses = uniqueValueClasses(currentStats.unique_values, QUALITATIVE_PALETTES[0].colors);
+          const breaks = uClasses.map((c) => c.quantity);
+          cDispatch({
+            type: "APPLY_AUTO_METHOD",
+            method: CLASSIFICATION_METHODS.UNIQUE_VALUES,
+            breaks: breaks.length > 0 ? breaks : [0, 1],
+            rampColors: uClasses.map((c) => c.color),
+          });
+          return;
+        }
+
+        // Kasus umum: Default Natural Breaks dengan jumlah kelas min(10, jumlah nilai unik)
+        const defaultCount = Math.min(
+          10,
+          currentStats?.unique_values?.length ? currentStats.unique_values.length : 10
+        );
+
+        if (currentStats && Number.isFinite(currentStats.min) && Number.isFinite(currentStats.max)) {
+          runAutoClassification(CLASSIFICATION_METHODS.NATURAL_BREAKS, defaultCount, "traffic_light");
         } else {
-          // Jika layer tidak ada style, tampilkan color-ramp paling atas (default index 0)
-          setHasSavedSymbology(false);
-          setLastSavedTime(null);
-          setDetectedLayerRamp(null);
-          setOriginalLayerClasses([]);
-          const topRamp = allRamps[0]?.id || COLOR_RAMP_PREVIEWS[0].id;
-          setColorRamp(topRamp);
-          handleRunClassification(10, "jenks", topRamp, data?.statistics);
+          // Statistik tidak tersedia: inisialisasi state manual kosong
+          cDispatch({
+            type: "APPLY_AUTO_METHOD",
+            method: CLASSIFICATION_METHODS.MANUAL,
+            breaks: [0, 1],
+            rampColors: ["#00e5ff"],
+          });
         }
       })
       .catch((err) => {
-        console.warn("Failed to load raster info, falling back:", err);
-        if (!initialSym) {
-          const topRamp = allRamps[0]?.id || COLOR_RAMP_PREVIEWS[0].id;
-          setColorRamp(topRamp);
-          handleRunClassification(10, "jenks", topRamp);
-        }
+        console.warn("Gagal memuat raster info:", err);
+        setStatsError("Gagal memproses statistik raster dari server.");
       })
       .finally(() => {
         setLoadingInfo(false);
       });
-  }, [open, layer, workspace, isVector, isWorkspaceMode]);
+  }, [open, layer?.id, isVector]);
 
-  // Fungsi memanggil API klasifikasi atau menghitung kelas secara DRY (Raster)
-  const handleRunClassification = async (
-    classesCount = nClasses,
-    classMethod = method,
-    rampId = colorRamp,
-    incomingStats = null,
-    preserveSymbols = false
-  ) => {
-    const currentStats = incomingStats || stats;
-    const minVal = currentStats?.min ?? 0;
-    const maxVal = currentStats?.max ?? 100;
-
-    // Jika preserveSymbols aktif (misal klik tombol Classify... saat user sudah punya simbol/warna sendiri)
-    if (preserveSymbols && classes && classes.length > 0) {
-      setCalculating(true);
-      try {
-        const count = classes.length;
-        const actualMethod = classMethod === "manual" ? "equal_interval" : classMethod;
-        const breaks = calculateBreaks(minVal, maxVal, count, actualMethod);
-        const updatedClasses = classes.map((item, i) => {
-          const bMin = breaks[i];
-          const bMax = breaks[i + 1] !== undefined ? breaks[i + 1] : bMin;
-          return {
-            ...item,
-            min: bMin,
-            max: bMax,
-            quantity: bMax,
-            label: `${bMin} - ${bMax}`,
-          };
-        });
-        setClasses(updatedClasses);
-        setNClasses(updatedClasses.length);
-        setStyleType("intervals");
-      } catch (err) {
-        console.warn("Re-classify intervals error:", err);
-      } finally {
-        setCalculating(false);
+  // Handler pemilihan metode klasifikasi
+  const handleMethodSelect = (newMethod) => {
+    const applyMethod = (target) => {
+      if (target === "preset") {
+        const defaultPreset = PRESETS[0];
+        handlePresetSelect(defaultPreset.id);
+        return;
       }
+      if (target === CLASSIFICATION_METHODS.UNIQUE_VALUES) {
+        if (stats?.unique_values && stats.unique_values.length > 0) {
+          const uClasses = uniqueValueClasses(stats.unique_values, QUALITATIVE_PALETTES[0].colors);
+          cDispatch({
+            type: "APPLY_AUTO_METHOD",
+            method: CLASSIFICATION_METHODS.UNIQUE_VALUES,
+            breaks: uClasses.map((c) => c.quantity),
+            rampColors: uClasses.map((c) => c.color),
+          });
+        }
+        return;
+      }
+      if (target === CLASSIFICATION_METHODS.MANUAL) {
+        // Hanya ubah tanda metode menjadi manual tanpa menghitung ulang breaks
+        cDispatch({
+          type: "SET_BREAK",
+          index: 0,
+          value: cState.breaks[0],
+        });
+        return;
+      }
+      runAutoClassification(target, cState.classCount, cState.rampId);
+    };
+
+    if (cState.method === CLASSIFICATION_METHODS.MANUAL && newMethod !== CLASSIFICATION_METHODS.MANUAL) {
+      Modal.confirm({
+        title: t("confirmOverwriteTitle", "Konfirmasi Perubahan Klasifikasi"),
+        content: t(
+          "confirmOverwriteContent",
+          "Perubahan manual akan ditimpa. Lanjutkan?"
+        ),
+        okText: t("continue", "Lanjutkan"),
+        cancelText: t("cancel", "Batal"),
+        onOk: () => applyMethod(newMethod),
+      });
       return;
     }
 
-    const activeRamps = detectedLayerRamp ? [detectedLayerRamp, ...allRamps] : allRamps;
-    const selectedRamp = activeRamps.find((r) => r.id === rampId) || allRamps[0];
-    const colors = selectedRamp?.colors || ["#00e5ff", "#0044ff", "#ff00ee"];
-    const count = Number(classesCount) || 10;
-
-    setCalculating(true);
-    try {
-      if (layer && layer.id && layer.layer_type === "raster") {
-        const res = await layerApi.classifyPreview(layer.id, {
-          n_classes: count,
-          method: classMethod,
-          custom_colors: colors,
-        });
-        const result = res?.data?.data;
-        if (result?.classes && result.classes.length > 0) {
-          setClasses(result.classes);
-          setStyleType("intervals");
-          if (result.statistics) {
-            setStats(result.statistics);
-          }
-          return;
-        }
-      }
-
-      // Perhitungan lokal instan & DRY berbasis batas statistik
-      const minVal = currentStats?.min ?? 0;
-      const maxVal = currentStats?.max ?? 100;
-      const newClasses = generateClassificationClasses({
-        min: minVal,
-        max: maxVal,
-        count,
-        method: classMethod,
-        colors,
-      });
-      setClasses(newClasses);
-      setStyleType("intervals");
-    } catch (err) {
-      console.warn("Classification computation fallback:", err);
-      const newClasses = generateClassificationClasses({
-        min: 0,
-        max: 100,
-        count,
-        method: classMethod,
-        colors,
-      });
-      setClasses(newClasses);
-      setStyleType("intervals");
-    } finally {
-      setCalculating(false);
-    }
+    applyMethod(newMethod);
   };
 
-  // Simpan warna tabel saat ini sebagai Color Ramp Custom
+  // Handler perubahan jumlah kelas
+  const handleClassCountChange = (newCount) => {
+    const applyCount = (cnt) => {
+      if (cState.method === CLASSIFICATION_METHODS.UNIQUE_VALUES) return;
+      const targetMethod =
+        cState.method === CLASSIFICATION_METHODS.MANUAL
+          ? cState.lastAutoMethod || CLASSIFICATION_METHODS.NATURAL_BREAKS
+          : cState.method;
+      runAutoClassification(targetMethod, cnt, cState.rampId);
+    };
+
+    if (cState.method === CLASSIFICATION_METHODS.MANUAL) {
+      Modal.confirm({
+        title: t("confirmOverwriteTitle", "Konfirmasi Perubahan Klasifikasi"),
+        content: t(
+          "confirmOverwriteContent",
+          "Perubahan manual akan ditimpa. Lanjutkan?"
+        ),
+        okText: t("continue", "Lanjutkan"),
+        cancelText: t("cancel", "Batal"),
+        onOk: () => applyCount(newCount),
+      });
+      return;
+    }
+
+    applyCount(newCount);
+  };
+
+  // Handler klik tombol "Classify..."
+  const handleReclassifyClick = () => {
+    const targetMethod = cState.lastAutoMethod || CLASSIFICATION_METHODS.NATURAL_BREAKS;
+    if (cState.method === CLASSIFICATION_METHODS.MANUAL) {
+      Modal.confirm({
+        title: t("confirmOverwriteTitle", "Konfirmasi Perubahan Klasifikasi"),
+        content: t(
+          "confirmOverwriteContent",
+          `Perubahan manual akan ditimpa dengan perhitungan ulang metode '${targetMethod}'. Lanjutkan?`
+        ),
+        okText: t("continue", "Lanjutkan"),
+        cancelText: t("cancel", "Batal"),
+        onOk: () => runAutoClassification(targetMethod, cState.classCount, cState.rampId),
+      });
+      return;
+    }
+    runAutoClassification(targetMethod, cState.classCount, cState.rampId);
+  };
+
+  // Handler kembali ke lastAutoMethod saat sedang manual
+  const handleRevertToAuto = () => {
+    const targetMethod = cState.lastAutoMethod || CLASSIFICATION_METHODS.NATURAL_BREAKS;
+    Modal.confirm({
+      title: t("confirmRevertTitle", "Kembalikan ke Klasifikasi Otomatis"),
+      content: t(
+        "confirmRevertContent",
+        `Kembalikan klasifikasi ke '${targetMethod}'? Perubahan manual Anda akan ditimpa.`
+      ),
+      okText: t("continue", "Lanjutkan"),
+      cancelText: t("cancel", "Batal"),
+      onOk: () => runAutoClassification(targetMethod, cState.classCount, cState.rampId),
+    });
+  };
+
+  // Handler pemilihan preset template
+  const handlePresetSelect = (presetId) => {
+    const p = PRESETS.find((item) => item.id === presetId);
+    if (!p) return;
+
+    // Cek apakah rentang data di luar rentang preset
+    if (stats && Number.isFinite(stats.min) && Number.isFinite(stats.max)) {
+      const quantities = p.classes.map((c) => Number(c.quantity)).filter(Number.isFinite);
+      if (quantities.length > 0) {
+        const pMin = Math.min(...quantities);
+        const pMax = Math.max(...quantities);
+        if (stats.min < pMin || stats.max > pMax) {
+          setPresetWarning(
+            `Peringatan: Rentang data raster [${stats.min}, ${stats.max}] berada di luar rentang preset ini [${pMin}, ${pMax}]. Data tidak akan dipotong.`
+          );
+        } else {
+          setPresetWarning(null);
+        }
+      }
+    }
+
+    cDispatch({ type: "APPLY_PRESET", preset: p });
+  };
+
+  // Handler Color Ramp change
+  const handleRampChange = (rampId) => {
+    const selected = allRamps.find((r) => r.id === rampId);
+    if (!selected) return;
+    cDispatch({
+      type: "APPLY_RAMP",
+      rampId: selected.id,
+      baseColors: selected.colors,
+    });
+  };
+
+  // Simpan custom color ramp
   const handleSaveCurrentAsCustomRamp = () => {
     if (!newRampName.trim()) {
       message.warning("Masukkan nama Color Ramp terlebih dahulu!");
       return;
     }
-    const currentColors = classes.map((c) => c.color).filter(Boolean);
+    const currentColors = derivedClasses.map((c) => c.color).filter(Boolean);
     if (currentColors.length < 2) {
       message.warning("Minimal harus ada 2 warna pada kelas untuk disimpan sebagai Color Ramp!");
       return;
@@ -393,103 +556,21 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
     const updated = [newRamp, ...customRamps];
     setCustomRamps(updated);
     saveCustomRampsToStorage(updated);
-    setColorRamp(newRamp.id);
     setNewRampName("");
     setIsSaveRampModalOpen(false);
     message.success(`Color Ramp '${newRamp.name}' berhasil disimpan!`);
   };
 
-  // Hapus Color Ramp Custom
+  // Hapus custom color ramp
   const handleDeleteCustomRamp = (e, rampId) => {
     e.stopPropagation();
     const updated = customRamps.filter((r) => r.id !== rampId);
     setCustomRamps(updated);
     saveCustomRampsToStorage(updated);
-    if (colorRamp === rampId) {
-      setColorRamp("cyan_blue_magenta");
-      handleRunClassification(nClasses, method, "cyan_blue_magenta");
-    }
     message.info("Color Ramp kustom berhasil dihapus.");
   };
 
-  const updateClass = (index, field, value) => {
-    setClasses((prev) => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
-
-      if (field === "quantity") {
-        updated[index].max = Number(value);
-        if (updated[index].min !== undefined) {
-          updated[index].label = `${updated[index].min} - ${value}`;
-        }
-      } else if (field === "max") {
-        updated[index].quantity = Number(value);
-        if (updated[index].min !== undefined) {
-          updated[index].label = `${updated[index].min} - ${value}`;
-        }
-      }
-
-      // Jika user mengedit warna satuan, perbarui preview color ramp agar tetap sinkron
-      if (field === "color") {
-        const updatedColors = updated.map((c) => c.color);
-        setDetectedLayerRamp({
-          id: "layer_style",
-          name: t("layerCurrentStyle", "Style Layer Saat Ini"),
-          colors: updatedColors,
-        });
-        setColorRamp("layer_style");
-      }
-
-      return updated;
-    });
-  };
-
-  const addClass = () => {
-    const lastCls = classes.length > 0 ? classes[classes.length - 1] : null;
-    const lastQty = lastCls ? Number(lastCls.quantity || lastCls.max || 0) : 0;
-    const newQty = Number((lastQty + 1).toFixed(2));
-    setClasses((prev) => {
-      const updated = [
-        ...prev,
-        {
-          min: lastQty,
-          max: newQty,
-          quantity: newQty,
-          color: "#3b82f6",
-          opacity: 1.0,
-          label: `${lastQty} - ${newQty}`,
-        },
-      ];
-      setNClasses(updated.length);
-      return updated;
-    });
-  };
-
-  const removeClass = (index) => {
-    if (classes.length <= 1) {
-      message.warning(t("minOneColorClass", "Minimal harus ada 1 kelas warna!"));
-      return;
-    }
-    setClasses((prev) => {
-      const updated = prev.filter((_, i) => i !== index);
-      setNClasses(updated.length);
-      return updated;
-    });
-  };
-
-  // Reset Style Vektor ke default
-  const handleResetVector = () => {
-    setFillColor("#0d9488");
-    setStrokeColor("#0f766e");
-    setStrokeWidth(2);
-    setFillOpacity(0.65);
-    setStrokeOpacity(1.0);
-    setPointSize(8);
-    setMark("circle");
-    setMarkerType("shape");
-    setStrokeDash("solid");
-  };
-
+  // Helper load icons untuk data vektor
   const loadVectorIcons = async (defaultToSelect = null) => {
     try {
       setLoadingIcons(true);
@@ -508,7 +589,125 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
     }
   };
 
-  // Render SVG Marker sesuai bentuk (mark) atau icon SVG
+  const handleResetVector = () => {
+    setFillColor("#0d9488");
+    setStrokeColor("#0f766e");
+    setStrokeWidth(2);
+    setFillOpacity(0.65);
+    setStrokeOpacity(1.0);
+    setPointSize(8);
+    setMark("circle");
+    setMarkerType("shape");
+    setStrokeDash("solid");
+  };
+
+  const svgDashArray = strokeDash === "dashed" ? "6,4" : strokeDash === "dotted" ? "2,4" : undefined;
+
+  // React Query Mutation untuk menyimpan style ke GeoServer
+  const mutation = useMutation({
+    mutationFn: (data) => layerApi.updateStyle(data),
+    onSuccess: (res) => {
+      message.success(
+        res?.data?.detail || t("styleSavedSuccess", "Klasifikasi & style layer berhasil disimpan!")
+      );
+      setHasSavedSymbology(true);
+      setLastSavedTime(new Date().toISOString());
+      queryClient.invalidateQueries({ queryKey: ["layers"] });
+      if (onStyleApplied && layer) {
+        onStyleApplied(layer.id);
+      }
+      onClose();
+    },
+    onError: (err) => {
+      const errMsg = err?.response?.data?.detail || err?.message || translateApi(err, "styleApplyFailed");
+      message.error(errMsg);
+    },
+  });
+
+  const workspaceMutation = useMutation({
+    mutationFn: (data) => workspaceApi.saveDefaultStyle(workspace.id, data),
+    onSuccess: (res) => {
+      message.success(
+        res?.data?.detail || t("workspaceDefaultStyleSaved", "Default style workspace berhasil disimpan!")
+      );
+      setHasSavedSymbology(true);
+      queryClient.invalidateQueries({
+        queryKey: ["workspace-detail", workspace.id],
+      });
+      if (onStyleApplied) {
+        onStyleApplied();
+      }
+      onClose();
+    },
+    onError: (err) => {
+      message.error(translateApi(err, "workspaceDefaultStyleFailed"));
+    },
+  });
+
+  // Submit Handler
+  const handleSubmit = () => {
+    if (isWorkspaceMode) {
+      if (!workspace) return;
+      workspaceMutation.mutate({
+        style_type: "intervals",
+        colors: derivedClasses.map((c) => ({
+          quantity: c.quantity,
+          color: c.color,
+          opacity: c.opacity,
+          label: c.label || "",
+        })),
+        apply_to_existing: false,
+      });
+      return;
+    }
+
+    if (!layer) return;
+
+    if (isVector) {
+      const dashParam = STROKE_DASH_OPTIONS.find((opt) => opt.id === strokeDash)?.value || null;
+      const geomType = layer.geom_type || layer.geometry_type || (isPoint ? "Point" : isLine ? "LineString" : "Polygon");
+      const isIconMode = markerType === "icon" && Boolean(selectedIcon);
+
+      mutation.mutate({
+        layer_id: layer.id,
+        workspace_name: layer.workspace_name,
+        layer_name: layer.geoserver_name || layer.table_name || layer.layer_name,
+        layer_kind: "vector",
+        geometry_type: geomType,
+        style_mode: "single",
+        symbol: {
+          fill_color: fillColor,
+          fill_opacity: Number(fillOpacity),
+          stroke_color: strokeColor,
+          stroke_width: Number(strokeWidth),
+          stroke_opacity: Number(strokeOpacity),
+          point_size: Number(pointSize),
+          mark: isIconMode ? `icon:${selectedIcon}` : mark,
+          stroke_dasharray: dashParam,
+          marker_type: markerType,
+          icon_name: isIconMode ? selectedIcon : null,
+          icon_url: isIconMode ? `http://geoserver-microservice:8001/assets/${selectedIcon}` : null,
+        },
+      });
+      return;
+    }
+
+    // Mode Raster: Validasi terlebih dahulu
+    if (!validation.valid) {
+      message.error(validation.errors[0]?.message || t("validationError", "Perbaiki kesalahan batas kelas sebelum menyimpan."));
+      return;
+    }
+
+    const payload = toApplyPayload(cState, {
+      layer_id: layer.id,
+      workspace_name: layer.workspace_name,
+      layer_name: layer.geoserver_name || layer.table_name || layer.store_name || layer.layer_name,
+    });
+
+    mutation.mutate(payload);
+  };
+
+  // Preview Point Vektor
   const renderPointPreview = () => {
     const s = Math.min(26, Math.max(10, pointSize * 1.5));
     const cx = 22;
@@ -573,37 +772,11 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
             fill={fillColor}
             fillOpacity={fillOpacity}
             stroke={strokeColor}
-            strokeWidth={Math.min(2.5, strokeWidth)}
+            strokeWidth={Math.min(3, strokeWidth)}
             strokeOpacity={strokeOpacity}
           />
         );
       }
-      case "cross": {
-        const half = s / 2;
-        return (
-          <g>
-            <line
-              x1={cx - half}
-              y1={cy}
-              x2={cx + half}
-              y2={cy}
-              stroke={strokeColor}
-              strokeWidth={Math.min(4, Math.max(2, strokeWidth))}
-              strokeOpacity={strokeOpacity}
-            />
-            <line
-              x1={cx}
-              y1={cy - half}
-              x2={cx}
-              y2={cy + half}
-              stroke={strokeColor}
-              strokeWidth={Math.min(4, Math.max(2, strokeWidth))}
-              strokeOpacity={strokeOpacity}
-            />
-          </g>
-        );
-      }
-      case "circle":
       default:
         return (
           <circle
@@ -620,121 +793,7 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
     }
   };
 
-  const svgDashArray = strokeDash === "dashed" ? "6,4" : strokeDash === "dotted" ? "2,4" : undefined;
-
-  const mutation = useMutation({
-    mutationFn: (data) => layerApi.updateStyle(data),
-    onSuccess: (res) => {
-      message.success(
-        res?.data?.detail || t("styleSavedSuccess", "Klasifikasi & style layer berhasil disimpan!")
-      );
-      setHasSavedSymbology(true);
-      queryClient.invalidateQueries({ queryKey: ["layers"] });
-      if (onStyleApplied && layer) {
-        onStyleApplied(layer.id);
-      }
-      onClose();
-    },
-    onError: (err) => {
-      message.error(translateApi(err, "styleApplyFailed"));
-    },
-  });
-
-  const workspaceMutation = useMutation({
-    mutationFn: (data) => workspaceApi.saveDefaultStyle(workspace.id, data),
-    onSuccess: (res) => {
-      message.success(
-        res?.data?.detail || t("workspaceDefaultStyleSaved", "Default style workspace berhasil disimpan!")
-      );
-      setHasSavedSymbology(true);
-      queryClient.invalidateQueries({
-        queryKey: ["workspace-detail", workspace.id],
-      });
-      if (onStyleApplied) {
-        onStyleApplied();
-      }
-      onClose();
-    },
-    onError: (err) => {
-      message.error(translateApi(err, "workspaceDefaultStyleFailed"));
-    },
-  });
-
-  const handleSubmit = () => {
-    // Mode Workspace Template
-    if (isWorkspaceMode) {
-      if (!workspace) return;
-      workspaceMutation.mutate({
-        style_type: styleType,
-        colors: classes.map((c) => ({
-          quantity: Number(
-            c.quantity !== undefined
-              ? c.quantity
-              : c.max !== undefined
-              ? c.max
-              : 0
-          ),
-          color: c.color,
-          opacity: Number(c.opacity ?? 1.0),
-          label: c.label || "",
-        })),
-        apply_to_existing: false,
-      });
-      return;
-    }
-
-    if (!layer) return;
-
-    // Mode Vektor (Point, Line, Polygon)
-    if (isVector) {
-      const dashParam = STROKE_DASH_OPTIONS.find((opt) => opt.id === strokeDash)?.value || null;
-      const geomType = layer.geom_type || layer.geometry_type || (isPoint ? "Point" : isLine ? "LineString" : "Polygon");
-      const isIconMode = markerType === "icon" && Boolean(selectedIcon);
-
-      mutation.mutate({
-        layer_id: layer.id,
-        workspace_name: layer.workspace_name,
-        layer_name: layer.geoserver_name || layer.table_name || layer.layer_name,
-        layer_kind: "vector",
-        geometry_type: geomType,
-        style_mode: "single",
-        symbol: {
-          fill_color: fillColor,
-          fill_opacity: Number(fillOpacity),
-          stroke_color: strokeColor,
-          stroke_width: Number(strokeWidth),
-          stroke_opacity: Number(strokeOpacity),
-          point_size: Number(pointSize),
-          mark: isIconMode ? `icon:${selectedIcon}` : mark,
-          stroke_dasharray: dashParam,
-          marker_type: markerType,
-          icon_name: isIconMode ? selectedIcon : null,
-          icon_url: isIconMode ? `http://geoserver-microservice:8001/assets/${selectedIcon}` : null,
-        },
-      });
-      return;
-    }
-
-    // Mode Raster
-    mutation.mutate({
-      layer_id: layer.id,
-      workspace_name: layer.workspace_name,
-      layer_name: layer.geoserver_name || layer.table_name || layer.store_name || layer.layer_name,
-      layer_kind: "raster",
-      style_type: styleType,
-      classification_method: method,
-      classes_count: classes.length,
-      color_ramp: colorRamp === "layer_style" ? "custom" : colorRamp,
-      colors: classes.map((c) => ({
-        min: c.min !== undefined ? Number(c.min) : null,
-        max: c.max !== undefined ? Number(c.max) : null,
-        quantity: Number(c.quantity !== undefined ? c.quantity : c.max),
-        color: c.color,
-        opacity: Number(c.opacity ?? 1.0),
-        label: c.label || "",
-      })),
-    });
-  };
+  const hasStats = Boolean(stats && Number.isFinite(stats.min) && Number.isFinite(stats.max));
 
   return (
     <>
@@ -742,7 +801,7 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
         open={open}
         onCancel={onClose}
         footer={null}
-        width={isVector ? 620 : 780}
+        width={isVector ? 620 : 800}
         centered
         className="rounded-2xl overflow-hidden"
       >
@@ -771,18 +830,11 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
                 <p className="text-xs text-slate-500">
                   {isWorkspaceMode ? (
                     <>
-                      Workspace:{" "}
-                      <span className="font-semibold text-slate-700">
-                        {workspace?.name}
-                      </span>{" "}
-                      ({t("defaultTemplate", "Default Template")})
+                      Workspace: <span className="font-semibold text-slate-700">{workspace?.name}</span>
                     </>
                   ) : (
                     <>
-                      Layer:{" "}
-                      <span className="font-semibold text-slate-700">
-                        {layer?.layer_name || layer?.display_name}
-                      </span>{" "}
+                      Layer: <span className="font-semibold text-slate-700">{layer?.layer_name || layer?.display_name}</span>{" "}
                       ({layer?.workspace_name})
                     </>
                   )}
@@ -792,11 +844,10 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
           </div>
 
           {/* ======================================================== */}
-          {/* SECTION 1: KONTROL STYLE VEKTOR (POINT, LINE, POLYGON)  */}
+          {/* SECTION 1: KONTROL STYLE VEKTOR                          */}
           {/* ======================================================== */}
           {isVector ? (
             <div className="mt-3.5 space-y-4">
-              {/* Preset Palet Warna Cepat */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
@@ -806,7 +857,6 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
                     type="button"
                     onClick={handleResetVector}
                     className="text-[11px] text-slate-500 hover:text-teal-600 font-medium flex items-center gap-1 transition cursor-pointer"
-                    title="Reset ke warna default"
                   >
                     <RotateCcw className="w-3 h-3" /> Reset Default
                   </button>
@@ -822,7 +872,6 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
                           setFillColor(preset.fill);
                           setStrokeColor(preset.stroke);
                         }}
-                        title={preset.name}
                         className={`flex flex-col items-center gap-1 p-1.5 rounded-xl border transition-all cursor-pointer ${
                           isSelected
                             ? "border-teal-500 bg-teal-50/80 ring-2 ring-teal-200 shadow-xs"
@@ -844,133 +893,76 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
                 </div>
               </div>
 
-              {/* Live Preview Card */}
+              {/* Live Preview Card Vector */}
               <div className="p-3.5 bg-gradient-to-b from-slate-50 to-slate-100/70 border border-slate-200 rounded-xl">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                    <Sliders className="w-3 h-3 text-teal-600" /> {t("livePreview", "Pratinjau Tampilan (Live Preview)")}
+                    <Sliders className="w-3 h-3 text-teal-600" /> Live Preview
                   </span>
                   <span className="text-[10px] text-slate-400 font-mono">
                     {layer?.geom_type || (isPoint ? "Point" : isLine ? "Line" : "Polygon")}
                   </span>
                 </div>
-
                 <div className="h-20 bg-white rounded-lg border border-slate-200 flex items-center justify-center px-4 relative overflow-hidden shadow-inner">
-                  {/* Preview Polygon */}
                   {isPolygon && (
-                    <div className="flex items-center gap-4 py-1">
-                      <svg width="52" height="52" className="drop-shadow-xs shrink-0">
-                        <polygon
-                          points="26,4 48,18 40,48 12,48 4,18"
-                          fill={fillColor}
-                          fillOpacity={fillOpacity}
-                          stroke={strokeColor}
-                          strokeWidth={strokeWidth}
-                          strokeOpacity={strokeOpacity}
-                          strokeDasharray={svgDashArray}
-                        />
-                      </svg>
-                      <div className="text-left">
-                        <span className="text-xs font-bold text-teal-800 block">
-                          {t("previewPolygonArea", "Pratinjau Area Poligon")}
-                        </span>
-                        <span className="text-[10px] text-slate-500 font-mono block">
-                          Fill: {fillColor} ({Math.round(fillOpacity * 100)}%) • Stroke: {strokeColor} ({strokeWidth}px)
-                        </span>
-                        {strokeDash !== "solid" && (
-                          <span className="text-[10px] text-teal-600 font-medium">
-                            {t("strokePattern", "Pola Garis")}: {strokeDash === "dashed" ? t("dashedLine", "Putus-putus") : t("dottedLine", "Titik-titik")}
-                          </span>
-                        )}
-                      </div>
-                    </div>
+                    <svg width="52" height="52" className="drop-shadow-xs shrink-0">
+                      <polygon
+                        points="26,4 48,18 40,48 12,48 4,18"
+                        fill={fillColor}
+                        fillOpacity={fillOpacity}
+                        stroke={strokeColor}
+                        strokeWidth={strokeWidth}
+                        strokeOpacity={strokeOpacity}
+                        strokeDasharray={svgDashArray}
+                      />
+                    </svg>
                   )}
-
-                  {/* Preview Line */}
                   {isLine && (
-                    <div className="flex items-center gap-4 py-1">
-                      <svg width="64" height="44" className="shrink-0">
-                        <path
-                          d="M 4,36 Q 32,4 60,36"
-                          fill="none"
-                          stroke={strokeColor}
-                          strokeWidth={strokeWidth}
-                          strokeOpacity={strokeOpacity}
-                          strokeLinecap="round"
-                          strokeDasharray={svgDashArray}
-                        />
-                      </svg>
-                      <div className="text-left">
-                        <span className="text-xs font-bold text-teal-800 block">
-                          {t("previewLineString", "Pratinjau Garis Vektor")}
-                        </span>
-                        <span className="text-[10px] text-slate-500 font-mono block">
-                          Warna: {strokeColor} • Tebal: {strokeWidth}px • Opacity: {Math.round(strokeOpacity * 100)}%
-                        </span>
-                        {strokeDash !== "solid" && (
-                          <span className="text-[10px] text-teal-600 font-medium">
-                            {t("strokePattern", "Pola Garis")}: {strokeDash === "dashed" ? t("dashedLine", "Putus-putus") : t("dottedLine", "Titik-titik")}
-                          </span>
-                        )}
-                      </div>
-                    </div>
+                    <svg width="64" height="44" className="shrink-0">
+                      <path
+                        d="M 4,36 Q 32,4 60,36"
+                        fill="none"
+                        stroke={strokeColor}
+                        strokeWidth={strokeWidth}
+                        strokeOpacity={strokeOpacity}
+                        strokeLinecap="round"
+                        strokeDasharray={svgDashArray}
+                      />
+                    </svg>
                   )}
-
-                  {/* Preview Point with Dynamic Marker Shape or SVG Icon */}
                   {isPoint && (
-                    <div className="flex items-center gap-4 py-1">
-                      <svg width="44" height="44" className="shrink-0">
-                        {renderPointPreview()}
-                      </svg>
-                      <div className="text-left">
-                        <span className="text-xs font-bold text-teal-800 block capitalize">
-                          {t("previewPointMarker", "Pratinjau Marker Titik")} ({markerType === "icon" ? `${(selectedIcon || "").split(/[-_.]/)[0] || "Icon"}` : mark})
-                        </span>
-                        <span className="text-[10px] text-slate-500 font-mono block">
-                          Ukuran: {pointSize}px • Fill: {fillColor} • Border: {strokeColor} ({strokeWidth}px)
-                        </span>
-                      </div>
-                    </div>
+                    <svg width="44" height="44" className="shrink-0">
+                      {renderPointPreview()}
+                    </svg>
                   )}
                 </div>
               </div>
 
-              {/* Pilihan Bentuk Marker (Point Mark) atau Icon SVG - KHUSUS DATA TITIK (POINT) */}
+              {/* Point Marker Options */}
               {isPoint && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-xs font-semibold text-slate-700">
-                      {t("pointMarkerShape", "Bentuk Marker Titik (Point Marker)")}
+                      Bentuk Marker Titik
                     </label>
-                    {/* Toggle Mode: Bentuk Standar vs Icon SVG */}
                     <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
                       <button
                         type="button"
                         onClick={() => setMarkerType("shape")}
                         className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition cursor-pointer ${
-                          markerType === "shape"
-                            ? "bg-white text-teal-700 shadow-xs font-semibold"
-                            : "text-slate-500 hover:text-slate-800"
+                          markerType === "shape" ? "bg-white text-teal-700 shadow-xs font-semibold" : "text-slate-500"
                         }`}
                       >
-                        {t("geometricShape", "Bentuk Geometri")}
+                        Bentuk Geometri
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          setMarkerType("icon");
-                          if (!selectedIcon && availableIcons.length > 0) {
-                            setSelectedIcon(availableIcons[0].filename || availableIcons[0].id);
-                          }
-                        }}
+                        onClick={() => setMarkerType("icon")}
                         className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition cursor-pointer flex items-center gap-1 ${
-                          markerType === "icon"
-                            ? "bg-white text-teal-700 shadow-xs font-semibold"
-                            : "text-slate-500 hover:text-slate-800"
+                          markerType === "icon" ? "bg-white text-teal-700 shadow-xs font-semibold" : "text-slate-500"
                         }`}
                       >
-                        <ImageIcon className="w-3.5 h-3.5 text-teal-600" />
-                        {t("svgIcon", "Icon SVG")}
+                        <ImageIcon className="w-3.5 h-3.5 text-teal-600" /> Icon SVG
                       </button>
                     </div>
                   </div>
@@ -987,8 +979,8 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
                             onClick={() => setMark(opt.id)}
                             className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg border text-xs font-medium transition cursor-pointer ${
                               isSelected
-                                ? "border-teal-500 bg-teal-50 text-teal-800 font-semibold shadow-xs ring-1 ring-teal-200"
-                                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:border-slate-300"
+                                ? "border-teal-500 bg-teal-50 text-teal-800 font-semibold ring-1 ring-teal-200"
+                                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                             }`}
                           >
                             <IconComponent className={`w-3.5 h-3.5 ${isSelected ? "text-teal-600" : "text-slate-400"}`} />
@@ -998,56 +990,31 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
                       })}
                     </div>
                   ) : (
-                    <div className="space-y-2.5 p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-medium text-slate-600">
-                          {t("availableIconsCount", "Pilih Icon SVG yang Tersedia")}: ({availableIcons.length}):
-                        </span>
-                      </div>
-
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                      <span className="text-[11px] font-medium text-slate-600">Pilih Icon SVG:</span>
                       {loadingIcons ? (
-                        <div className="flex items-center justify-center py-4">
-                          <Spin size="small" />
-                          <span className="ml-2 text-xs text-slate-500">{t("loadingIcons", "Memuat koleksi icon...")}</span>
-                        </div>
-                      ) : availableIcons.length === 0 ? (
-                        <div className="text-center py-4 text-xs text-slate-400">
-                          {t("noIconsAvailable", "Belum ada icon SVG tersedia.")}
-                        </div>
+                        <div className="py-4 text-center"><Spin size="small" /></div>
                       ) : (
-                        <div className="grid grid-cols-5 gap-2 max-h-36 overflow-y-auto p-1 custom-scrollbar">
-                          {availableIcons.map((ic) => {
-                            const isSelected = selectedIcon === ic.filename || selectedIcon === ic.id;
-                            const iconUrl = ic.url.startsWith("http")
-                              ? ic.url
-                              : `${GEOSERVER_BASE_URL}${ic.url.startsWith("/") ? "" : "/"}${ic.url}`;
-
-                            return (
-                              <button
-                                key={ic.id}
-                                type="button"
-                                onClick={() => setSelectedIcon(ic.filename || ic.id)}
-                                title={ic.name}
-                                className={`flex flex-col items-center gap-1 p-2 rounded-xl border transition-all cursor-pointer bg-white ${
-                                  isSelected
-                                    ? "border-teal-500 bg-teal-50/80 ring-2 ring-teal-300 shadow-xs"
-                                    : "border-slate-200 hover:border-slate-300 hover:bg-slate-100/60"
-                                }`}
-                              >
-                                <div className="w-7 h-7 flex items-center justify-center p-0.5">
-                                  <img
-                                    src={iconUrl}
-                                    alt={ic.name}
-                                    className="w-full h-full object-contain pointer-events-none"
-                                    loading="lazy"
-                                  />
-                                </div>
-                                <span className="text-[9px] font-medium text-slate-600 truncate w-full text-center">
-                                  {ic.name}
-                                </span>
-                              </button>
-                            );
-                          })}
+                        <div className="grid grid-cols-4 gap-2 max-h-36 overflow-y-auto p-1">
+                          {availableIcons.map((icon) => (
+                            <button
+                              key={icon.id}
+                              type="button"
+                              onClick={() => setSelectedIcon(icon.filename || icon.id)}
+                              className={`flex flex-col items-center gap-1 p-2 rounded-lg border text-center transition cursor-pointer ${
+                                selectedIcon === (icon.filename || icon.id)
+                                  ? "border-teal-500 bg-teal-50 ring-1 ring-teal-200"
+                                  : "border-slate-200 bg-white hover:bg-slate-50"
+                              }`}
+                            >
+                              <img
+                                src={icon.url.startsWith("http") ? icon.url : `${GEOSERVER_BASE_URL}${icon.url}`}
+                                alt={icon.name}
+                                className="w-6 h-6 object-contain"
+                              />
+                              <span className="text-[9px] text-slate-600 truncate w-full">{icon.name}</span>
+                            </button>
+                          ))}
                         </div>
                       )}
                     </div>
@@ -1055,65 +1022,10 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
                 </div>
               )}
 
-              {/* Form Kontrol Warna */}
-              <div className={`grid grid-cols-1 ${isLine ? "" : "sm:grid-cols-2"} gap-3.5`}>
-                {/* Fill Color - Hanya untuk Polygon dan Point */}
-                {!isLine && (
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      {t("fillColor", "Warna Isian (Fill Color)")}
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={fillColor}
-                        onChange={(e) => setFillColor(e.target.value)}
-                        className="w-8 h-8 rounded-lg border border-slate-300 p-0.5 cursor-pointer bg-white shrink-0"
-                      />
-                      <input
-                        type="text"
-                        value={fillColor}
-                        onChange={(e) => setFillColor(e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-xs font-mono uppercase border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Stroke Color */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    {isLine
-                      ? t("lineColor", "Warna Garis (Line Color)")
-                      : isPoint
-                      ? t("pointBorderColor", "Warna Border Titik (Border Color)")
-                      : t("strokeColor", "Warna Garis Tepi (Stroke Color)")}
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={strokeColor}
-                      onChange={(e) => setStrokeColor(e.target.value)}
-                      className="w-8 h-8 rounded-lg border border-slate-300 p-0.5 cursor-pointer bg-white shrink-0"
-                    />
-                    <input
-                      type="text"
-                      value={strokeColor}
-                      onChange={(e) => setStrokeColor(e.target.value)}
-                      className="w-full px-2.5 py-1.5 text-xs font-mono uppercase border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Tipe Garis Tepi (Stroke Style) - Khusus untuk Polygon dan Line */}
+              {/* Stroke Dash Pattern */}
               {!isPoint && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    {isLine
-                      ? t("lineStyle", "Pola Garis (Line Style)")
-                      : t("strokeStyle", "Pola Garis Tepi (Stroke Style)")}
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Pola Garis</label>
                   <div className="grid grid-cols-3 gap-2">
                     {STROKE_DASH_OPTIONS.map((opt) => (
                       <button
@@ -1132,465 +1044,506 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
                   </div>
                 </div>
               )}
-
-              {/* Slider Transparansi & Ukuran */}
-              <div className={`grid grid-cols-1 ${isPolygon ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-3.5 pt-1`}>
-                {/* Fill Opacity - Hanya untuk Polygon dan Point */}
-                {!isLine && (
-                  <div>
-                    <div className="flex items-center justify-between text-xs mb-1 font-semibold text-slate-700">
-                      <span>{t("fillOpacity", "Transparansi Isian (Fill Opacity)")}</span>
-                      <span className="font-mono text-teal-700 text-[10px] bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
-                        {Math.round(fillOpacity * 100)}%
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={fillOpacity}
-                      onChange={(e) => setFillOpacity(parseFloat(e.target.value))}
-                      className="w-full accent-teal-600 h-1.5 bg-slate-200 rounded-lg cursor-pointer"
-                    />
-                  </div>
-                )}
-
-                {/* Stroke Opacity */}
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1 font-semibold text-slate-700">
-                    <span>
-                      {isLine
-                        ? t("lineOpacity", "Transparansi Garis (Line Opacity)")
-                        : t("strokeOpacity", "Transparansi Garis (Stroke Opacity)")}
-                    </span>
-                    <span className="font-mono text-teal-700 text-[10px] bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
-                      {Math.round(strokeOpacity * 100)}%
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={strokeOpacity}
-                    onChange={(e) => setStrokeOpacity(parseFloat(e.target.value))}
-                    className="w-full accent-teal-600 h-1.5 bg-slate-200 rounded-lg cursor-pointer"
-                  />
-                </div>
-
-                {/* Stroke Width */}
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1 font-semibold text-slate-700">
-                    <span>
-                      {isPoint
-                        ? t("pointBorderWidth", "Tebal Border Titik")
-                        : isLine
-                        ? t("lineWidth", "Ketebalan Garis (Line Width)")
-                        : t("strokeWidth", "Ketebalan Garis (Stroke Width)")}
-                    </span>
-                    <span className="font-mono text-teal-700 text-[10px] bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
-                      {strokeWidth} px
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0.5"
-                    max="8"
-                    step="0.5"
-                    value={strokeWidth}
-                    onChange={(e) => setStrokeWidth(parseFloat(e.target.value))}
-                    className="w-full accent-teal-600 h-1.5 bg-slate-200 rounded-lg cursor-pointer"
-                  />
-                </div>
-
-                {/* Point Size - KHUSUS UNTUK DATA TITIK */}
-                {isPoint && (
-                  <div>
-                    <div className="flex items-center justify-between text-xs mb-1 font-semibold text-slate-700">
-                      <span>{t("pointSize", "Ukuran Marker Titik (Point Size)")}</span>
-                      <span className="font-mono text-teal-700 text-[10px] bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
-                        {pointSize} px
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min="4"
-                      max="24"
-                      step="1"
-                      value={pointSize}
-                      onChange={(e) => setPointSize(parseInt(e.target.value, 10))}
-                      className="w-full accent-teal-600 h-1.5 bg-slate-200 rounded-lg cursor-pointer"
-                    />
-                  </div>
-                )}
-              </div>
             </div>
           ) : (
             /* ======================================================== */
             /* SECTION 2: KONTROL STYLE RASTER & KLASIFIKASI            */
             /* ======================================================== */
             <>
-              {/* Raster Statistics Banner */}
-              {stats && (
-                <div className="mt-3 flex items-center justify-between px-3 py-2 bg-gradient-to-r from-blue-50/70 to-teal-50/70 rounded-xl border border-blue-100 text-xs text-slate-700">
-                  <div className="flex items-center gap-3">
-                    <span className="font-semibold text-blue-900 flex items-center gap-1">
-                      <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" />
-                      {t("dataStatistics", "Data Statistics:")}
-                    </span>
-                    <span>
-                      Min: <strong className="font-mono text-blue-800">{stats.min}</strong>
-                    </span>
-                    <span className="text-slate-300">|</span>
-                    <span>
-                      Max: <strong className="font-mono text-blue-800">{stats.max}</strong>
-                    </span>
-                    <span className="text-slate-300">|</span>
-                    <span>
-                      Mean: <strong className="font-mono text-blue-800">{stats.mean}</strong>
-                    </span>
-                    <span className="text-slate-300">|</span>
-                    <span>
-                      Std: <strong className="font-mono text-blue-800">{stats.std}</strong>
-                    </span>
-                  </div>
-                  {stats.valid_pixels && (
-                    <span className="text-[11px] text-slate-400">
-                      {stats.valid_pixels.toLocaleString()} pixels
-                    </span>
-                  )}
+              {/* Loading Skeleton */}
+              {loadingInfo ? (
+                <div className="py-12 text-center bg-slate-50 rounded-xl border border-slate-200 mt-3">
+                  <Spin description={t("loadingRasterStats", "Memuat statistik & simbologi raster...")} />
                 </div>
-              )}
-
-              {/* Classification Controls Panel */}
-              <div className="mt-3.5 p-3.5 bg-slate-50/80 rounded-xl border border-slate-200">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {/* Classification Method */}
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                      {t("classificationMethod", "Classification Method:")}
-                    </label>
-                    <Select
-                      value={method}
-                      onChange={(val) => {
-                        setMethod(val);
-                        if (val !== "manual") {
-                          const preserve = classes && classes.length > 0;
-                          handleRunClassification(classes.length > 0 ? classes.length : nClasses, val, colorRamp, null, preserve);
-                        }
-                      }}
-                      className="w-full text-xs"
-                      options={[
-                        { value: "jenks", label: "Natural Breaks (Jenks)" },
-                        { value: "equal_interval", label: "Equal Interval" },
-                        { value: "quantile", label: "Quantile" },
-                        { value: "manual", label: "Manual (Custom)" },
-                      ]}
-                    />
-                  </div>
-
-                  {/* Number of Classes */}
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                      Classes:
-                    </label>
-                    <Select
-                      value={nClasses}
-                      onChange={(val) => {
-                        setNClasses(val);
-                        handleRunClassification(val, method, colorRamp);
-                      }}
-                      className="w-full text-xs"
-                      options={[
-                        { value: 3, label: "3 Classes" },
-                        { value: 4, label: "4 Classes" },
-                        { value: 5, label: "5 Classes" },
-                        { value: 6, label: "6 Classes" },
-                        { value: 7, label: "7 Classes" },
-                        { value: 8, label: "8 Classes" },
-                        { value: 9, label: "9 Classes" },
-                        { value: 10, label: "10 Classes (Default)" },
-                        { value: 12, label: "12 Classes" },
-                        { value: 15, label: "15 Classes" },
-                      ]}
-                    />
-                  </div>
-
-                  {/* Color Ramp Selector */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-[11px] font-semibold text-slate-600">
-                        Color Ramp:
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => setIsSaveRampModalOpen(true)}
-                        className="text-[10px] text-teal-600 hover:text-teal-700 font-medium flex items-center gap-0.5 hover:underline cursor-pointer"
-                        title="Simpan susunan warna saat ini sebagai Color Ramp kustom"
-                      >
-                        <BookmarkPlus className="w-3 h-3" />
-                        + Simpan Custom
-                      </button>
+              ) : (
+                <>
+                  {/* Statistics Banner */}
+                  {stats ? (
+                    <div className="mt-3 flex items-center justify-between px-3 py-2 bg-gradient-to-r from-blue-50/70 to-teal-50/70 rounded-xl border border-blue-100 text-xs text-slate-700">
+                      <div className="flex items-center gap-3">
+                        <span className="font-semibold text-blue-900 flex items-center gap-1">
+                          <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" />
+                          {t("dataStatistics", "Statistik Data:")}
+                        </span>
+                        <span>Min: <strong className="font-mono text-blue-800">{formatBound(stats.min)}</strong></span>
+                        <span className="text-slate-300">|</span>
+                        <span>Max: <strong className="font-mono text-blue-800">{formatBound(stats.max)}</strong></span>
+                        <span className="text-slate-300">|</span>
+                        <span>Mean: <strong className="font-mono text-blue-800">{formatBound(stats.mean)}</strong></span>
+                        <span className="text-slate-300">|</span>
+                        <span>Std: <strong className="font-mono text-blue-800">{formatBound(stats.std)}</strong></span>
+                      </div>
+                      {categoricalHint && (
+                        <Tag color="cyan" className="text-[10px] font-medium m-0">
+                          {t("dataCategoricalDetected", "Data kategorikal terdeteksi")}
+                        </Tag>
+                      )}
                     </div>
-                    <Select
-                      value={colorRamp}
-                      onChange={(val) => {
-                        setColorRamp(val);
-                        if (val === "layer_style") {
-                          if (originalLayerClasses.length > 0) {
-                            setClasses(originalLayerClasses);
-                            setNClasses(originalLayerClasses.length);
-                          }
-                        } else {
-                          handleRunClassification(nClasses, method, val);
-                        }
-                      }}
-                      className="w-full text-xs"
-                    >
-                      {detectedLayerRamp && (
-                        <Select.OptGroup label={t("detectedStyleGroup", "Style Layer Terdeteksi")}>
-                          <Select.Option key={detectedLayerRamp.id} value={detectedLayerRamp.id}>
-                            <div className="flex items-center gap-2">
-                              <div className="flex h-2.5 w-14 rounded overflow-hidden shadow-inner flex-shrink-0">
-                                {detectedLayerRamp.colors.map((c, i) => (
-                                  <div key={i} style={{ backgroundColor: c, flex: 1 }} />
-                                ))}
-                              </div>
-                              <span className="text-xs truncate font-medium text-teal-700">
-                                {detectedLayerRamp.name} ({classes.length} {t("classesLabel", "Kelas")})
-                              </span>
-                            </div>
-                          </Select.Option>
-                        </Select.OptGroup>
+                  ) : statsError ? (
+                    <Alert
+                      type="warning"
+                      showIcon
+                      message={t("distributionStatsUnavailable", "Statistik Distribusi Tidak Tersedia")}
+                      description={statsError}
+                      className="mt-3 text-xs"
+                    />
+                  ) : null}
+
+                  {/* Preset Out of Range Warning */}
+                  {presetWarning && (
+                    <Alert
+                      type="warning"
+                      showIcon
+                      message={presetWarning}
+                      className="mt-2 text-xs"
+                    />
+                  )}
+
+                  {/* Classification Controls Panel */}
+                  <div className="mt-3.5 p-3.5 bg-slate-50/80 rounded-xl border border-slate-200">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {/* Classification Method Dropdown */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[11px] font-semibold text-slate-600">
+                            {t("classificationMethod", "Metode Klasifikasi:")}
+                          </label>
+                          {cState.method === CLASSIFICATION_METHODS.MANUAL && (
+                            <Tag color="orange" className="text-[9px] font-semibold m-0">
+                              {t("manuallyEdited", "Diedit manual")}
+                            </Tag>
+                          )}
+                          {cState.method === CLASSIFICATION_METHODS.PRESET && cState.presetId && (
+                            <Tag color="blue" className="text-[9px] font-semibold m-0">
+                              {t("presetBadge", "Preset: {name}", { name: PRESETS.find((p) => p.id === cState.presetId)?.name || cState.presetId })}
+                            </Tag>
+                          )}
+                        </div>
+
+                        <Select
+                          value={cState.method}
+                          onChange={handleMethodSelect}
+                          className="w-full text-xs"
+                          options={[
+                            {
+                              value: CLASSIFICATION_METHODS.NATURAL_BREAKS,
+                              label: t("methodNaturalBreaks", "Natural Breaks (Jenks)"),
+                              disabled: !hasStats,
+                            },
+                            {
+                              value: CLASSIFICATION_METHODS.EQUAL_INTERVAL,
+                              label: t("methodEqualInterval", "Equal Interval"),
+                              disabled: !hasStats,
+                            },
+                            {
+                              value: CLASSIFICATION_METHODS.QUANTILE,
+                              label: t("methodQuantile", "Quantile"),
+                              disabled: !hasStats,
+                            },
+                            {
+                              value: CLASSIFICATION_METHODS.UNIQUE_VALUES,
+                              label: t("methodUniqueValues", "Unique Values"),
+                              disabled: !stats?.unique_values || stats.unique_values.length === 0,
+                            },
+                            {
+                              value: CLASSIFICATION_METHODS.MANUAL,
+                              label: t("methodManual", "Manual (Custom)"),
+                            },
+                            {
+                              value: CLASSIFICATION_METHODS.PRESET,
+                              label: t("methodPreset", "Preset Template"),
+                            },
+                          ]}
+                        />
+
+                        {/* Revert link when in manual mode */}
+                        {cState.method === CLASSIFICATION_METHODS.MANUAL && cState.lastAutoMethod && (
+                          <div className="mt-1 flex items-center justify-between">
+                            <button
+                              type="button"
+                              onClick={handleRevertToAuto}
+                              className="text-[10px] text-teal-600 hover:text-teal-700 hover:underline font-medium cursor-pointer"
+                            >
+                              {t("revertToMethod", "Kembalikan ke {method}", {
+                                method: cState.lastAutoMethod === "natural_breaks" ? "Jenks" : cState.lastAutoMethod
+                              })}
+                            </button>
+                            {cState._undo && (
+                              <button
+                                type="button"
+                                onClick={() => cDispatch({ type: "UNDO" })}
+                                className="text-[10px] text-slate-500 hover:text-slate-700 flex items-center gap-0.5 cursor-pointer"
+                              >
+                                <RotateCcw className="w-2.5 h-2.5" /> {t("undoBtn", "Undo")}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Number of Classes OR Preset Selector */}
+                      {cState.method === CLASSIFICATION_METHODS.PRESET ? (
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                            {t("selectPresetTemplate", "Pilih Template Preset:")}
+                          </label>
+                          <Select
+                            value={cState.presetId || PRESETS[0].id}
+                            onChange={handlePresetSelect}
+                            className="w-full text-xs"
+                            options={PRESETS.map((p) => ({
+                              value: p.id,
+                              label: p.name,
+                            }))}
+                          />
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                            {t("numberOfClasses", "Jumlah Kelas:")}
+                          </label>
+                          <Select
+                            value={cState.classCount}
+                            onChange={handleClassCountChange}
+                            disabled={cState.method === CLASSIFICATION_METHODS.UNIQUE_VALUES}
+                            className="w-full text-xs"
+                            options={[
+                              { value: 3, label: t("classesCountOption", "{count} Classes", { count: 3 }) },
+                              { value: 4, label: t("classesCountOption", "{count} Classes", { count: 4 }) },
+                              { value: 5, label: t("classesCountOption", "{count} Classes", { count: 5 }) },
+                              { value: 6, label: t("classesCountOption", "{count} Classes", { count: 6 }) },
+                              { value: 7, label: t("classesCountOption", "{count} Classes", { count: 7 }) },
+                              { value: 8, label: t("classesCountOption", "{count} Classes", { count: 8 }) },
+                              { value: 9, label: t("classesCountOption", "{count} Classes", { count: 9 }) },
+                              { value: 10, label: t("classesCountDefaultOption", "{count} Classes (Default)", { count: 10 }) },
+                              { value: 12, label: t("classesCountOption", "{count} Classes", { count: 12 }) },
+                              { value: 15, label: t("classesCountOption", "{count} Classes", { count: 15 }) },
+                            ]}
+                          />
+                        </div>
                       )}
 
-                      <Select.OptGroup label="Standard Color Ramps">
-                        {COLOR_RAMP_PREVIEWS.map((ramp) => (
-                          <Select.Option key={ramp.id} value={ramp.id}>
-                            <div className="flex items-center gap-2">
-                              <div className="flex h-2.5 w-14 rounded overflow-hidden shadow-inner flex-shrink-0">
-                                {ramp.colors.map((c, i) => (
-                                  <div key={i} style={{ backgroundColor: c, flex: 1 }} />
-                                ))}
-                              </div>
-                              <span className="text-xs truncate">{ramp.name}</span>
-                            </div>
-                          </Select.Option>
-                        ))}
-                      </Select.OptGroup>
+                      {/* Color Ramp Selector */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[11px] font-semibold text-slate-600">
+                            {t("colorRampLabel", "Color Ramp:")}
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setIsSaveRampModalOpen(true)}
+                            className="text-[10px] text-teal-600 hover:text-teal-700 font-medium flex items-center gap-0.5 hover:underline cursor-pointer"
+                          >
+                            <BookmarkPlus className="w-3 h-3" /> {t("saveCustomRampBtn", "+ Simpan Custom")}
+                          </button>
+                        </div>
+                        <Select
+                          value={cState.rampId || "traffic_light"}
+                          onChange={handleRampChange}
+                          className="w-full text-xs"
+                        >
+                          {/* Qualitative group for unique values */}
+                          {cState.method === CLASSIFICATION_METHODS.UNIQUE_VALUES && (
+                            <Select.OptGroup label={t("qualitativePalettesGroup", "Qualitative (High Contrast Categories)")}>
+                              {QUALITATIVE_PALETTES.map((ramp) => (
+                                <Select.Option key={ramp.id} value={ramp.id}>
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex h-2.5 w-14 rounded overflow-hidden shadow-inner flex-shrink-0">
+                                      {ramp.colors.map((c, i) => (
+                                        <div key={i} style={{ backgroundColor: c, flex: 1 }} />
+                                      ))}
+                                    </div>
+                                    <span className="text-xs truncate">{ramp.name}</span>
+                                  </div>
+                                </Select.Option>
+                              ))}
+                            </Select.OptGroup>
+                          )}
 
-                      {customRamps.length > 0 && (
-                        <Select.OptGroup label="Custom Color Ramps (Tersimpan)">
-                          {customRamps.map((ramp) => (
-                            <Select.Option key={ramp.id} value={ramp.id}>
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2 min-w-0">
+                          <Select.OptGroup label={t("standardColorRampsGroup", "Standard Color Ramps")}>
+                            {COLOR_RAMP_PREVIEWS.map((ramp) => (
+                              <Select.Option key={ramp.id} value={ramp.id}>
+                                <div className="flex items-center gap-2">
                                   <div className="flex h-2.5 w-14 rounded overflow-hidden shadow-inner flex-shrink-0">
                                     {ramp.colors.map((c, i) => (
                                       <div key={i} style={{ backgroundColor: c, flex: 1 }} />
                                     ))}
                                   </div>
-                                  <span className="text-xs truncate font-medium text-teal-700">{ramp.name}</span>
+                                  <span className="text-xs truncate">{ramp.name}</span>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={(e) => handleDeleteCustomRamp(e, ramp.id)}
-                                  className="text-slate-400 hover:text-red-500 p-0.5 cursor-pointer"
-                                  title="Hapus color ramp ini"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </Select.Option>
-                          ))}
-                        </Select.OptGroup>
-                      )}
-                    </Select>
-                  </div>
-                </div>
+                              </Select.Option>
+                            ))}
+                          </Select.OptGroup>
 
-                {/* Tombol Re-classify */}
-                <div className="mt-3 flex items-center justify-between pt-2 border-t border-slate-200">
-                  <span className="text-[11px] text-slate-500">
-                    SLD Mode: <strong>Intervals (Range Min &ndash; Max)</strong>
-                  </span>
-                  <Button
-                    size="small"
-                    type="default"
-                    icon={<Calculator className="w-3.5 h-3.5 text-teal-600" />}
-                    onClick={() =>
-                      handleRunClassification(
-                        classes.length > 0 ? classes.length : nClasses,
-                        method,
-                        colorRamp,
-                        null,
-                        true
-                      )
-                    }
-                    loading={calculating}
-                    className="text-xs flex items-center gap-1 font-medium"
-                  >
-                    Classify...
-                  </Button>
-                </div>
-              </div>
-
-              {/* Tabel Rentang Kelas (Classification Breaks) */}
-              <div className="mt-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-slate-700">
-                    Draw raster grouping values into classes ({classes.length} classes):
-                  </span>
-                  <Button
-                    type="dashed"
-                    size="small"
-                    icon={<Plus className="w-3.5 h-3.5" />}
-                    onClick={addClass}
-                    className="text-xs flex items-center"
-                  >
-                    Add Class
-                  </Button>
-                </div>
-
-                {loadingInfo || calculating ? (
-                  <div className="flex items-center justify-center py-10 bg-slate-50 rounded-xl border border-slate-200">
-                    <Spin tip="Calculating raster values &amp; intervals..." />
-                  </div>
-                ) : (
-                  <div className="max-h-[260px] overflow-y-auto overflow-x-auto pr-1 border border-slate-200 rounded-xl bg-slate-50/50 p-1.5">
-                    <div className="min-w-[620px] space-y-1.5">
-                      {/* Header Tabel */}
-                      <div className="flex items-center gap-2 px-2 py-1 text-[11px] font-semibold text-slate-500 bg-slate-100 rounded-lg">
-                        <div className="w-24">Symbol</div>
-                        <div className="w-36">Range (Min - Max)</div>
-                        <div className="flex-1">Label</div>
-                        <div className="w-20">Value (&le;)</div>
-                        <div className="w-20">Opacity</div>
-                        <div className="w-6"></div>
+                          {customRamps.length > 0 && (
+                            <Select.OptGroup label={t("customColorRampsGroup", "Custom Color Ramps (Saved)")}>
+                              {customRamps.map((ramp) => (
+                                <Select.Option key={ramp.id} value={ramp.id}>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <div className="flex h-2.5 w-14 rounded overflow-hidden shadow-inner flex-shrink-0">
+                                        {ramp.colors.map((c, i) => (
+                                          <div key={i} style={{ backgroundColor: c, flex: 1 }} />
+                                        ))}
+                                      </div>
+                                      <span className="text-xs truncate font-medium text-teal-700">{ramp.name}</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => handleDeleteCustomRamp(e, ramp.id)}
+                                      className="text-slate-400 hover:text-red-500 p-0.5 cursor-pointer"
+                                      title={t("deleteCustomRampTitle", "Hapus color ramp ini")}
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                </Select.Option>
+                              ))}
+                            </Select.OptGroup>
+                          )}
+                        </Select>
                       </div>
+                    </div>
 
-                      {classes.map((cls, idx) => (
+                    {/* Reclassify button bar */}
+                    <div className="mt-3 flex items-center justify-between pt-2 border-t border-slate-200">
+                      <span className="text-[11px] text-slate-500">
+                        {t("sldModeLabel", "Mode SLD:")}{" "}
+                        <strong>
+                          {cState.method === CLASSIFICATION_METHODS.UNIQUE_VALUES
+                            ? t("sldModeValues", "Values (Kategori Diskrit)")
+                            : t("sldModeIntervals", "Intervals (Batas Atas ≤)")}
+                        </strong>
+                      </span>
+                      <Tooltip title={t("reclassifyTooltip", "Hitung ulang titik batas klasifikasi otomatis")}>
+                        <Button
+                          size="small"
+                          type="default"
+                          icon={<Calculator className="w-3.5 h-3.5 text-teal-600" />}
+                          onClick={handleReclassifyClick}
+                          loading={calculating}
+                          disabled={!hasStats}
+                          className="text-xs flex items-center gap-1 font-medium"
+                        >
+                          {t("classifyBtn", "Classify...")}
+                        </Button>
+                      </Tooltip>
+                    </div>
+                  </div>
+
+                  {/* Classes Table */}
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold text-slate-700">
+                        {t("classesTableTitle", "Daftar Kelas Klasifikasi ({count} kelas):", { count: derivedClasses.length })}
+                      </span>
+                      {cState.method !== CLASSIFICATION_METHODS.UNIQUE_VALUES && (
+                        <Button
+                          type="dashed"
+                          size="small"
+                          icon={<Plus className="w-3.5 h-3.5" />}
+                          onClick={() => cDispatch({ type: "ADD_CLASS" })}
+                          className="text-xs flex items-center"
+                        >
+                          {t("addClassBtn", "+ Tambah Kelas")}
+                        </Button>
+                      )}
+                    </div>
+
+                    {calculating ? (
+                      <div className="py-10 text-center bg-slate-50 rounded-xl border border-slate-200">
+                        <Spin description={t("calculatingClassificationBreaks", "Menghitung batas klasifikasi raster...")} />
+                      </div>
+                    ) : (
+                      <div className="max-h-[260px] overflow-y-auto overflow-x-auto pr-1 border border-slate-200 rounded-xl bg-slate-50/50 p-1.5">
+                        <div className="min-w-[620px] space-y-1.5">
+                          {/* Table Header */}
+                          <div className="flex items-center gap-2 px-2 py-1 text-[11px] font-semibold text-slate-500 bg-slate-100 rounded-lg">
+                            <div className="w-24">{t("colSymbol", "Simbol")}</div>
+                            <div className="w-36">{t("colRange", "Rentang (Min - Max)")}</div>
+                            <div className="flex-1">{t("colLabel", "Label")}</div>
+                            <div className="w-24">{t("colUpperBound", "Batas Atas (≤)")}</div>
+                            <div className="w-20">{t("colTransparency", "Transparansi")}</div>
+                            <div className="w-12 text-center">{t("colAction", "Aksi")}</div>
+                          </div>
+
+                          {/* Pinned No Data Class jika ada */}
+                          {cState.nodataClass && (
+                            <div className="flex items-center gap-2 p-1.5 bg-slate-100/80 rounded-lg border border-dashed border-slate-300 text-xs">
+                              <div className="w-24 flex items-center gap-1.5">
+                                <div className="w-7 h-7 rounded border border-slate-300 bg-transparent flex items-center justify-center text-[10px] text-slate-400">
+                                  0%
+                                </div>
+                                <span className="text-[10px] font-mono text-slate-500">{t("transparentLabel", "Transparan")}</span>
+                              </div>
+                              <div className="w-36 font-mono text-slate-500 text-center">0 (Nodata)</div>
+                              <div className="flex-1 font-semibold text-slate-600">No Data</div>
+                              <div className="w-24 text-center font-mono text-slate-500">0</div>
+                              <div className="w-20 text-center font-mono text-slate-400">0%</div>
+                              <div className="w-12 text-center">
+                                <Tag color="default" className="text-[9px] m-0">{t("lockedLabel", "Terkunci")}</Tag>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Regular Classes */}
+                          {derivedClasses.map((cls, idx) => {
+                            const rowError = validation.errors.find(
+                              (e) => e.field === "breaks" && e.index === idx + 1
+                            );
+                            return (
+                              <div key={idx} className="space-y-0.5">
+                                <div className="flex items-center gap-2 p-1.5 bg-white rounded-lg border border-slate-200 text-xs hover:border-slate-300 hover:shadow-xs transition">
+                                  {/* Color Picker */}
+                                  <div className="flex items-center gap-1.5 w-24 flex-shrink-0">
+                                    <input
+                                      type="color"
+                                      value={cls.color}
+                                      onChange={(e) => cDispatch({ type: "SET_COLOR", index: idx, color: e.target.value })}
+                                      className="w-7 h-7 rounded border border-slate-200 cursor-pointer p-0 bg-transparent"
+                                      title={t("pickSymbolColorTitle", "Pilih Warna Simbol")}
+                                    />
+                                    <input
+                                      type="text"
+                                      value={cls.color}
+                                      onChange={(e) => cDispatch({ type: "SET_COLOR", index: idx, color: e.target.value })}
+                                      className="w-14 px-1 py-0.5 text-[10px] font-mono border border-slate-200 rounded uppercase text-slate-700 text-center"
+                                    />
+                                  </div>
+
+                                  {/* Range (Min - Max) */}
+                                  <div className="w-36 flex items-center justify-center gap-1 flex-shrink-0 font-mono text-xs">
+                                    <span className="w-16 px-1.5 py-1 text-center bg-slate-50 border border-slate-200 rounded text-slate-600 truncate">
+                                      {formatBound(cls.min, stats?.min, stats?.max)}
+                                    </span>
+                                    <span className="text-slate-400 font-bold">-</span>
+                                    <BoundInput
+                                      value={cls.max}
+                                      disabled={cState.method === CLASSIFICATION_METHODS.UNIQUE_VALUES}
+                                      onCommit={(num) => cDispatch({ type: "SET_BREAK", index: idx + 1, value: num })}
+                                      placeholder="Max"
+                                      className="w-16 px-1.5 py-1 text-center border border-slate-200 rounded text-slate-800 font-medium"
+                                    />
+                                  </div>
+
+                                  {/* Label Input */}
+                                  <div className="flex-1 min-w-0">
+                                    <input
+                                      type="text"
+                                      value={cls.label || ""}
+                                      placeholder={t("customLabelPlaceholder", "Label Kustom...")}
+                                      onChange={(e) => cDispatch({ type: "SET_LABEL", index: idx, label: e.target.value })}
+                                      className="w-full px-2 py-1 text-xs border border-slate-200 rounded text-slate-700"
+                                    />
+                                  </div>
+
+                                  {/* Upper Bound Value input */}
+                                  <div className="w-24 flex-shrink-0">
+                                    <BoundInput
+                                      value={cls.quantity}
+                                      disabled={cState.method === CLASSIFICATION_METHODS.UNIQUE_VALUES}
+                                      onCommit={(num) => cDispatch({ type: "SET_BREAK", index: idx + 1, value: num })}
+                                      className="w-full px-1.5 py-1 text-xs border border-slate-200 rounded text-slate-800 font-mono text-center"
+                                    />
+                                  </div>
+
+                                  {/* Opacity slider */}
+                                  <div className="w-20 flex items-center gap-1 flex-shrink-0">
+                                    <input
+                                      type="range"
+                                      min="0"
+                                      max="1"
+                                      step="0.05"
+                                      value={cls.opacity ?? 1.0}
+                                      onChange={(e) => cDispatch({ type: "SET_OPACITY", index: idx, opacity: parseFloat(e.target.value) })}
+                                      className="w-12 accent-teal-600 cursor-pointer"
+                                    />
+                                    <span className="text-[10px] font-mono text-slate-500">
+                                      {Math.round((cls.opacity ?? 1.0) * 100)}%
+                                    </span>
+                                  </div>
+
+                                  {/* Action Buttons */}
+                                  <div className="w-12 flex items-center justify-center gap-1 flex-shrink-0">
+                                    {cState.method === CLASSIFICATION_METHODS.UNIQUE_VALUES ? (
+                                      <Tooltip title={t("mergeClassesTooltip", "Gabungkan dengan kelas berikutnya (Beralih ke manual)")}>
+                                        <button
+                                          type="button"
+                                          disabled={idx >= derivedClasses.length - 1}
+                                          onClick={() => {
+                                            Modal.confirm({
+                                              title: t("mergeClassesTitle", "Gabungkan Kelas"),
+                                              content: t("mergeClassesConfirm", "Menggabungkan kelas akan beralih ke mode manual. Lanjutkan?"),
+                                              okText: t("continueBtn", "Lanjutkan"),
+                                              cancelText: t("cancel", "Batal"),
+                                              onOk: () => cDispatch({ type: "MERGE_CLASSES", index1: idx, index2: idx + 1 }),
+                                            });
+                                          }}
+                                          className="p-1 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded cursor-pointer disabled:opacity-30"
+                                        >
+                                          <Combine className="w-3.5 h-3.5" />
+                                        </button>
+                                      </Tooltip>
+                                    ) : (
+                                      <Tooltip title={t("deleteClassTooltip", "Hapus Kelas")}>
+                                        <button
+                                          type="button"
+                                          onClick={() => cDispatch({ type: "REMOVE_CLASS", index: idx })}
+                                          className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </Tooltip>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Row Error Display */}
+                                {rowError && (
+                                  <div className="text-[10px] text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-200 font-medium">
+                                    {rowError.message}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Legend Preview (Selalu sinkron dengan state) */}
+                  <div className="mt-3.5 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <span className="text-[11px] font-semibold text-slate-600 block mb-1.5">
+                      {t("legendPreview", "Pratinjau Legenda:")}
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {cState.nodataClass && (
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-700 bg-white px-2 py-1 rounded-md border border-slate-200 shadow-2xs">
+                          <span className="w-3 h-3 rounded-sm flex-shrink-0 border border-slate-300 bg-transparent" />
+                          <span className="font-semibold text-slate-600">No Data</span>
+                        </div>
+                      )}
+                      {derivedClasses.map((cls, idx) => (
                         <div
                           key={idx}
-                          className="flex items-center gap-2 p-1.5 bg-white rounded-lg border border-slate-200 text-xs hover:border-slate-300 hover:shadow-xs transition"
+                          className="flex items-center gap-1.5 text-[11px] text-slate-700 bg-white px-2 py-1 rounded-md border border-slate-200 shadow-2xs"
                         >
-                          {/* Symbol / Color Picker */}
-                          <div className="flex items-center gap-1.5 w-24 flex-shrink-0">
-                            <input
-                              type="color"
-                              value={cls.color}
-                              onChange={(e) => updateClass(idx, "color", e.target.value)}
-                              className="w-7 h-7 rounded border border-slate-200 cursor-pointer p-0 bg-transparent"
-                              title="Pick Symbol Color"
-                            />
-                            <input
-                              type="text"
-                              value={cls.color}
-                              onChange={(e) => updateClass(idx, "color", e.target.value)}
-                              className="w-14 px-1 py-0.5 text-[10px] font-mono border border-slate-200 rounded uppercase text-slate-700"
-                            />
-                          </div>
-
-                          {/* Range (Min - Max) */}
-                          <div className="w-36 flex items-center gap-1 flex-shrink-0">
-                            <input
-                              type="number"
-                              step="any"
-                              value={cls.min ?? ""}
-                              placeholder="Min"
-                              onChange={(e) => updateClass(idx, "min", parseFloat(e.target.value))}
-                              className="w-16 px-1.5 py-1 text-xs border border-slate-200 rounded text-slate-800 font-mono text-center"
-                            />
-                            <span className="text-slate-400 font-bold">-</span>
-                            <input
-                              type="number"
-                              step="any"
-                              value={cls.max ?? cls.quantity ?? ""}
-                              placeholder="Max"
-                              onChange={(e) => updateClass(idx, "max", parseFloat(e.target.value))}
-                              className="w-16 px-1.5 py-1 text-xs border border-slate-200 rounded text-slate-800 font-mono text-center font-medium"
-                            />
-                          </div>
-
-                          {/* Label */}
-                          <div className="flex-1 min-w-0">
-                            <input
-                              type="text"
-                              value={cls.label || ""}
-                              placeholder="Custom Label..."
-                              onChange={(e) => updateClass(idx, "label", e.target.value)}
-                              className="w-full px-2 py-1 text-xs border border-slate-200 rounded text-slate-700"
-                            />
-                          </div>
-
-                          {/* Value Threshold (GeoServer quantity) */}
-                          <div className="w-20 flex-shrink-0">
-                            <input
-                              type="number"
-                              step="any"
-                              value={cls.quantity !== undefined ? cls.quantity : (cls.max ?? 0)}
-                              onChange={(e) => updateClass(idx, "quantity", parseFloat(e.target.value))}
-                              className="w-full px-1.5 py-1 text-xs border border-slate-200 rounded text-slate-800 font-mono text-center"
-                            />
-                          </div>
-
-                          {/* Opacity */}
-                          <div className="w-20 flex items-center gap-1 flex-shrink-0">
-                            <input
-                              type="range"
-                              min="0"
-                              max="1"
-                              step="0.05"
-                              value={cls.opacity ?? 1.0}
-                              onChange={(e) => updateClass(idx, "opacity", parseFloat(e.target.value))}
-                              className="w-12 accent-teal-600 cursor-pointer"
-                            />
-                            <span className="text-[10px] font-mono text-slate-500">
-                              {Math.round((cls.opacity ?? 1.0) * 100)}%
-                            </span>
-                          </div>
-
-                          {/* Hapus */}
-                          <button
-                            type="button"
-                            onClick={() => removeClass(idx)}
-                            className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition cursor-pointer"
-                            title="Remove Class"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          <span
+                            className="w-3 h-3 rounded-sm flex-shrink-0 border border-black/10"
+                            style={{
+                              backgroundColor: cls.opacity === 0 ? "transparent" : cls.color,
+                            }}
+                          />
+                          <span className="font-semibold text-slate-800">
+                            {cls.label || `${formatBound(cls.min)} - ${formatBound(cls.max)}`}
+                          </span>
                         </div>
                       ))}
                     </div>
                   </div>
-                )}
-              </div>
-
-              {/* Live Preview Legenda */}
-              <div className="mt-3.5 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <span className="text-[11px] font-semibold text-slate-600 block mb-1.5">
-                  Legend Preview:
-                </span>
-                <div className="flex flex-wrap gap-1.5">
-                  {classes.map((cls, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center gap-1.5 text-[11px] text-slate-700 bg-white px-2 py-1 rounded-md border border-slate-200 shadow-2xs"
-                    >
-                      <span
-                        className="w-3 h-3 rounded-sm flex-shrink-0 border border-black/10"
-                        style={{
-                          backgroundColor: cls.opacity === 0 ? "transparent" : cls.color,
-                        }}
-                      />
-                      <span className="font-semibold text-slate-800">
-                        {cls.label || (cls.min !== undefined && cls.max !== undefined ? `${cls.min} - ${cls.max}` : `Val ${cls.quantity}`)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+                </>
+              )}
             </>
           )}
 
@@ -1599,37 +1552,30 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
             <div className="text-[11px] text-slate-400">
               {lastSavedTime && (
                 <span>
-                  Last saved: {new Date(lastSavedTime).toLocaleString()}
+                  {t("lastSaved", "Terakhir disimpan: {time}", { time: new Date(lastSavedTime).toLocaleString() })}
                 </span>
               )}
             </div>
             <div className="flex items-center gap-2">
               <Button
                 onClick={onClose}
-                disabled={
-                  isWorkspaceMode
-                    ? workspaceMutation.isPending
-                    : mutation.isPending
-                }
+                disabled={isWorkspaceMode ? workspaceMutation.isPending : mutation.isPending}
               >
-                Cancel
+                {t("cancel", "Batal")}
               </Button>
               <Button
                 type="primary"
                 onClick={handleSubmit}
-                loading={
-                  isWorkspaceMode
-                    ? workspaceMutation.isPending
-                    : mutation.isPending
-                }
+                loading={isWorkspaceMode ? workspaceMutation.isPending : mutation.isPending}
+                disabled={calculating || (!isVector && !isWorkspaceMode && !validation.valid)}
                 icon={<Check className="w-4 h-4" />}
-                className="bg-teal-600 hover:bg-teal-500 flex items-center gap-1 cursor-pointer"
+                className="bg-teal-600 hover:bg-teal-500 flex items-center gap-1 cursor-pointer disabled:opacity-50"
               >
                 {isWorkspaceMode
-                  ? "Terapkan & Simpan Default Style Workspace"
+                  ? t("applyAndSaveWorkspaceStyle", "Terapkan & Simpan Default Style Workspace")
                   : isVector
-                  ? "Terapkan & Simpan Style Vektor"
-                  : "Apply & Save Classification"}
+                  ? t("applyAndSaveVectorStyle", "Terapkan & Simpan Style Vektor")
+                  : t("applyAndSaveClassification", "Apply & Save Classification")}
               </Button>
             </div>
           </div>
@@ -1641,36 +1587,35 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
         title={
           <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
             <BookmarkPlus className="w-4 h-4 text-teal-600" />
-            Simpan Color Ramp Custom
+            {t("saveCustomRampTitle", "Simpan Color Ramp Custom")}
           </div>
         }
         open={isSaveRampModalOpen}
         onCancel={() => setIsSaveRampModalOpen(false)}
         onOk={handleSaveCurrentAsCustomRamp}
-        okText="Simpan"
-        cancelText="Batal"
+        okText={t("save", "Simpan")}
+        cancelText={t("cancel", "Batal")}
         okButtonProps={{ className: "bg-teal-600 hover:bg-teal-500" }}
         centered
         width={420}
       >
         <div className="py-2 space-y-3">
           <p className="text-xs text-slate-500">
-            Warna-warna dari susunan kelas saat ini ({classes.length} warna) akan disimpan ke daftar Color Ramp Anda:
+            {t("saveCustomRampDesc", "Warna-warna dari susunan kelas saat ini ({count} warna) akan disimpan ke daftar Color Ramp Anda:", { count: derivedClasses.length })}
           </p>
 
-          {/* Preview Warna yang akan disimpan */}
           <div className="flex h-3.5 w-full rounded-md overflow-hidden shadow-inner border border-slate-200">
-            {classes.map((c, i) => (
+            {derivedClasses.map((c, i) => (
               <div key={i} style={{ backgroundColor: c.color, flex: 1 }} />
             ))}
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Nama Color Ramp:
+              {t("customRampNameLabel", "Nama Color Ramp:")}
             </label>
             <Input
-              placeholder="Contoh: Gradasi Bahaya Banjir..."
+              placeholder={t("customRampNamePlaceholder", "Contoh: Gradasi Bahaya Banjir...")}
               value={newRampName}
               onChange={(e) => setNewRampName(e.target.value)}
               onPressEnter={handleSaveCurrentAsCustomRamp}

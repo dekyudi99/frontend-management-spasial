@@ -12,8 +12,9 @@ import {
   Trash2,
   GripVertical,
   Shapes,
+  Table as TableIcon,
 } from "lucide-react";
-import { Popconfirm, Checkbox } from "antd";
+import { Popconfirm, Checkbox, Segmented, Spin } from "antd";
 import { getTypeConfig } from "../../utils/geoUtils";
 import { useLanguage } from "../../context/LanguageContext";
 
@@ -33,8 +34,11 @@ const LayerCard = ({
   onToggleCheck,
   onToggleVisibility,
   onOpenStyle,
+  onOpenAttributeTable,
   onDelete,
   isDeleting = false,
+  onToggleServiceMode,
+  hasTileError = false,
   // Drag & drop handlers
   onDragStart,
   onDragOver,
@@ -44,7 +48,23 @@ const LayerCard = ({
 }) => {
   const { t } = useLanguage();
   const [showDetail, setShowDetail] = useState(false);
+  const [isUpdatingMode, setIsUpdatingMode] = useState(false);
+  const [modeError, setModeError] = useState(null);
   const cfg = getTypeConfig(layer.data_type, layer.layer_type, layer);
+
+  const handleModeChange = async (newMode) => {
+    const currentMode = (layer.service_mode === "wmts" && layer.gwc_ready) ? "wmts" : "wms";
+    if (newMode === currentMode || isUpdatingMode) return;
+    setIsUpdatingMode(true);
+    setModeError(null);
+    try {
+      await onToggleServiceMode?.(layer.id, newMode);
+    } catch (err) {
+      setModeError(err.message || t('switchModeFailed', 'Gagal mengubah mode layer.'));
+    } finally {
+      setIsUpdatingMode(false);
+    }
+  };
 
   return (
     <div
@@ -125,6 +145,23 @@ const LayerCard = ({
                 <span className="text-[10px] text-slate-400 font-mono bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
                   EPSG:{layer.epsg}
                 </span>
+                {/* Badge Service Mode WMS / WMTS */}
+                {layer.service_mode === "wmts" && layer.gwc_ready ? (
+                  <span
+                    className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider bg-purple-50 text-purple-700 border border-purple-200"
+                    title={t('wmtsBadgeTitle', 'WMTS: Cached by GeoWebCache')}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+                    WMTS
+                  </span>
+                ) : (
+                  <span
+                    className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200"
+                    title={t('wmsBadgeTitle', 'WMS: Dynamic direct render')}
+                  >
+                    WMS
+                  </span>
+                )}
                 {layer.status === "PUBLISHED" && (
                   <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 font-medium">
                     <CheckCircle2 className="w-3 h-3" />
@@ -153,6 +190,19 @@ const LayerCard = ({
             >
               <Palette className="w-4 h-4" />
             </button>
+            {/* Attribute Table toggle for vector layers */}
+            {(cfg.isVector || Boolean(layer.geom_type)) && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenAttributeTable?.(layer);
+                }}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition"
+                title={t('attributeTable', 'Attribute Table')}
+              >
+                <TableIcon className="w-4 h-4" />
+              </button>
+            )}
             {/* Detail toggle */}
             <button
               onClick={(e) => {
@@ -243,6 +293,56 @@ const LayerCard = ({
                 <InfoRow label={t('descriptionLabel', 'Description')} value={layer.description} />
               </div>
             )}
+
+            {/* Mode Tampilan: WMS / WMTS */}
+            <div className="col-span-2 pt-2 border-t border-slate-100 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
+                    {t('displayMode', 'Display Mode')}
+                  </span>
+                  <p className="text-[11px] text-slate-500">
+                    {layer.service_mode === "wmts" && layer.gwc_ready
+                      ? t('wmtsActiveDesc', 'WMTS: Cached by GeoWebCache for high speed')
+                      : t('wmsActiveDesc', 'WMS: Dynamic direct render')}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {isUpdatingMode && <Spin size="small" />}
+                  <Segmented
+                    size="small"
+                    disabled={isUpdatingMode}
+                    value={layer.service_mode === "wmts" && layer.gwc_ready ? "wmts" : "wms"}
+                    onChange={handleModeChange}
+                    options={[
+                      { label: "WMS", value: "wms" },
+                      { label: "WMTS", value: "wmts" },
+                    ]}
+                  />
+                </div>
+              </div>
+
+              {/* Pesan Error jika HTTP 502 atau GWC gagal */}
+              {modeError && (
+                <div className="text-xs text-red-600 bg-red-50 p-2 rounded-lg border border-red-200">
+                  {modeError}
+                </div>
+              )}
+
+              {/* Peringatan Tile Error berulang */}
+              {hasTileError && (
+                <div className="text-xs text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200 flex items-center justify-between gap-2">
+                  <span>{t('wmtsCacheUnavailable', 'Cache tile tidak tersedia, coba kembali ke mode WMS.')}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleModeChange("wms")}
+                    className="text-[11px] px-2 py-0.5 font-medium bg-amber-200 text-amber-900 rounded hover:bg-amber-300 transition shrink-0 cursor-pointer"
+                  >
+                    WMS
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

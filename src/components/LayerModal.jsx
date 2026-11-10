@@ -362,7 +362,7 @@ const LayerModal = ({
         </div>
       }
       width={620}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form layout="vertical" form={form} onFinish={onFinish} className="pt-2">
         {/* Workspace Selection */}

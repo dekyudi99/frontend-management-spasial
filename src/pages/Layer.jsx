@@ -14,6 +14,7 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
+  MousePointerClick,
 } from "lucide-react";
 import { Button, Spin, Pagination, message, Tabs, Badge, Select, Tag, Popconfirm } from "antd";
 import { LockOutlined } from "@ant-design/icons";
@@ -25,12 +26,18 @@ import layerGroupApi from "../api/LayerGroupApi";
 import workspaceApi from "../api/WorkspaceApi";
 import LayerModal from "../components/LayerModal";
 import LayerStyleModal from "../components/LayerStyleModal";
+import AttributeTableModal from "../components/layer/AttributeTableModal";
+import MapIdentifyController from "../components/layer/MapIdentifyController";
+import LocalErrorBoundary from "../components/common/LocalErrorBoundary";
 import LayerCard from "../components/layer/LayerCard";
 import LayerGroupCard from "../components/layer/LayerGroupCard";
 import LayerGroupModal from "../components/layer/LayerGroupModal";
 import LayerGroupEditModal from "../components/layer/LayerGroupEditModal";
 import MapFlyController from "../components/layer/MapFlyController";
 import MapLegend from "../components/layer/MapLegend";
+import WMTSTileLayer from "../components/layer/WMTSTileLayer";
+import { getLayerGeoserverName, resolveLayerRenderer } from "../utils/geoUtils";
+import { updateLayerInCacheData } from "../utils/wfsUtils";
 import AccessDeniedCard from "../components/AccessDeniedCard";
 import PageHeader from "../components/PageHeader";
 import { useLanguage } from "../context/LanguageContext";
@@ -52,6 +59,9 @@ const Layer = () => {
   const [openGroupModal, setOpenGroupModal] = useState(false);
   const [editingGroupId, setEditingGroupId] = useState(null);
   const [stylingLayer, setStylingLayer] = useState(null);
+  const [attributeTableLayer, setAttributeTableLayer] = useState(null);
+  const [isIdentifyActive, setIsIdentifyActive] = useState(false);
+  const [selectedHighlightFeature, setSelectedHighlightFeature] = useState(null);
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
 
   // Base layer state
@@ -81,6 +91,45 @@ const Layer = () => {
   const [checkedLayerIds, setCheckedLayerIds] = useState([]);
   const [activeTab, setActiveTab] = useState("layers");
   const [flyTrigger, setFlyTrigger] = useState(0);
+  const [tileErrors, setTileErrors] = useState({});
+
+  const handleLayerProbeResult = (layerId, isHealthy) => {
+    setTileErrors((prev) => {
+      if (isHealthy) {
+        if (!prev[layerId]) return prev;
+        const next = { ...prev };
+        delete next[layerId];
+        return next;
+      }
+      return { ...prev, [layerId]: true };
+    });
+  };
+
+  const handleToggleServiceMode = async (layerId, newMode) => {
+    const target = layers.find((l) => l.id === layerId);
+    if (!target) return;
+    try {
+      const res = await layerApi.setServiceMode(layerId, newMode, target.layer_type);
+      const updatedData = res.data?.data;
+      // Perbarui cache TanStack Query secara reaktif tanpa reload halaman
+      queryClient.setQueriesData({ queryKey: ["layers"] }, (old) =>
+        updateLayerInCacheData(old, layerId, {
+          service_mode: updatedData?.service_mode || newMode,
+          gwc_ready: updatedData ? updatedData.gwc_ready : newMode === "wmts",
+          ...(updatedData?.gwc_url ? { gwc_url: updatedData.gwc_url } : {}),
+        })
+      );
+      setTileErrors((prev) => {
+        const next = { ...prev };
+        delete next[layerId];
+        return next;
+      });
+      message.success(t('switchModeSuccess', 'Mode tampilan layer berhasil diperbarui.'));
+    } catch (err) {
+      message.error(err.message || t('switchModeFailed', 'Gagal mengubah mode tampilan layer.'));
+      throw err;
+    }
+  };
 
   // Pagination states
   const [page, setPage] = useState(1);
@@ -437,23 +486,53 @@ const Layer = () => {
             flyTrigger={flyTrigger}
           />
 
-          {/* Render Individual WMS Layers:
+          {/* Controller WFS Identify & Feature Highlight */}
+          <LocalErrorBoundary fallback={null}>
+            <MapIdentifyController
+              isActive={isIdentifyActive}
+              onDeactivate={() => setIsIdentifyActive(false)}
+              layers={layers}
+              selectedFeature={selectedHighlightFeature}
+              onClearSelectedFeature={() => setSelectedHighlightFeature(null)}
+            />
+          </LocalErrorBoundary>
+
+          {/* Render Individual Layers (WMS atau WMTS Cached):
               Array di-reverse agar item teratas di list (#1) dirender terakhir di DOM
               dan memiliki zIndex paling tinggi, sehingga tampil di tumpukan paling atas pada peta */}
           {[...layers].reverse().map((layer, revIdx) => {
-            if (!layer.visible || !layer.wms_url) return null;
-            const lyrName = layer.geoserver_name || layer.table_name || layer.store_name || layer.layer_name;
+            const renderer = resolveLayerRenderer(layer);
+            if (!renderer.shouldRender) return null;
+
+            const styleUpdatedAt = layerSettings[layer.id]?.styleUpdatedAt || 0;
+
+            if (renderer.isWmts) {
+              return (
+                <WMTSTileLayer
+                  key={`wmts-${layer.id}-${styleUpdatedAt}`}
+                  gwcUrl={layer.gwc_url}
+                  layerQualified={renderer.layerQualified}
+                  zIndex={10 + revIdx}
+                  opacity={1}
+                  bust={styleUpdatedAt || undefined}
+                  rawBbox={layer.bbox}
+                  epsg={layer.epsg ?? layer.srid ?? 4326}
+                  onProbeResult={(isHealthy) => handleLayerProbeResult(layer.id, isHealthy)}
+                />
+              );
+            }
+
             return (
               <WMSTileLayer
-                key={`layer-${layer.id}-${layerSettings[layer.id]?.styleUpdatedAt || 0}`}
+                key={`layer-${layer.id}-${styleUpdatedAt}`}
                 url={layer.wms_url}
                 zIndex={10 + revIdx}
                 params={{
-                  layers: `${layer.workspace_name}:${lyrName}`,
+                  layers: renderer.layerQualified,
                   format: "image/png",
                   transparent: true,
                   version: "1.1.1",
-                  _t: layerSettings[layer.id]?.styleUpdatedAt || undefined,
+                  _t: styleUpdatedAt || undefined,
                 }}
                 opacity={1}
               />
@@ -513,6 +592,29 @@ const Layer = () => {
           activeLayer={activeBaseLayer}
           onSelectLayer={handleSelectBaseLayer}
         />
+
+        {/* Floating WFS Identify Tool Button */}
+        <div className="absolute top-20 right-3.5 z-[400] pointer-events-auto">
+          <button
+            type="button"
+            onClick={() => {
+              setIsIdentifyActive((prev) => !prev);
+              setSelectedHighlightFeature(null);
+            }}
+            className={`w-8 h-8 rounded-lg shadow-md border flex items-center justify-center transition-all ${
+              isIdentifyActive
+                ? "bg-cyan-600 text-white border-cyan-700 shadow-cyan-200 ring-2 ring-cyan-400/50"
+                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-cyan-600"
+            }`}
+            title={
+              isIdentifyActive
+                ? t('identifyActive', 'Identify Aktif (Klik titik di peta atau tekan Esc untuk keluar)')
+                : t('identifyFeature', 'Identifikasi Fitur Vektor (WFS)')
+            }
+          >
+            <MousePointerClick className="w-4 h-4" />
+          </button>
+        </div>
 
         {/* Dynamic Map Legend Overlay */}
         <MapLegend
@@ -793,8 +895,11 @@ const Layer = () => {
                         onToggleCheck={handleToggleCheck}
                         onToggleVisibility={toggleLayerVisibility}
                         onOpenStyle={setStylingLayer}
+                        onOpenAttributeTable={setAttributeTableLayer}
                         onDelete={(layerOrId) => deleteLayerMutation.mutate(layerOrId)}
                         isDeleting={deletingLayerId === layer.id || (isBatchDeleting && checkedLayerIds.includes(layer.id))}
+                        onToggleServiceMode={handleToggleServiceMode}
+                        hasTileError={Boolean(tileErrors[layer.id])}
                         // Drag & Drop
                         onDragStart={handleDragStart}
                         onDragOver={handleDragOver}
@@ -907,6 +1012,19 @@ const Layer = () => {
         layer={stylingLayer}
         onStyleApplied={handleStyleApplied}
       />
+
+      {/* Modal Tabel Atribut WFS */}
+      <LocalErrorBoundary>
+        <AttributeTableModal
+          key={attributeTableLayer?.id}
+          layer={attributeTableLayer}
+          visible={Boolean(attributeTableLayer)}
+          onClose={() => setAttributeTableLayer(null)}
+          onSelectFeature={(feat) => {
+            setSelectedHighlightFeature(feat);
+          }}
+        />
+      </LocalErrorBoundary>
 
       {/* Modal Buat Layer Group dari Checklist */}
       <LayerGroupModal

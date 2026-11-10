@@ -211,3 +211,7 @@ export const getTypeConfig = (dataType = "", layerType = "", layer = null) => {
   }
   return GEOTIFF_CONFIG;
 };
+
+import { getLayerGeoserverName, resolveLayerRenderer } from "./wmtsUtils.js";
+export { getLayerGeoserverName, resolveLayerRenderer };
+
