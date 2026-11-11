@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   ChevronRight,
   MousePointerClick,
+  BarChart2,
 } from "lucide-react";
 import { Button, Spin, Pagination, message, Tabs, Badge, Select, Tag, Popconfirm } from "antd";
 import { LockOutlined } from "@ant-design/icons";
@@ -28,6 +29,7 @@ import LayerModal from "../components/LayerModal";
 import LayerStyleModal from "../components/LayerStyleModal";
 import AttributeTableModal from "../components/layer/AttributeTableModal";
 import MapIdentifyController from "../components/layer/MapIdentifyController";
+import MapAreaStatsController from "../components/layer/MapAreaStatsController";
 import LocalErrorBoundary from "../components/common/LocalErrorBoundary";
 import LayerCard from "../components/layer/LayerCard";
 import LayerGroupCard from "../components/layer/LayerGroupCard";
@@ -61,6 +63,7 @@ const Layer = () => {
   const [stylingLayer, setStylingLayer] = useState(null);
   const [attributeTableLayer, setAttributeTableLayer] = useState(null);
   const [isIdentifyActive, setIsIdentifyActive] = useState(false);
+  const [isAreaStatsActive, setIsAreaStatsActive] = useState(false);
   const [selectedHighlightFeature, setSelectedHighlightFeature] = useState(null);
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
 
@@ -486,7 +489,7 @@ const Layer = () => {
             flyTrigger={flyTrigger}
           />
 
-          {/* Controller WFS Identify & Feature Highlight */}
+          {/* Controller WFS & WCS Identify & Feature Highlight */}
           <LocalErrorBoundary fallback={null}>
             <MapIdentifyController
               isActive={isIdentifyActive}
@@ -494,6 +497,15 @@ const Layer = () => {
               layers={layers}
               selectedFeature={selectedHighlightFeature}
               onClearSelectedFeature={() => setSelectedHighlightFeature(null)}
+            />
+          </LocalErrorBoundary>
+
+          {/* Controller WCS Area Statistics & GeoTIFF Clip */}
+          <LocalErrorBoundary fallback={null}>
+            <MapAreaStatsController
+              isActive={isAreaStatsActive}
+              onDeactivate={() => setIsAreaStatsActive(false)}
+              layers={layers}
             />
           </LocalErrorBoundary>
 
@@ -593,15 +605,20 @@ const Layer = () => {
           onSelectLayer={handleSelectBaseLayer}
         />
 
-        {/* Floating WFS Identify Tool Button */}
-        <div className="absolute top-20 right-3.5 z-[400] pointer-events-auto">
+        {/* Floating Map Tools (Identify & Area Stats / Clip) */}
+        <div className="absolute top-20 right-3.5 z-[400] pointer-events-auto flex flex-col gap-2">
+          {/* Identify Button */}
           <button
             type="button"
             onClick={() => {
-              setIsIdentifyActive((prev) => !prev);
+              setIsIdentifyActive((prev) => {
+                const next = !prev;
+                if (next) setIsAreaStatsActive(false);
+                return next;
+              });
               setSelectedHighlightFeature(null);
             }}
-            className={`w-8 h-8 rounded-lg shadow-md border flex items-center justify-center transition-all ${
+            className={`w-8 h-8 rounded-lg shadow-md border flex items-center justify-center transition-all cursor-pointer ${
               isIdentifyActive
                 ? "bg-cyan-600 text-white border-cyan-700 shadow-cyan-200 ring-2 ring-cyan-400/50"
                 : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-cyan-600"
@@ -609,10 +626,37 @@ const Layer = () => {
             title={
               isIdentifyActive
                 ? t('identifyActive', 'Identify Aktif (Klik titik di peta atau tekan Esc untuk keluar)')
-                : t('identifyFeature', 'Identifikasi Fitur Vektor (WFS)')
+                : t('identifyFeature', 'Identifikasi Fitur & Nilai Raster')
             }
           >
             <MousePointerClick className="w-4 h-4" />
+          </button>
+
+          {/* Area Statistics & Clip Button */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsAreaStatsActive((prev) => {
+                const next = !prev;
+                if (next) {
+                  setIsIdentifyActive(false);
+                  setSelectedHighlightFeature(null);
+                }
+                return next;
+              });
+            }}
+            className={`w-8 h-8 rounded-lg shadow-md border flex items-center justify-center transition-all cursor-pointer ${
+              isAreaStatsActive
+                ? "bg-cyan-600 text-white border-cyan-700 shadow-cyan-200 ring-2 ring-cyan-400/50"
+                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-cyan-600"
+            }`}
+            title={
+              isAreaStatsActive
+                ? t('areaStatsActive', 'Statistik Area Aktif (Tarik kotak pada peta atau tekan Esc untuk batal)')
+                : t('areaStatsTool', 'Statistik Area & Clip (GeoTIFF)')
+            }
+          >
+            <BarChart2 className="w-4 h-4" />
           </button>
         </div>
 

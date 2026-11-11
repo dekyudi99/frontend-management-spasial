@@ -1,6 +1,12 @@
 import axios from "axios";
 import { ensureS2SKey } from "./WorkspaceApi";
 import { extractApiError } from "../utils/wfsUtils";
+import {
+    parseBlobError,
+    buildRasterIdentifyPayload,
+    buildRasterStatsPayload,
+    buildRasterClipPayload
+} from "../utils/rasterUtils";
 
 import { MICROSERVICE_API, GEOSERVER_BASE_URL } from "./microserviceConfig";
 
@@ -289,10 +295,10 @@ const layerApi = {
     },
 
     // 5. Get Raster Info & Statistics
-    getRasterInfo: async (layerId) => {
+    getRasterInfo: async (layerId, signal) => {
         const headers = await getAuthHeaders(false);
         try {
-            const res = await axios.get(`${MICROSERVICE_URL}/styles/raster-info/${layerId}`, { headers });
+            const res = await axios.get(`${MICROSERVICE_URL}/styles/raster-info/${layerId}`, { headers, signal });
             return {
                 data: res.data
             };
@@ -467,6 +473,74 @@ const layerApi = {
             return res.data;
         } catch (err) {
             throw new Error(extractApiError(err));
+        }
+    },
+
+    // 9. WCS Raster Operations: Info, Identify Pixel, Area Stats, and Clip Download
+    getRasterCoverageInfo: async (layerId, signal) => {
+        const headers = await getAuthHeaders(false);
+        try {
+            const res = await axios.get(`${MICROSERVICE_URL}/layers/${layerId}/raster/info`, { headers, signal });
+            return res.data;
+        } catch (err) {
+            throw new Error(extractApiError(err));
+        }
+    },
+
+    identifyRaster: async (layerId, payload, signal) => {
+        const headers = await getAuthHeaders(false);
+        try {
+            const cleanPayload = buildRasterIdentifyPayload(payload);
+            const res = await axios.post(`${MICROSERVICE_URL}/layers/${layerId}/raster/identify`, cleanPayload, { headers, signal });
+            return res.data;
+        } catch (err) {
+            throw new Error(extractApiError(err));
+        }
+    },
+
+    rasterStats: async (layerId, payload, signal) => {
+        const headers = await getAuthHeaders(false);
+        try {
+            const cleanPayload = buildRasterStatsPayload(payload);
+            const res = await axios.post(`${MICROSERVICE_URL}/layers/${layerId}/raster/stats`, cleanPayload, { headers, signal });
+            return res.data;
+        } catch (err) {
+            throw new Error(extractApiError(err));
+        }
+    },
+
+    clipRaster: async (layerId, payload, defaultFilename = "clipped_raster.tif", signal) => {
+        const headers = await getAuthHeaders(false);
+        try {
+            const cleanPayload = buildRasterClipPayload(payload);
+            const res = await axios.post(`${MICROSERVICE_URL}/layers/${layerId}/raster/clip`, cleanPayload, {
+                headers,
+                responseType: "blob",
+                signal
+            });
+
+            let filename = defaultFilename;
+            const disposition = res.headers?.["content-disposition"] || res.headers?.["Content-Disposition"];
+            if (disposition && disposition.includes("filename=")) {
+                const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                if (match && match[1]) {
+                    filename = match[1].replace(/['"]/g, "").trim();
+                }
+            }
+
+            const blob = new Blob([res.data], { type: "image/tiff" });
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = downloadUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(downloadUrl);
+            return { success: true, filename };
+        } catch (err) {
+            const errMsg = await parseBlobError(err);
+            throw new Error(errMsg);
         }
     }
 };
