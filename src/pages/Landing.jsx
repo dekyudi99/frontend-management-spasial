@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import BgHome from "../assets/bgHome.jpg";
 import Header from '../components/Header';
+import SystemPreviewCarousel from '../components/landing/SystemPreviewCarousel';
 import { useLanguage } from '../context/LanguageContext';
 
 const appName = import.meta.env.VITE_APP_NAME
@@ -207,6 +208,9 @@ const Landing = () => {
             ))}
           </div>
         </section>
+
+        {/* Interactive System Preview Carousel */}
+        <SystemPreviewCarousel />
 
         {/* Features Section */}
         <section id="features" className="py-20 bg-blue-950/40 border-y border-blue-900/50">

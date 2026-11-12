@@ -298,7 +298,7 @@ const AttributeTableModal = ({
       footer={null}
       destroyOnClose
       destroyOnHidden
-      style={{ top: 30 }}
+      centered
       styles={{ body: { padding: "12px 16px" } }}
     >
       {/* Peringatan 409 Belum punya PK */}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useReducer, useRef, useMemo, useCallback } from "react";
-import { Modal, Button, Select, Input, message, Spin, Tag, Tooltip, Alert } from "antd";
+import { Modal, Button, Select, Input, message, Spin, Tag, Tooltip, Alert, Slider, InputNumber } from "antd";
 import {
   Palette,
   Plus,
@@ -18,6 +18,7 @@ import {
   Image as ImageIcon,
   AlertTriangle,
   Combine,
+  Maximize2,
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import layerApi from "../api/LayerApi";
@@ -59,17 +60,17 @@ const VECTOR_PRESET_PALETTES = [
 ];
 
 const MARK_OPTIONS = [
-  { id: "circle", label: "Lingkaran", icon: Circle },
-  { id: "square", label: "Persegi", icon: Square },
-  { id: "triangle", label: "Segitiga", icon: Triangle },
-  { id: "star", label: "Bintang", icon: Star },
-  { id: "cross", label: "Salib (+)", icon: Plus },
+  { id: "circle", labelKey: "shapeCircle", defaultLabel: "Lingkaran", icon: Circle },
+  { id: "square", labelKey: "shapeSquare", defaultLabel: "Persegi", icon: Square },
+  { id: "triangle", labelKey: "shapeTriangle", defaultLabel: "Segitiga", icon: Triangle },
+  { id: "star", labelKey: "shapeStar", defaultLabel: "Bintang", icon: Star },
+  { id: "cross", labelKey: "shapeCross", defaultLabel: "Salib (+)", icon: Plus },
 ];
 
 const STROKE_DASH_OPTIONS = [
-  { id: "solid", label: "Garis Utuh", value: null },
-  { id: "dashed", label: "Putus-putus", value: "6,4" },
-  { id: "dotted", label: "Titik-titik", value: "2,4" },
+  { id: "solid", labelKey: "lineSolid", defaultLabel: "Garis Utuh", value: null },
+  { id: "dashed", labelKey: "lineDashed", defaultLabel: "Putus-putus", value: "6,4" },
+  { id: "dotted", labelKey: "lineDotted", defaultLabel: "Titik-titik", value: "2,4" },
 ];
 
 /**
@@ -709,7 +710,7 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
 
   // Preview Point Vektor
   const renderPointPreview = () => {
-    const s = Math.min(26, Math.max(10, pointSize * 1.5));
+    const s = Math.min(36, Math.max(12, Math.round(pointSize * 1.25)));
     const cx = 22;
     const cy = 22;
 
@@ -851,14 +852,14 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                    <Sparkles className="w-3.5 h-3.5 text-teal-600" /> Preset Warna Cepat
+                    <Sparkles className="w-3.5 h-3.5 text-teal-600" /> {t("quickColorPresets", "Preset Warna Cepat")}
                   </label>
                   <button
                     type="button"
                     onClick={handleResetVector}
                     className="text-[11px] text-slate-500 hover:text-teal-600 font-medium flex items-center gap-1 transition cursor-pointer"
                   >
-                    <RotateCcw className="w-3 h-3" /> Reset Default
+                    <RotateCcw className="w-3 h-3" /> {t("resetDefault", "Reset Default")}
                   </button>
                 </div>
                 <div className="grid grid-cols-7 gap-2">
@@ -897,7 +898,7 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
               <div className="p-3.5 bg-gradient-to-b from-slate-50 to-slate-100/70 border border-slate-200 rounded-xl">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                    <Sliders className="w-3 h-3 text-teal-600" /> Live Preview
+                    <Sliders className="w-3 h-3 text-teal-600" /> {t("livePreview", "Live Preview")}
                   </span>
                   <span className="text-[10px] text-slate-400 font-mono">
                     {layer?.geom_type || (isPoint ? "Point" : isLine ? "Line" : "Polygon")}
@@ -931,7 +932,7 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
                     </svg>
                   )}
                   {isPoint && (
-                    <svg width="44" height="44" className="shrink-0">
+                    <svg width="52" height="52" className="shrink-0">
                       {renderPointPreview()}
                     </svg>
                   )}
@@ -940,29 +941,35 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
 
               {/* Point Marker Options */}
               {isPoint && (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
                     <label className="text-xs font-semibold text-slate-700">
-                      Bentuk Marker Titik
+                      {t("pointMarkerShape", "Bentuk Marker Titik")}
                     </label>
                     <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
                       <button
                         type="button"
-                        onClick={() => setMarkerType("shape")}
+                        onClick={() => {
+                          setMarkerType("shape");
+                          if (pointSize > 24) setPointSize(8);
+                        }}
                         className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition cursor-pointer ${
                           markerType === "shape" ? "bg-white text-teal-700 shadow-xs font-semibold" : "text-slate-500"
                         }`}
                       >
-                        Bentuk Geometri
+                        {t("geometricShape", "Bentuk Geometri")}
                       </button>
                       <button
                         type="button"
-                        onClick={() => setMarkerType("icon")}
+                        onClick={() => {
+                          setMarkerType("icon");
+                          if (pointSize < 16) setPointSize(24);
+                        }}
                         className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition cursor-pointer flex items-center gap-1 ${
                           markerType === "icon" ? "bg-white text-teal-700 shadow-xs font-semibold" : "text-slate-500"
                         }`}
                       >
-                        <ImageIcon className="w-3.5 h-3.5 text-teal-600" /> Icon SVG
+                        <ImageIcon className="w-3.5 h-3.5 text-teal-600" /> {t("svgIcon", "Icon SVG")}
                       </button>
                     </div>
                   </div>
@@ -984,14 +991,14 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
                             }`}
                           >
                             <IconComponent className={`w-3.5 h-3.5 ${isSelected ? "text-teal-600" : "text-slate-400"}`} />
-                            <span className="text-[10px]">{opt.label}</span>
+                            <span className="text-[10px]">{t(opt.labelKey, opt.defaultLabel)}</span>
                           </button>
                         );
                       })}
                     </div>
                   ) : (
                     <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                      <span className="text-[11px] font-medium text-slate-600">Pilih Icon SVG:</span>
+                      <span className="text-[11px] font-medium text-slate-600">{t("selectSvgIcon", "Pilih Icon SVG:")}</span>
                       {loadingIcons ? (
                         <div className="py-4 text-center"><Spin size="small" /></div>
                       ) : (
@@ -1000,7 +1007,10 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
                             <button
                               key={icon.id}
                               type="button"
-                              onClick={() => setSelectedIcon(icon.filename || icon.id)}
+                              onClick={() => {
+                                setSelectedIcon(icon.filename || icon.id);
+                                if (pointSize < 16) setPointSize(24);
+                              }}
                               className={`flex flex-col items-center gap-1 p-2 rounded-lg border text-center transition cursor-pointer ${
                                 selectedIcon === (icon.filename || icon.id)
                                   ? "border-teal-500 bg-teal-50 ring-1 ring-teal-200"
@@ -1019,13 +1029,43 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
                       )}
                     </div>
                   )}
+
+                  {/* KONTROL UKURAN MARKER TITIK (Point Pixel Size Slider & Input) */}
+                  <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-semibold text-slate-700 flex items-center gap-1">
+                        <Maximize2 className="w-3.5 h-3.5 text-teal-600" />
+                        {t("markerSize", "Ukuran Marker (Pixel)")}
+                      </label>
+                      <span className="text-[11px] font-mono font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                        {pointSize} px
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Slider
+                        min={4}
+                        max={64}
+                        value={pointSize}
+                        onChange={(v) => setPointSize(v)}
+                        className="flex-1 m-0"
+                      />
+                      <InputNumber
+                        min={4}
+                        max={64}
+                        value={pointSize}
+                        onChange={(v) => setPointSize(Number(v) || 8)}
+                        size="small"
+                        style={{ width: 62 }}
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
 
               {/* Stroke Dash Pattern */}
               {!isPoint && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Pola Garis</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">{t("linePattern", "Pola Garis")}</label>
                   <div className="grid grid-cols-3 gap-2">
                     {STROKE_DASH_OPTIONS.map((opt) => (
                       <button
@@ -1038,7 +1078,7 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
                             : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                         }`}
                       >
-                        {opt.label}
+                        {t(opt.labelKey, opt.defaultLabel)}
                       </button>
                     ))}
                   </div>
