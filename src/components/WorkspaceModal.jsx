@@ -4,14 +4,14 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLanguage } from "../context/LanguageContext";
 
 const WorkspaceModal = ({ id, open, onClose }) => {
-  const { t } = useLanguage();
+  const { t, translateApi } = useLanguage();
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
 
   const createWorkspace = useMutation({
     mutationFn: (data) => workspaceApi.create(data),
-    onSuccess: (response) => {
-      message.success(response?.data?.detail || t("workspaceCreateSuccess", "Workspace created successfully!"));
+    onSuccess: () => {
+      message.success(t("workspaceCreateSuccess", "Workspace created successfully!"));
 
       form.resetFields();
       queryClient.invalidateQueries({ queryKey: ["workspace"] });
@@ -22,7 +22,7 @@ const WorkspaceModal = ({ id, open, onClose }) => {
       onClose(); 
     },
     onError: (error) => {
-      message.error(error?.message || error?.response?.data?.detail || t("workspaceCreateFailed", "Failed to create Workspace!"));
+      message.error(translateApi(error, "workspaceCreateFailed"));
     }
   });
 

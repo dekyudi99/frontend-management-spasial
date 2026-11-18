@@ -571,6 +571,170 @@ print(res.json())`
 }`,
       fieldDescriptions: []
     }
+  },
+  {
+    id: 'api-service-mode',
+    tag: 'Layers & WMTS',
+    method: 'PATCH',
+    path: '/api/v1/layers/{layer_id}/service-mode',
+    params: [
+      { name: 'layer_id', type: 'string (UUID)', required: true, example: 'e4f8d9b1-7a6c-4820-9831-25c7e8a9f012' }
+    ],
+    bodyParams: [
+      { name: 'mode', type: 'string', required: true, example: 'wmts' },
+      { name: 'layer_kind', type: 'string', required: false, example: 'raster' }
+    ],
+    examples: {
+      curl: `curl -X PATCH "http://localhost:8005/api/v1/layers/e4f8d9b1-7a6c-4820-9831-25c7e8a9f012/service-mode" \\
+  -H "X-API-Key: agis_sk_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" \\
+  -H "Content-Type: application/json" \\
+  -d '{"mode": "wmts", "layer_kind": "raster"}'`,
+      python: `import requests
+
+url = "http://localhost:8005/api/v1/layers/e4f8d9b1-7a6c-4820-9831-25c7e8a9f012/service-mode"
+headers = {
+    "X-API-Key": "agis_sk_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    "Content-Type": "application/json"
+}
+payload = {"mode": "wmts", "layer_kind": "raster"}
+res = requests.patch(url, headers=headers, json=payload)
+print(res.json())`
+    },
+    response: {
+      statusCode: 200,
+      jsonCode: `{
+  "id": "e4f8d9b1-7a6c-4820-9831-25c7e8a9f012",
+  "service_mode": "wmts",
+  "gwc_ready": true,
+  "wmts_url": "http://localhost:8080/geoserver/gwc/service/wmts",
+  "gwc_url": "http://localhost:8080/geoserver/gwc/service/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ws_proyek_risiko:ras_peta_curah_hujan_a1b2c3&STYLE=&TILEMATRIXSET=EPSG:900913&TILEMATRIX=EPSG:900913:{z}&TILEROW={y}&TILECOL={x}&FORMAT=image/png"
+}`,
+      fieldDescriptions: [
+        { field: 'service_mode' },
+        { field: 'gwc_ready' },
+        { field: 'gwc_url' }
+      ]
+    }
+  },
+  {
+    id: 'api-raster-clip',
+    tag: 'Raster & WCS',
+    method: 'POST',
+    path: '/api/v1/raster/clip',
+    bodyParams: [
+      { name: 'layer_id', type: 'string (UUID)', required: true, example: 'e4f8d9b1-7a6c-4820-9831-25c7e8a9f012' },
+      { name: 'bbox', type: 'number[]', required: false, example: '[100.15, 13.95, 100.35, 14.15]' },
+      { name: 'mask_polygon', type: 'number[][][]', required: false, example: '[[100.15,13.95],[100.35,13.95],[100.35,14.15],[100.15,14.15],[100.15,13.95]]' },
+      { name: 'styled', type: 'boolean', required: false, example: 'false' },
+      { name: 'scalefactor', type: 'number', required: false, example: '1.0' }
+    ],
+    examples: {
+      curl: `curl -X POST "http://localhost:8005/api/v1/raster/clip" \\
+  -H "X-API-Key: agis_sk_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "layer_id": "e4f8d9b1-7a6c-4820-9831-25c7e8a9f012",
+    "bbox": [100.15, 13.95, 100.35, 14.15],
+    "styled": false
+  }' \\
+  --output clipped_raster.tif`,
+      python: `import requests
+
+url = "http://localhost:8005/api/v1/raster/clip"
+headers = {
+    "X-API-Key": "agis_sk_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    "Content-Type": "application/json"
+}
+payload = {
+    "layer_id": "e4f8d9b1-7a6c-4820-9831-25c7e8a9f012",
+    "bbox": [100.15, 13.95, 100.35, 14.15],
+    "styled": False
+}
+
+res = requests.post(url, headers=headers, json=payload, stream=True)
+if res.status_code == 200:
+    with open("clipped_raster.tif", "wb") as f:
+        for chunk in res.iter_content(chunk_size=8192):
+            f.write(chunk)
+    print("GeoTIFF WCS berhasil diunduh!")`
+    },
+    response: {
+      statusCode: 200,
+      jsonCode: `// Binary Stream: image/tiff
+// Content-Disposition: attachment; filename="peta_risiko_clip_raw.tif"
+<Binary GeoTIFF bytes with spatial georeference metadata>`,
+      fieldDescriptions: []
+    }
+  },
+  {
+    id: 'api-features-query',
+    tag: 'Vector & WFS',
+    method: 'POST',
+    path: '/api/v1/features/{layer_id}/query',
+    params: [
+      { name: 'layer_id', type: 'string (UUID)', required: true, example: '320d5625-7831-419b-a01f-0e42f6e9b418' }
+    ],
+    bodyParams: [
+      { name: 'page', type: 'integer', required: false, example: '1' },
+      { name: 'page_size', type: 'integer', required: false, example: '20' },
+      { name: 'filters', type: 'array of object', required: false, example: '[{"field": "luas_ha", "operator": ">=", "value": 50}]' },
+      { name: 'sort', type: 'array of object', required: false, example: '[{"field": "luas_ha", "direction": "DESC"}]' },
+      { name: 'bbox', type: 'number[]', required: false, example: '[100.0, 13.5, 100.5, 14.5]' }
+    ],
+    examples: {
+      curl: `curl -X POST "http://localhost:8005/api/v1/features/320d5625-7831-419b-a01f-0e42f6e9b418/query" \\
+  -H "X-API-Key: agis_sk_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "page": 1,
+    "page_size": 10,
+    "filters": [{"field": "kategori", "operator": "ILIKE", "value": "%pertanian%"}],
+    "sort": [{"field": "gid", "direction": "ASC"}]
+  }'`,
+      python: `import requests
+
+url = "http://localhost:8005/api/v1/features/320d5625-7831-419b-a01f-0e42f6e9b418/query"
+headers = {
+    "X-API-Key": "agis_sk_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    "Content-Type": "application/json"
+}
+payload = {
+    "page": 1,
+    "page_size": 25,
+    "filters": [{"field": "kategori", "operator": "=", "value": "pertanian"}],
+    "sort": [{"field": "gid", "direction": "ASC"}]
+}
+res = requests.post(url, headers=headers, json=payload)
+data = res.json()
+print(f"Total features: {data['total']}")
+for f in data["features"]:
+    print(f["properties"])`
+    },
+    response: {
+      statusCode: 200,
+      jsonCode: `{
+  "total": 128,
+  "page": 1,
+  "page_size": 20,
+  "total_pages": 7,
+  "features": [
+    {
+      "id": "vec_pertanian_17cd81.1",
+      "properties": {
+        "gid": 1,
+        "nama": "Kawasan Pertanian A",
+        "luas_ha": 271.45,
+        "kategori": "pertanian"
+      }
+    }
+  ]
+}`,
+      fieldDescriptions: [
+        { field: 'total' },
+        { field: 'page' },
+        { field: 'features' }
+      ]
+    }
   }
 ]
 
@@ -766,6 +930,41 @@ const localizedOverlays = {
           style_json: 'Array aturan klasifikasi piksel raster JSON.'
         },
         responseDesc: 'Style berhasil diterapkan.'
+      },
+      'api-service-mode': {
+        title: 'Ubah Mode Layanan Layer (WMS / WMTS Tile Cache)',
+        description: 'Mengalihkan mode layanan layer antara WMS dinamis atau WMTS tile cached (GeoWebCache) untuk akselerasi loading peta di klien web.',
+        paramDescs: {
+          layer_id: 'UUID layer target yang akan diubah modenya.',
+          mode: 'Pilihan mode: "wms" (default) atau "wmts" (tile cached).',
+          layer_kind: 'Jenis layer ("raster" atau "vector"). Opsional.'
+        },
+        responseDesc: 'Mode layanan layer berhasil diperbarui dan konfigurasi GWC diinisialisasi.'
+      },
+      'api-raster-clip': {
+        title: 'Potong Raster On-Demand via WCS 2.0.1 (GeoTIFF)',
+        description: 'Memotong area data raster secara presisi berdasarkan BBox atau batas poligon AOI kustom dan mengunduh hasilnya langsung sebagai GeoTIFF.',
+        paramDescs: {
+          layer_id: 'UUID layer raster target.',
+          bbox: 'Array koordinat bounding box [minX, minY, maxX, maxY] dalam EPSG:4326.',
+          mask_polygon: 'Array koordinat cincin poligon untuk masking area of interest.',
+          styled: 'Apakah GeoTIFF diwarnai sesuai symbology (true) atau nilai mentah band (false).',
+          scalefactor: 'Faktor resolusi raster (default 1.0).'
+        },
+        responseDesc: 'Stream biner berkas GeoTIFF (image/tiff) siap pakai.'
+      },
+      'api-features-query': {
+        title: 'Kueri Tabel Atribut & Fitur Vektor via WFS 2.0.0',
+        description: 'Mengambil data atribut dan properti layer vektor dengan paginasi deterministik sisi server, pengurutan, dan pemfilteran multi-kondisi CQL.',
+        paramDescs: {
+          layer_id: 'UUID layer vektor target.',
+          page: 'Nomor halaman paginasi (mulai dari 1).',
+          page_size: 'Jumlah fitur per halaman (default 20, maks 100).',
+          filters: 'Daftar kondisi filter terstruktur [{field, operator, value}].',
+          sort: 'Daftar aturan pengurutan kolom [{field, direction}].',
+          bbox: 'BBox spasial opsional untuk membatasi kueri ke area tertentu.'
+        },
+        responseDesc: 'Daftar fitur vektor dan metadata paginasi berhasil diambil.'
       }
     }
   },
@@ -960,6 +1159,41 @@ const localizedOverlays = {
           style_json: 'JSON raster pixel classification rules array.'
         },
         responseDesc: 'Style applied successfully.'
+      },
+      'api-service-mode': {
+        title: 'Switch Layer Service Mode (WMS / WMTS Tile Cache)',
+        description: 'Switches layer service between dynamic WMS and cached WMTS (GeoWebCache) for accelerated web client map rendering.',
+        paramDescs: {
+          layer_id: 'Target layer UUID to switch mode.',
+          mode: 'Service mode choice: "wms" (default) or "wmts" (tile cached).',
+          layer_kind: 'Layer type ("raster" or "vector"). Optional.'
+        },
+        responseDesc: 'Layer service mode updated and GWC gridset initialized.'
+      },
+      'api-raster-clip': {
+        title: 'On-Demand Raster Clipping via WCS 2.0.1 (GeoTIFF)',
+        description: 'Clips raster surfaces precisely by bounding box or custom AOI polygon boundaries and streams the result directly as a GeoTIFF.',
+        paramDescs: {
+          layer_id: 'Target raster layer UUID.',
+          bbox: 'Bounding box array [minX, minY, maxX, maxY] in EPSG:4326.',
+          mask_polygon: 'Polygon ring coordinates array for AOI masking.',
+          styled: 'Whether the GeoTIFF is rendered with symbology colors (true) or raw band values (false).',
+          scalefactor: 'Raster resolution scaling factor (default 1.0).'
+        },
+        responseDesc: 'Binary stream of GeoTIFF file (image/tiff).'
+      },
+      'api-features-query': {
+        title: 'Query Vector Attributes & Features via WFS 2.0.0',
+        description: 'Queries vector layer feature attributes with server-side deterministic pagination, sorting, and multi-column CQL filtering.',
+        paramDescs: {
+          layer_id: 'Target vector layer UUID.',
+          page: 'Pagination page number (starts at 1).',
+          page_size: 'Features per page (default 20, max 100).',
+          filters: 'List of structured filter conditions [{field, operator, value}].',
+          sort: 'List of column sort rules [{field, direction}].',
+          bbox: 'Optional spatial BBox to constrain query.'
+        },
+        responseDesc: 'Vector feature attributes and pagination metadata retrieved successfully.'
       }
     }
   },
@@ -1154,6 +1388,41 @@ const localizedOverlays = {
           style_json: 'อาร์เรย์กฎการจำแนกประเภทพิกเซลแรสเตอร์ JSON'
         },
         responseDesc: 'ใช้สไตล์สำเร็จ'
+      },
+      'api-service-mode': {
+        title: 'เปลี่ยนโหมดบริการเลเยอร์ (WMS / WMTS ไทล์แคช)',
+        description: 'สลับโหมดบริการเลเยอร์ระหว่าง WMS แบบไดนามิกหรือ WMTS แบบแคชไทล์ (GeoWebCache) เพื่อเพิ่มความเร็วในการแสดงผลแผนที่บนเว็บไคลเอ็นต์',
+        paramDescs: {
+          layer_id: 'UUID ของเลเยอร์เป้าหมายที่จะเปลี่ยนโหมด',
+          mode: 'ตัวเลือกโหมดบริการ: "wms" (ค่าเริ่มต้น) หรือ "wmts" (แคชไทล์)',
+          layer_kind: 'ประเภทเลเยอร์ ("raster" หรือ "vector") ไม่บังคับ'
+        },
+        responseDesc: 'อัปเดตโหมดบริการเลเยอร์และกำหนดค่า GWC สำเร็จ'
+      },
+      'api-raster-clip': {
+        title: 'ตัดข้อมูลแรสเตอร์ตามต้องการผ่าน WCS 2.0.1 (GeoTIFF)',
+        description: 'ตัดพื้นผิวแรสเตอร์อย่างแม่นยำตาม Bounding Box หรือรูปหลายเหลี่ยม AOI ที่กำหนดเอง และส่งออกผลลัพธ์เป็น GeoTIFF ทันที',
+        paramDescs: {
+          layer_id: 'UUID ของเลเยอร์แรสเตอร์เป้าหมาย',
+          bbox: 'อาร์เรย์พิกัด Bounding Box [minX, minY, maxX, maxY] ใน EPSG:4326',
+          mask_polygon: 'อาร์เรย์พิกัดรูปหลายเหลี่ยมสำหรับการมาสก์พื้นที่ที่สนใจ',
+          styled: 'กำหนดว่า GeoTIFF จะแสดงด้วยสีสัญลักษณ์ (true) หรือค่าพิกเซลดิบ (false)',
+          scalefactor: 'ปัจจัยปรับความละเอียดแรสเตอร์ (ค่าเริ่มต้น 1.0)'
+        },
+        responseDesc: 'สตรีมไบนารีของไฟล์ GeoTIFF (image/tiff) พร้อมใช้งาน'
+      },
+      'api-features-query': {
+        title: 'สืบค้นแอตทริบิวต์และฟีเจอร์เวกเตอร์ผ่าน WFS 2.0.0',
+        description: 'ดึงข้อมูลแอตทริบิวต์และคุณสมบัติของเลเยอร์เวกเตอร์ด้วยระบบแบ่งหน้าฝั่งเซิร์ฟเวอร์ การจัดเรียง และการกรองหลายเงื่อนไข CQL',
+        paramDescs: {
+          layer_id: 'UUID ของเลเยอร์เวกเตอร์เป้าหมาย',
+          page: 'หมายเลขหน้าสำหรับการแบ่งหน้า (เริ่มต้นที่ 1)',
+          page_size: 'จำนวนฟีเจอร์ต่อหน้า (ค่าเริ่มต้น 20, สูงสุด 100)',
+          filters: 'รายการเงื่อนไขการกรอง [{field, operator, value}]',
+          sort: 'รายการกฎการจัดเรียงคอลัมน์ [{field, direction}]',
+          bbox: 'BBox เชิงพื้นที่เพิ่มเติมเพื่อจำกัดการสืบค้น'
+        },
+        responseDesc: 'ดึงข้อมูลคุณสมบัติฟีเจอร์เวกเตอร์และข้อมูลเมตาการแบ่งหน้าสำเร็จ'
       }
     }
   }

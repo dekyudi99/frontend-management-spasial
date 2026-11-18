@@ -128,11 +128,11 @@ const workspaceApi = {
                         workspace_name: technicalName,
                         visibility: res.data?.visibility || visibility
                     },
-                    detail: res.data?.detail || `Workspace '${friendlyName}' berhasil dibuat.`
+                    detail: res.data?.detail || `Workspace '${friendlyName}' created successfully.`
                 }
             };
         } catch (err) {
-            const errMsg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || "Gagal membuat workspace.";
+            const errMsg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || "Failed to create workspace.";
             throw new Error(errMsg);
         }
     },
@@ -167,7 +167,7 @@ const workspaceApi = {
                 }
             };
         } catch (err) {
-            const errMsg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || "Gagal mengambil detail workspace.";
+            const errMsg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || "Failed to fetch workspace details.";
             throw new Error(errMsg);
         }
     },
@@ -178,16 +178,16 @@ const workspaceApi = {
         try {
             const res = await axios.delete(`${MICROSERVICE_URL}/workspaces/${workspaceName}?recurse=true`, { headers });
             if (res.data && res.data.success === false) {
-                throw new Error(res.data.detail || `Gagal menghapus workspace '${workspaceName}'.`);
+                throw new Error(res.data.detail || `Failed to delete workspace '${workspaceName}'.`);
             }
             return {
                 data: {
                     success: true,
-                    detail: res.data?.detail || `Workspace '${workspaceName}' berhasil dihapus dari GeoServer.`
+                    detail: res.data?.detail || `Workspace '${workspaceName}' deleted from GeoServer.`
                 }
             };
         } catch (err) {
-            const errMsg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || `Gagal menghapus workspace '${workspaceName}'.`;
+            const errMsg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || `Failed to delete workspace '${workspaceName}'.`;
             throw new Error(errMsg);
         }
     },

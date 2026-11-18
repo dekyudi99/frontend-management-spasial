@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { 
   Tabs, Table, Tag, Button, Modal, Form, Input, InputNumber, Select, Switch, Space, 
-  message, Popconfirm, Card, Statistic, Spin, Tooltip 
+  message, Popconfirm, Card, Statistic, Spin, Tooltip, Alert 
 } from "antd";
 import { 
   UserGroupIcon, 
@@ -38,6 +38,7 @@ const Admin = () => {
   // State: Users
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState(null);
   const [userTotal, setUserTotal] = useState(0);
   const [userPage, setUserPage] = useState(1);
   const [editUserModal, setEditUserModal] = useState(false);
@@ -49,6 +50,7 @@ const Admin = () => {
   // State: GeoServer Overview
   const [geoOverview, setGeoOverview] = useState(null);
   const [geoLoading, setGeoLoading] = useState(false);
+  const [geoError, setGeoError] = useState(null);
   const [retestingGeo, setRetestingGeo] = useState(false);
 
   // State: Custom Quota Modal
@@ -59,6 +61,7 @@ const Admin = () => {
   // State: Audit Logs
   const [logs, setLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(false);
+  const [logsError, setLogsError] = useState(null);
   const [logsTotal, setLogsTotal] = useState(0);
   const [logsPage, setLogsPage] = useState(1);
 
@@ -72,13 +75,16 @@ const Admin = () => {
   // 1. Fetch Users
   const fetchUsers = async (page = 1) => {
     setUsersLoading(true);
+    setUsersError(null);
     try {
       const res = await adminApi.getUsers({ page, size: 10 });
-      setUsers(res.data.data);
-      setUserTotal(res.data.total);
+      setUsers(res.data?.data || []);
+      setUserTotal(res.data?.total ?? 0);
       setUserPage(page);
     } catch (err) {
-      message.error(err.response?.data?.detail || "Gagal memuat daftar pengguna.");
+      const errMsg = translateApi(err, "failedLoadUsers") || "Failed to load registered users.";
+      setUsersError(errMsg);
+      message.error(errMsg);
     } finally {
       setUsersLoading(false);
     }
@@ -91,6 +97,7 @@ const Admin = () => {
     } else {
       setGeoLoading(true);
     }
+    setGeoError(null);
     try {
       const res = await adminApi.getGeoServerOverview();
       setGeoOverview(res.data);
@@ -102,7 +109,9 @@ const Admin = () => {
         }
       }
     } catch (err) {
-      message.error("Gagal menghubungkan ke GeoServer Microservice.");
+      const errMsg = translateApi(err, "connectionFailed") || "Failed to connect to GeoServer Microservice.";
+      setGeoError(errMsg);
+      message.error(errMsg);
     } finally {
       if (isManual) {
         setRetestingGeo(false);
@@ -115,14 +124,17 @@ const Admin = () => {
   // 3. Fetch Audit Logs
   const fetchLogs = async (page = 1) => {
     setLogsLoading(true);
+    setLogsError(null);
     try {
       const offset = (page - 1) * 20;
       const res = await adminApi.getLogs({ limit: 20, offset });
-      setLogs(res.data.data || []);
-      setLogsTotal(res.data.total || 0);
+      setLogs(res.data?.data || []);
+      setLogsTotal(res.data?.total || 0);
       setLogsPage(page);
     } catch (err) {
-      message.error("Gagal memuat log aktivitas.");
+      const errMsg = translateApi(err, "failedLoadLogs") || "Failed to load audit logs.";
+      setLogsError(errMsg);
+      message.error(errMsg);
     } finally {
       setLogsLoading(false);
     }
@@ -740,6 +752,15 @@ const Admin = () => {
                   <span>👉 Geser tabel secara horizontal</span>
                 </div>
 
+                {usersError && (
+                  <Alert
+                    type="error"
+                    showIcon
+                    message={usersError}
+                    className="mb-3"
+                  />
+                )}
+
                 <Table
                   dataSource={users}
                   columns={userColumns}
@@ -773,6 +794,13 @@ const Admin = () => {
                   <div className="flex justify-center py-20"><Spin size="large" /></div>
                 ) : (
                   <>
+                    {geoError && (
+                      <Alert
+                        type="error"
+                        showIcon
+                        message={geoError}
+                      />
+                    )}
                     {/* Status Overview Cards */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-1 gap-2.5 sm:gap-4">
                       <div>
@@ -920,6 +948,15 @@ const Admin = () => {
                 <div className="sm:hidden text-[11px] text-slate-400 flex items-center justify-end gap-1 px-1">
                   <span>👉 Geser tabel secara horizontal</span>
                 </div>
+
+                {logsError && (
+                  <Alert
+                    type="error"
+                    showIcon
+                    message={logsError}
+                    className="mb-3"
+                  />
+                )}
 
                 <Table
                   dataSource={logs}

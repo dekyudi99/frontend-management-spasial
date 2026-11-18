@@ -28,6 +28,7 @@ export default function Documentation() {
 
   const [activeNavId, setActiveNavId] = useState('quickstart')
   const [searchQuery, setSearchQuery] = useState('')
+  const [activeOgcTab, setActiveOgcTab] = useState('wmts')
 
   useEffect(() => {
     document.title = `${t('officialDocumentation')} | ${appName}`
@@ -85,7 +86,10 @@ export default function Documentation() {
         { id: 'api-layer-delete', title: 'DELETE /layers/{ws}/{layer}' },
         { id: 'api-layer-batch-delete', title: 'POST /layers/batch-delete' },
         { id: 'api-layer-groups', title: 'POST /layer-groups' },
-        { id: 'api-styles-apply', title: 'POST /styles/apply' }
+        { id: 'api-styles-apply', title: 'POST /styles/apply' },
+        { id: 'api-service-mode', title: 'PATCH /layers/{id}/service-mode (WMTS)' },
+        { id: 'api-raster-clip', title: 'POST /raster/clip (WCS)' },
+        { id: 'api-features-query', title: 'POST /features/{id}/query (WFS)' }
       ]
     },
     {
@@ -94,6 +98,7 @@ export default function Documentation() {
       badge: t('badgeCode'),
       subItems: [
         { id: 'code-multi-lang', title: t('navDocMultiLangSnippet') },
+        { id: 'code-ogc-s2s', title: t('navDocOgcS2s', '5.2 S2S OGC (WCS, WMTS, WFS)') },
         { id: 'code-leaflet', title: t('navDocLeafletIntegration') }
       ]
     },
@@ -131,7 +136,8 @@ export default function Documentation() {
       'formats-limits', 'formats-supported', 'formats-crs', 'formats-limits-table', 'formats-duplicate',
       'api-reference', 'api-ingest-upload', 'api-ingest-batch', 'api-batch-status',
       'api-layer-list', 'api-layer-delete', 'api-layer-batch-delete', 'api-layer-groups', 'api-styles-apply',
-      'code-examples', 'code-multi-lang', 'code-leaflet',
+      'api-service-mode', 'api-raster-clip', 'api-features-query',
+      'code-examples', 'code-multi-lang', 'code-ogc-s2s', 'code-leaflet',
       'troubleshooting', 'trouble-http', 'trouble-faq',
       'changelog'
     ]
@@ -413,6 +419,100 @@ export default function Documentation() {
             {t('descIngestSnippet')}
           </p>
           <LanguageTabs examples={codeExamplesContent.examples} defaultLang="curl" />
+        </div>
+
+        {/* 5.2 Integrasi S2S OGC: WMTS, WCS & WFS */}
+        <div id="code-ogc-s2s" className="scroll-mt-24 mb-8 p-6 rounded-2xl bg-white border border-slate-200/90 shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <h3 className="text-base font-bold text-slate-800">
+              5.2 {t('titleOgcS2s', 'Integrasi Antar-Layanan (S2S) OGC: WMTS, WCS & WFS')}
+            </h3>
+            <DocBadge variant="success">S2S Protocol</DocBadge>
+          </div>
+          <p className="text-xs text-slate-600 mb-4 leading-relaxed">
+            {t('descOgcS2s', 'Panduan integrasi produksi untuk layanan analitik eksternal (FlowGIS, pipeline GEE, dan skrip Python) mengonsumsi layer yang dipublikasikan menggunakan standar OGC GeoServer.')}
+          </p>
+
+          {/* Sub-tab Switchers for OGC Services */}
+          <div className="flex flex-wrap items-center gap-2 mb-4 p-1.5 rounded-xl bg-slate-100 border border-slate-200/80">
+            <button
+              onClick={() => setActiveOgcTab('wmts')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                activeOgcTab === 'wmts'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+            >
+              🚀 {t('tabWmts', 'WMTS (Tile Cache)')}
+            </button>
+            <button
+              onClick={() => setActiveOgcTab('wcs')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                activeOgcTab === 'wcs'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+            >
+              ✂️ {t('tabWcs', 'WCS (Clip Raster)')}
+            </button>
+            <button
+              onClick={() => setActiveOgcTab('wfs')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                activeOgcTab === 'wfs'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+            >
+              📊 {t('tabWfs', 'WFS (Kueri Atribut)')}
+            </button>
+            <button
+              onClick={() => setActiveOgcTab('pipeline')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                activeOgcTab === 'pipeline'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+            >
+              ⚡ {t('tabPipeline', 'Alur Pipeline S2S Penuh')}
+            </button>
+          </div>
+
+          {/* Tab Content Display */}
+          {activeOgcTab === 'wmts' && (
+            <div className="space-y-3">
+              <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200 text-xs text-blue-900 leading-relaxed">
+                💡 <strong>GeoWebCache (WMTS 1.0.0):</strong> Mengubah layer ke mode WMTS mengaktifkan tile caching otomatis berbasis gridset <code>EPSG:900913</code>. Memberikan latensi rendering tile sub-detik untuk web peta dan aplikasi mobile tanpa membebani rendering dynamic GeoServer.
+              </div>
+              <LanguageTabs examples={codeExamplesContent.s2sOgc?.wmts || {}} defaultLang="python" />
+            </div>
+          )}
+
+          {activeOgcTab === 'wcs' && (
+            <div className="space-y-3">
+              <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-200 text-xs text-indigo-900 leading-relaxed">
+                💡 <strong>Web Coverage Service (WCS 2.0.1):</strong> Memungkinkan layanan backend Anda memotong model raster kontinu atau indeks citra satelit langsung di server berdasarkan koordinat BBox atau poligon AOI kustom, lalu menerima stream biner GeoTIFF siap analisis.
+              </div>
+              <LanguageTabs examples={codeExamplesContent.s2sOgc?.wcs || {}} defaultLang="python" />
+            </div>
+          )}
+
+          {activeOgcTab === 'wfs' && (
+            <div className="space-y-3">
+              <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs text-emerald-900 leading-relaxed">
+                💡 <strong>Web Feature Service (WFS 2.0.0):</strong> Memungkinkan query data atribut tabel fitur vektor langsung dari PostGIS dengan paginasi deterministik (PK tie-breaker), pengurutan, dan filtering CQL multi-kolom tanpa perlu mengunduh seluruh file shapefile/geojson.
+              </div>
+              <LanguageTabs examples={codeExamplesContent.s2sOgc?.wfs || {}} defaultLang="python" />
+            </div>
+          )}
+
+          {activeOgcTab === 'pipeline' && (
+            <div className="space-y-3">
+              <div className="p-3.5 rounded-xl bg-slate-900 text-slate-200 text-xs font-mono leading-relaxed">
+                ⚡ <strong>End-to-End External Pipeline Automation:</strong> Skrip Python siap pakai yang mendemonstrasikan bagaimana layanan mitra (seperti FlowGIS, biomass-manggrove, atau worker analitik) melakukan upload GeoTIFF, menunggu status publish, mengaktifkan WMTS, memotong AOI via WCS, dan menginspeksi metrik via WFS secara otomatis.
+              </div>
+              <LanguageTabs examples={codeExamplesContent.s2sOgc?.pipeline || {}} defaultLang="python" />
+            </div>
+          )}
         </div>
 
         <div id="code-leaflet" className="scroll-mt-24 p-6 rounded-2xl bg-white border border-slate-200/90 shadow-xs">
