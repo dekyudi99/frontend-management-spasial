@@ -254,6 +254,15 @@ const RasterLegendItem = ({ layer }) => {
   const classes = sym.classes || sym.colors || [];
 
   if (classes.length === 0) {
+    if (layer.is_rgb || (layer.bands && layer.bands > 1)) {
+      return (
+        <div className="inline-flex items-center gap-1.5 text-[11px] font-medium text-amber-800 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200">
+          <span className="w-2.5 h-2.5 rounded-xs bg-gradient-to-r from-red-500 via-green-500 to-blue-500 shrink-0" />
+          {t("rgbDefaultStyleLegend", "RGB / RGBA Raster (Default Style)")}
+        </div>
+      );
+    }
+
     // Fallback: Gunakan WMS GetLegendGraphic dari GeoServer
     const wmsUrl = layer.wms_url;
     const lyrName =

@@ -106,7 +106,12 @@ const layerApi = {
             }
 
             // Always sort newest first (created_at DESC) so newly uploaded layers appear on Page 1
-            items.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+            const parseTs = (val) => {
+                if (!val) return 0;
+                const ms = Date.parse(String(val).trim().replace(" ", "T"));
+                return Number.isNaN(ms) ? 0 : ms;
+            };
+            items.sort((a, b) => parseTs(b.created_at) - parseTs(a.created_at));
 
             // Client-side pagination if requested
             const page = Number(params.page) || 1;
@@ -158,6 +163,10 @@ const layerApi = {
                                 : (item.bbox && typeof item.bbox === "object"
                                     ? [item.bbox.minx ?? item.bbox.left ?? item.bbox.minLng, item.bbox.miny ?? item.bbox.bottom ?? item.bbox.minLat, item.bbox.maxx ?? item.bbox.right ?? item.bbox.maxLng, item.bbox.maxy ?? item.bbox.top ?? item.bbox.maxLat]
                                     : item.bbox),
+                            dimensions: item.dimensions || null,
+                            bands: item.bands ?? item.dimensions?.bands ?? 1,
+                            is_rgb: Boolean(item.is_rgb ?? item.dimensions?.is_rgb ?? ((item.dimensions?.bands ?? 1) > 1)),
+                            color_mode: item.color_mode || item.dimensions?.color_mode || null,
                             feature_count: item.feature_count,
                             epsg: item.epsg || item.srid || 4326,
                             visible: true

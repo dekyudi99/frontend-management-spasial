@@ -142,6 +142,14 @@ const LayerCard = ({
                   <span className={`w-1.5 h-1.5 rounded-full ${cfg.dotColor}`} />
                   {cfg.label}
                 </span>
+                {layer.layer_type === "raster" && (layer.is_rgb || (layer.bands && layer.bands > 1)) && (
+                  <span
+                    className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200"
+                    title={t('rgbRasterBadgeTooltip', 'Multi-band RGB/RGBA raster using GeoServer built-in default style')}
+                  >
+                    {layer.bands === 4 ? "RGBA" : "RGB"}
+                  </span>
+                )}
                 <span className="text-[10px] text-slate-400 font-mono bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
                   EPSG:{layer.epsg}
                 </span>

@@ -160,6 +160,7 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
   const [presetWarning, setPresetWarning] = useState(null);
   const [hasSavedSymbology, setHasSavedSymbology] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState(null);
+  const [rasterBandInfo, setRasterBandInfo] = useState({ bands: 1, isRgb: false });
 
   // Custom Color Ramps State
   const [customRamps, setCustomRamps] = useState(loadSavedCustomRamps);
@@ -271,6 +272,11 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
     setCategoricalHint(false);
     setPresetWarning(null);
     setStatsError(null);
+    const initialBands = Number(layer?.bands ?? layer?.dimensions?.bands ?? 1) || 1;
+    setRasterBandInfo({
+      bands: initialBands,
+      isRgb: Boolean(layer?.is_rgb ?? initialBands > 1),
+    });
 
     // Mode Vektor
     if (isVector) {
@@ -319,6 +325,16 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
       .getRasterInfo(layer.id)
       .then((res) => {
         const data = res?.data;
+        const resolvedBands = Number(data?.bands ?? data?.dimensions?.bands ?? layer?.bands ?? 1) || 1;
+        const resolvedIsRgb = Boolean(data?.is_rgb ?? resolvedBands > 1);
+        setRasterBandInfo({ bands: resolvedBands, isRgb: resolvedIsRgb });
+
+        if (resolvedIsRgb) {
+          setHasSavedSymbology(false);
+          setLastSavedTime(null);
+          return;
+        }
+
         const currentStats = data?.statistics || null;
         setStats(currentStats);
 
@@ -1105,6 +1121,18 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
                 <div className="py-12 text-center bg-slate-50 rounded-xl border border-slate-200 mt-3">
                   <Spin description={t("loadingRasterStats", "Memuat statistik & simbologi raster...")} />
                 </div>
+              ) : rasterBandInfo.isRgb ? (
+                <div className="mt-4">
+                  <Alert
+                    type="info"
+                    showIcon
+                    title={t("rgbStyleNoticeTitle", { bands: rasterBandInfo.bands }, "Multi-Band RGB / RGBA Raster ({bands} bands)")}
+                    description={t(
+                      "rgbStyleNoticeDesc",
+                      "This GeoTIFF contains pre-rendered RGB/RGBA image bands and uses GeoServer's built-in default raster style to preserve its original colors. Single-band ColorMap classification is not applicable to multi-band RGB images."
+                    )}
+                  />
+                </div>
               ) : (
                 <>
                   {/* Statistics Banner */}
@@ -1611,22 +1639,26 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
                 onClick={onClose}
                 disabled={isWorkspaceMode ? workspaceMutation.isPending : mutation.isPending}
               >
-                {t("cancel", "Batal")}
+                {!isVector && !isWorkspaceMode && rasterBandInfo.isRgb
+                  ? t("closeBtn", "Close")
+                  : t("cancel", "Batal")}
               </Button>
-              <Button
-                type="primary"
-                onClick={handleSubmit}
-                loading={isWorkspaceMode ? workspaceMutation.isPending : mutation.isPending}
-                disabled={calculating || (!isVector && !isWorkspaceMode && !validation.valid)}
-                icon={<Check className="w-4 h-4" />}
-                className="bg-teal-600 hover:bg-teal-500 flex items-center gap-1 cursor-pointer disabled:opacity-50"
-              >
-                {isWorkspaceMode
-                  ? t("applyAndSaveWorkspaceStyle", "Terapkan & Simpan Default Style Workspace")
-                  : isVector
-                  ? t("applyAndSaveVectorStyle", "Terapkan & Simpan Style Vektor")
-                  : t("applyAndSaveClassification", "Apply & Save Classification")}
-              </Button>
+              {(isVector || isWorkspaceMode || !rasterBandInfo.isRgb) && (
+                <Button
+                  type="primary"
+                  onClick={handleSubmit}
+                  loading={isWorkspaceMode ? workspaceMutation.isPending : mutation.isPending}
+                  disabled={calculating || (!isVector && !isWorkspaceMode && !validation.valid)}
+                  icon={<Check className="w-4 h-4" />}
+                  className="bg-teal-600 hover:bg-teal-500 flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                >
+                  {isWorkspaceMode
+                    ? t("applyAndSaveWorkspaceStyle", "Terapkan & Simpan Default Style Workspace")
+                    : isVector
+                    ? t("applyAndSaveVectorStyle", "Terapkan & Simpan Style Vektor")
+                    : t("applyAndSaveClassification", "Apply & Save Classification")}
+                </Button>
+              )}
             </div>
           </div>
         </div>

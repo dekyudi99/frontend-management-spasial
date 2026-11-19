@@ -272,17 +272,30 @@ const Layer = () => {
   const pagination = responseData?.data?.pagination;
   const rawGroups = groupResponse?.data?.data || [];
 
-  // Sinkronkan custom order saat data layer berubah
+  // Sinkronkan custom order saat data layer berubah (layer baru tampil di atas, layer lama yang tergeser tetap di bawah)
   useEffect(() => {
-    if (rawLayers.length > 0) {
-      const incomingIds = rawLayers.map((l) => l.id);
-      setCustomOrderIds((prev) => {
-        // Pertahankan urutan sebelumnya jika ada, tambahkan yang baru
-        const existing = prev.filter((id) => incomingIds.includes(id));
-        const added = incomingIds.filter((id) => !existing.includes(id));
-        return [...existing, ...added];
-      });
+    if (rawLayers.length === 0) {
+      setCustomOrderIds([]);
+      return;
     }
+    const incomingIds = rawLayers.map((l) => l.id);
+    setCustomOrderIds((prev) => {
+      const incomingSet = new Set(incomingIds);
+      const existing = prev.filter((id) => incomingSet.has(id));
+      if (existing.length === 0) {
+        return incomingIds;
+      }
+      const existingSet = new Set(existing);
+      const firstExistingIdx = incomingIds.findIndex((id) => existingSet.has(id));
+      const prepended = [];
+      const appended = [];
+      incomingIds.forEach((id, idx) => {
+        if (existingSet.has(id)) return;
+        if (idx < firstExistingIdx) prepended.push(id);
+        else appended.push(id);
+      });
+      return [...prepended, ...existing, ...appended];
+    });
   }, [rawLayers]);
 
   // Urutkan layer berdasarkan customOrderIds (drag & drop order)
