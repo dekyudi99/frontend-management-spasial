@@ -16,10 +16,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLanguage } from "../context/LanguageContext";
 import keyApi from "../api/KeyApi";
 import FileListItem from "./molecules/FileListItem";
+import { validateSpatialFileForUpload } from "../utils/tiffValidator";
 
 const { Dragger } = Upload;
 
 const MAX_FILES = 10;
+const CLOUDFLARE_SAFE_BYTES = 95 * 1024 * 1024;
 const ACCEPTED_EXTENSIONS = [".tif", ".tiff", ".geojson", ".json", ".zip", ".kml", ".kmz", ".csv"];
 
 const getFileExtension = (filename = "") => {
@@ -131,11 +133,11 @@ const LayerModal = ({
     }
 
     const rawFiles = Array.isArray(fileList) && fileList.length > 0 ? fileList : [file];
+    const itemsToValidate = [];
 
     setSelectedFiles((prev) => {
       const existingKeys = new Set(prev.map((item) => `${item.fileName}_${item.size}`));
       const newItems = [];
-      let currentTotalBytes = prev.reduce((acc, f) => acc + (f.size || 0), 0);
       let exceededQuota = false;
 
       for (const f of rawFiles) {
@@ -146,7 +148,7 @@ const LayerModal = ({
           message.error(
             t(
               "unsupportedFormat",
-              `Format "${fileObj.name}" tidak didukung. Gunakan GeoTIFF (.tif/.tiff), Shapefile (.zip), GeoJSON (.geojson/.json), KML (.kml), KMZ (.kmz), atau CSV (.csv).`
+              `Unsupported format "${fileObj.name}". Use GeoTIFF (.tif/.tiff), Shapefile (.zip), GeoJSON (.geojson/.json), KML (.kml), KMZ (.kmz), or CSV (.csv).`
             )
           );
           continue;
@@ -164,8 +166,7 @@ const LayerModal = ({
         }
 
         existingKeys.add(fileKey);
-        currentTotalBytes += fileObj.size;
-        newItems.push({
+        const itemObj = {
           id: `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${newItems.length}`,
           file: fileObj,
           fileName: fileObj.name,
@@ -177,14 +178,35 @@ const LayerModal = ({
           errorMessage: null,
           geoserverName: null,
           jobId: null,
-        });
+          validationStatus: "valid",
+          validationMessages: [],
+        };
+        newItems.push(itemObj);
+        itemsToValidate.push(itemObj);
       }
 
       if (exceededQuota) {
-        message.warning(t("maxFilesExceeded", `Maksimum ${MAX_FILES} berkas per batch upload.`));
+        message.warning(t("maxFilesExceeded", `Maximum ${MAX_FILES} files per batch upload.`));
       }
 
       return [...prev, ...newItems];
+    });
+
+    itemsToValidate.forEach(async (itemObj) => {
+      const result = await validateSpatialFileForUpload(itemObj.file, t);
+      if (result.messages.length > 0) {
+        setSelectedFiles((prev) =>
+          prev.map((item) =>
+            item.id === itemObj.id
+              ? {
+                  ...item,
+                  validationStatus: result.status,
+                  validationMessages: result.messages,
+                }
+              : item
+          )
+        );
+      }
     });
 
     return false; // Mencegah default upload bawaan AntD
@@ -250,7 +272,14 @@ const LayerModal = ({
   const onFinish = async (values) => {
     try {
       if (selectedFiles.length === 0) {
-        message.error(t("uploadFileRequired", "Silakan pilih berkas spasial terlebih dahulu!"));
+        message.error(t("uploadFileRequired", "Please select at least one spatial file first!"));
+        return;
+      }
+
+      if (selectedFiles.some((f) => f.validationStatus === "error")) {
+        message.error(
+          t("fixValidationErrorsBeforeUpload", "Please remove or fix files with validation errors before uploading.")
+        );
         return;
       }
 
@@ -319,9 +348,14 @@ const LayerModal = ({
       setIsBatchRunning(false);
       setBatchFinished(true);
       const errMsg =
-        err?.response?.data?.detail ||
-        err?.message ||
-        t("ingestFailedTitle", "Gagal Memproses Data Spasial");
+        err?.response?.status === 413
+          ? t(
+              "uploadPayloadTooLarge",
+              "Upload rejected (exceeds 100 MB proxy/server limit). Compress the file (DEFLATE/LZW) or upload smaller files one at a time."
+            )
+          : err?.response?.data?.detail ||
+            err?.message ||
+            t("ingestFailedTitle", "Failed to process spatial data");
       message.error(errMsg);
     }
   };
@@ -330,6 +364,11 @@ const LayerModal = ({
   const hasVectorFile = selectedFiles.some((f) =>
     [".geojson", ".json", ".zip"].includes(f.ext?.toLowerCase())
   );
+  const hasTiffFile = selectedFiles.some((f) =>
+    [".tif", ".tiff"].includes(f.ext?.toLowerCase())
+  );
+  const hasValidationErrors = selectedFiles.some((f) => f.validationStatus === "error");
+  const isBatchOverProxyLimit = totalSizeBytes > CLOUDFLARE_SAFE_BYTES;
 
   const completedCount = selectedFiles.filter((f) => f.status === "COMPLETED").length;
   const failedCount = selectedFiles.filter((f) => f.status === "FAILED").length;
@@ -503,6 +542,34 @@ const LayerModal = ({
           )}
         </div>
 
+        {/* Batch Size Proxy Warning (>95 MB) */}
+        {isBatchOverProxyLimit && !isBatchRunning && !batchFinished && (
+          <Alert
+            type="warning"
+            showIcon
+            className="mb-3 text-xs"
+            title={t(
+              "valBatchTooLargeProxy",
+              "Total batch size ({size} MB) exceeds ~95 MB. Requests over 100 MB may fail behind Cloudflare proxy; upload smaller files one by one or compress them first.",
+              { size: totalSizeMB }
+            )}
+          />
+        )}
+
+        {/* GeoTIFF Best Practice Notice */}
+        {hasTiffFile && !isBatchRunning && !batchFinished && (
+          <Alert
+            type="info"
+            showIcon
+            className="mb-4 text-xs"
+            title={t("geotiffTipsTitle", "GeoTIFF Upload & Styling Tips")}
+            description={t(
+              "geotiffTipsDesc",
+              "Export as Single-Band Raw Data with DEFLATE/LZW compression and a valid CRS. Rendered RGB/RGBA or uncompressed files (>100 MB) are much larger, slower to upload, and only Band 1 is used for numeric styling."
+            )}
+          />
+        )}
+
         {/* Info PostGIS Staging untuk Vektor */}
         {hasVectorFile && !isBatchRunning && !batchFinished && (
           <div className="p-3 mb-4 rounded-lg bg-teal-50 border border-teal-200/80 flex items-start gap-2.5">
@@ -569,9 +636,9 @@ const LayerModal = ({
               type="primary"
               block
               loading={isSubmitting}
-              disabled={selectedFiles.length === 0 || (!lockWorkspace && workspaces.length === 0)}
+              disabled={selectedFiles.length === 0 || hasValidationErrors || (!lockWorkspace && workspaces.length === 0)}
             >
-              {t("startIngestBtn", "Mulai Ingest & Publikasikan")}
+              {t("startIngestBtn", "Start Ingest & Publish")}
             </Button>
           ) : (
             <div className="flex gap-2">

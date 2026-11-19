@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import Logo from '../../../assets/logo.png'
 import SidebarNav from '../organisms/SidebarNav'
+import LanguageSwitcher from '../../../components/LanguageSwitcher'
 import { useLanguage } from '../../../context/LanguageContext'
 
 export default function DocumentationTemplate({
@@ -59,6 +60,7 @@ export default function DocumentationTemplate({
             >
               {t("home", "Home")}
             </Link>
+            <LanguageSwitcher compact />
             <Link
               to="/dashboard"
               className="px-3.5 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-lg shadow-sm transition-all"

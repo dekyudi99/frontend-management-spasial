@@ -14,14 +14,14 @@ import { Dropdown, Modal } from "antd";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSidebar } from "../context/SidebarContext";
 import { useLanguage } from "../context/LanguageContext";
-import { availableLanguages } from "../i18n/translations";
+import LanguageSwitcher from "./LanguageSwitcher";
 import useAuth from "../hooks/useAuth";
 
 const appName = import.meta.env.VITE_APP_NAME;
 const docsUrl = import.meta.env.VITE_API_DOCS;
 
 const Header = ({ variant = "app" }) => {
-    const { language, setLanguage, t } = useLanguage();
+    const { t } = useLanguage();
     const navigate = useNavigate();
     const location = useLocation();
     const queryClient = useQueryClient();
@@ -69,51 +69,6 @@ const Header = ({ variant = "app" }) => {
         },
     ];
 
-    const languageSwitcher = (
-        <Dropdown
-            menu={{
-                items: availableLanguages.map((lang) => ({
-                    key: lang.code,
-                    label: `${lang.flag} ${lang.nativeName}`,
-                    onClick: () => setLanguage(lang.code),
-                })),
-                selectedKeys: [language],
-            }}
-            trigger={["click"]}
-            placement="bottomRight"
-        >
-            <button
-                type="button"
-                className="
-                    flex
-                    items-center
-                    justify-center
-                    gap-1.5
-                    h-10
-                    px-2.5
-                    sm:px-3
-                    rounded-lg
-                    border
-                    border-white/20
-                    bg-blue-900
-                    text-white
-                    hover:bg-blue-800
-                    transition
-                    text-xs
-                    sm:text-sm
-                    font-semibold
-                    cursor-pointer
-                    shrink-0
-                "
-                title={t('changeLanguage', 'Change Language')}
-                aria-label={t('changeLanguage', 'Change Language')}
-            >
-                <span className="text-sm sm:text-base leading-none">{availableLanguages.find((l) => l.code === language)?.flag || '🌐'}</span>
-                <span className="uppercase tracking-wider font-bold leading-none">{language}</span>
-            </button>
-        </Dropdown>
-    );
-
     if (variant === "landing") {
         return (
             <header className="sticky top-0 z-50 backdrop-blur-md bg-blue-950/90 border-b border-blue-900/60 shadow-md">
@@ -137,7 +92,7 @@ const Header = ({ variant = "app" }) => {
                     </nav>
 
                     <div className="flex items-center gap-2 sm:gap-3">
-                        {languageSwitcher}
+                        <LanguageSwitcher />
                         {isAuthenticated ? (
                             <Link
                                 to="/dashboard"
@@ -201,7 +156,7 @@ const Header = ({ variant = "app" }) => {
                 {/* Right Menu */}
                 <div className="flex items-center gap-2 sm:gap-3">
 
-                    {languageSwitcher}
+                    <LanguageSwitcher />
 
                     {isAuthenticated ? (
                         <Dropdown

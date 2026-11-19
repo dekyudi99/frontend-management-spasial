@@ -452,6 +452,44 @@ const layerApi = {
             const res = await axios.post(`${MICROSERVICE_URL}/layers/${layerId}/features/query`, payload, { headers, signal });
             return res.data;
         } catch (err) {
+            if (axios.isCancel(err) || err?.name === "CanceledError" || err?.name === "AbortError") {
+                throw err;
+            }
+            throw new Error(extractApiError(err));
+        }
+    },
+
+    getLayerUniqueValues: async (layerId, { column, search, limit = 200 }, signal) => {
+        const headers = await getAuthHeaders(false);
+        try {
+            const params = { column, limit };
+            if (search && String(search).trim()) {
+                params.search = String(search).trim();
+            }
+            const res = await axios.get(`${MICROSERVICE_URL}/layers/${layerId}/features/unique-values`, {
+                headers,
+                params,
+                signal
+            });
+            return res.data;
+        } catch (err) {
+            if (axios.isCancel(err) || err?.name === "CanceledError" || err?.name === "AbortError") {
+                throw err;
+            }
+            throw new Error(extractApiError(err));
+        }
+    },
+
+    verifyLayerCql: async (layerId, cqlExpression, signal) => {
+        const headers = await getAuthHeaders(false);
+        try {
+            const res = await axios.post(
+                `${MICROSERVICE_URL}/layers/${layerId}/features/verify-cql`,
+                { cql_expression: cqlExpression },
+                { headers, signal }
+            );
+            return res.data;
+        } catch (err) {
             throw new Error(extractApiError(err));
         }
     },

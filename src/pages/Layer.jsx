@@ -16,6 +16,8 @@ import {
   ChevronRight,
   MousePointerClick,
   BarChart2,
+  Filter,
+  X,
 } from "lucide-react";
 import { Button, Spin, Pagination, message, Tabs, Badge, Select, Tag, Popconfirm } from "antd";
 import { LockOutlined } from "@ant-design/icons";
@@ -144,6 +146,23 @@ const Layer = () => {
 
   // Layer settings (visibility, opacity, cache bust)
   const [layerSettings, setLayerSettings] = useState({});
+  const [layerMapFilters, setLayerMapFilters] = useState({});
+
+  const handleCqlFilterChange = (layerId, rawExpr, normalizedCql) => {
+    if (!layerId) return;
+    setLayerMapFilters((prev) => {
+      if (!normalizedCql) {
+        if (!prev[layerId]) return prev;
+        const next = { ...prev };
+        delete next[layerId];
+        return next;
+      }
+      return {
+        ...prev,
+        [layerId]: { raw: rawExpr, normalizedCql },
+      };
+    });
+  };
 
   // Group settings (visibility, opacity)
   const [groupSettings, setGroupSettings] = useState({});
@@ -517,8 +536,9 @@ const Layer = () => {
             if (!renderer.shouldRender) return null;
 
             const styleUpdatedAt = layerSettings[layer.id]?.styleUpdatedAt || 0;
+            const activeMapCql = layerMapFilters[layer.id]?.normalizedCql || null;
 
-            if (renderer.isWmts) {
+            if (renderer.isWmts && !activeMapCql) {
               return (
                 <WMTSTileLayer
                   key={`wmts-${layer.id}-${styleUpdatedAt}`}
@@ -536,7 +556,7 @@ const Layer = () => {
 
             return (
               <WMSTileLayer
-                key={`layer-${layer.id}-${styleUpdatedAt}`}
+                key={`layer-${layer.id}-${styleUpdatedAt}-${activeMapCql || "all"}`}
                 url={layer.wms_url}
                 zIndex={10 + revIdx}
                 params={{
@@ -544,6 +564,7 @@ const Layer = () => {
                   format: "image/png",
                   transparent: true,
                   version: "1.1.1",
+                  ...(activeMapCql ? { CQL_FILTER: activeMapCql } : {}),
                   _t: styleUpdatedAt || undefined,
                 }}
                 opacity={1}
@@ -686,6 +707,18 @@ const Layer = () => {
             <Navigation2 className="w-3 h-3 flex-shrink-0" />
             {selectedLayer.display_name || selectedLayer.layer_name}
           </span>
+        )}
+        {Object.keys(layerMapFilters).length > 0 && (
+          <button
+            type="button"
+            onClick={() => setLayerMapFilters({})}
+            title={t('clearMapFilter', 'Klik untuk menghapus semua CQL Filter di peta')}
+            className="text-[10px] font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1 cursor-pointer transition"
+          >
+            <Filter className="w-2.5 h-2.5" />
+            {t('mapFilterActiveBadge', 'CQL Filter')} ({Object.keys(layerMapFilters).length})
+            <X className="w-2.5 h-2.5" />
+          </button>
         )}
       </div>
 
@@ -1067,6 +1100,8 @@ const Layer = () => {
           onSelectFeature={(feat) => {
             setSelectedHighlightFeature(feat);
           }}
+          initialCql={layerMapFilters[attributeTableLayer?.id]?.raw || ""}
+          onCqlFilterChange={handleCqlFilterChange}
         />
       </LocalErrorBoundary>
 

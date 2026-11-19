@@ -43,7 +43,8 @@ const VectorLegendItem = ({ layer }) => {
 
   const fillColor = sym.fill_color || "#0d9488";
   const strokeColor = sym.stroke_color || "#0f766e";
-  const strokeWidth = Number(sym.stroke_width || 1.5);
+  const strokeWidth =
+    sym.stroke_width !== undefined ? Number(sym.stroke_width) : 1.5;
   const fillOpacity =
     sym.fill_opacity !== undefined ? Number(sym.fill_opacity) : 0.65;
   const strokeOpacity =
@@ -231,7 +232,7 @@ const VectorLegendItem = ({ layer }) => {
           points="10,2 18,7 15,16 5,16 2,7"
           fill={fillColor}
           fillOpacity={fillOpacity}
-          stroke={strokeColor}
+          stroke={strokeWidth > 0 && strokeOpacity > 0 ? strokeColor : "none"}
           strokeWidth={Math.min(2, strokeWidth)}
           strokeOpacity={strokeOpacity}
           strokeDasharray={strokeDash}

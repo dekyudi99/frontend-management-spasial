@@ -19,7 +19,7 @@ import { getTroubleshootingContent } from '../docs/content/troubleshooting'
 import { getChangelogContent } from '../docs/content/changelog'
 
 export default function Documentation() {
-  const { currentLanguage, t } = useLanguage()
+  const { language, t } = useLanguage()
 
   const appName = import.meta.env.VITE_APP_NAME || 'AstraGIS'
   const apiBase = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -32,16 +32,16 @@ export default function Documentation() {
 
   useEffect(() => {
     document.title = `${t('officialDocumentation')} | ${appName}`
-  }, [appName, currentLanguage, t])
+  }, [appName, language, t])
 
   // Reactive localized content
-  const quickstartContent = useMemo(() => getQuickstartContent(currentLanguage), [currentLanguage])
-  const dashboardGuideContent = useMemo(() => getDashboardGuideContent(currentLanguage), [currentLanguage])
-  const formatsAndLimitsContent = useMemo(() => getFormatsAndLimitsContent(currentLanguage), [currentLanguage])
-  const apiReferenceContent = useMemo(() => getApiReferenceContent(currentLanguage), [currentLanguage])
-  const codeExamplesContent = useMemo(() => getCodeExamplesContent(currentLanguage), [currentLanguage])
-  const troubleshootingContent = useMemo(() => getTroubleshootingContent(currentLanguage), [currentLanguage])
-  const changelogContent = useMemo(() => getChangelogContent(currentLanguage), [currentLanguage])
+  const quickstartContent = useMemo(() => getQuickstartContent(language), [language])
+  const dashboardGuideContent = useMemo(() => getDashboardGuideContent(language), [language])
+  const formatsAndLimitsContent = useMemo(() => getFormatsAndLimitsContent(language), [language])
+  const apiReferenceContent = useMemo(() => getApiReferenceContent(language), [language])
+  const codeExamplesContent = useMemo(() => getCodeExamplesContent(language), [language])
+  const troubleshootingContent = useMemo(() => getTroubleshootingContent(language), [language])
+  const changelogContent = useMemo(() => getChangelogContent(language), [language])
 
   // Nav Items definition
   const rawNavItems = useMemo(() => [
@@ -481,7 +481,7 @@ export default function Documentation() {
           {activeOgcTab === 'wmts' && (
             <div className="space-y-3">
               <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200 text-xs text-blue-900 leading-relaxed">
-                💡 <strong>GeoWebCache (WMTS 1.0.0):</strong> Mengubah layer ke mode WMTS mengaktifkan tile caching otomatis berbasis gridset <code>EPSG:900913</code>. Memberikan latensi rendering tile sub-detik untuk web peta dan aplikasi mobile tanpa membebani rendering dynamic GeoServer.
+                💡 <strong>{t('docWmtsBannerTitle')}</strong> {t('docWmtsBannerDesc')}
               </div>
               <LanguageTabs examples={codeExamplesContent.s2sOgc?.wmts || {}} defaultLang="python" />
             </div>
@@ -490,7 +490,7 @@ export default function Documentation() {
           {activeOgcTab === 'wcs' && (
             <div className="space-y-3">
               <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-200 text-xs text-indigo-900 leading-relaxed">
-                💡 <strong>Web Coverage Service (WCS 2.0.1):</strong> Memungkinkan layanan backend Anda memotong model raster kontinu atau indeks citra satelit langsung di server berdasarkan koordinat BBox atau poligon AOI kustom, lalu menerima stream biner GeoTIFF siap analisis.
+                💡 <strong>{t('docWcsBannerTitle')}</strong> {t('docWcsBannerDesc')}
               </div>
               <LanguageTabs examples={codeExamplesContent.s2sOgc?.wcs || {}} defaultLang="python" />
             </div>
@@ -499,7 +499,7 @@ export default function Documentation() {
           {activeOgcTab === 'wfs' && (
             <div className="space-y-3">
               <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs text-emerald-900 leading-relaxed">
-                💡 <strong>Web Feature Service (WFS 2.0.0):</strong> Memungkinkan query data atribut tabel fitur vektor langsung dari PostGIS dengan paginasi deterministik (PK tie-breaker), pengurutan, dan filtering CQL multi-kolom tanpa perlu mengunduh seluruh file shapefile/geojson.
+                💡 <strong>{t('docWfsBannerTitle')}</strong> {t('docWfsBannerDesc')}
               </div>
               <LanguageTabs examples={codeExamplesContent.s2sOgc?.wfs || {}} defaultLang="python" />
             </div>
@@ -508,7 +508,7 @@ export default function Documentation() {
           {activeOgcTab === 'pipeline' && (
             <div className="space-y-3">
               <div className="p-3.5 rounded-xl bg-slate-900 text-slate-200 text-xs font-mono leading-relaxed">
-                ⚡ <strong>End-to-End External Pipeline Automation:</strong> Skrip Python siap pakai yang mendemonstrasikan bagaimana layanan mitra (seperti FlowGIS, biomass-manggrove, atau worker analitik) melakukan upload GeoTIFF, menunggu status publish, mengaktifkan WMTS, memotong AOI via WCS, dan menginspeksi metrik via WFS secara otomatis.
+                ⚡ <strong>{t('docPipelineBannerTitle')}</strong> {t('docPipelineBannerDesc')}
               </div>
               <LanguageTabs examples={codeExamplesContent.s2sOgc?.pipeline || {}} defaultLang="python" />
             </div>
@@ -521,7 +521,7 @@ export default function Documentation() {
             {t('descRenderWms')}
           </p>
           <CodeBlock
-            code={`// 1. Tampilkan Layer di Leaflet.js
+            code={`// 1. Leaflet.js WMS Layer
 const wmsUrl = "${geoserverWms}";
 const layerName = "ws_mitigasi_bencana:ras_peta_curah_hujan_a1b2c3";
 
@@ -530,10 +530,10 @@ const leafletLayer = L.tileLayer.wms(wmsUrl, {
   format: "image/png",
   transparent: true,
   version: "1.1.1",
-  attribution: "AstraGIS GeoServer"
+  attribution: "${appName} GeoServer"
 }).addTo(map);
 
-// 2. Tampilkan Layer di OpenLayers
+// 2. OpenLayers TileWMS Layer
 import TileLayer from 'ol/layer/Tile';
 import TileWMS from 'ol/source/TileWMS';
 
@@ -547,7 +547,7 @@ const olLayer = new TileLayer({
 });
 map.addLayer(olLayer);`}
             language="javascript"
-            title="Integrasi WebGIS (Leaflet & OpenLayers)"
+            title={t('titleWebGisIntegration')}
           />
         </div>
       </section>

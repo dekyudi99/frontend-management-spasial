@@ -4,33 +4,33 @@ import {
   Table,
   Button,
   Select,
-  Input,
   Space,
   Alert,
   Tooltip,
   Tag,
-  Typography,
+  Spin,
 } from "antd";
 import {
   Filter,
-  Plus,
-  Trash2,
   RefreshCw,
   LocateFixed,
   AlertTriangle,
 } from "lucide-react";
 import layerApi from "../../api/LayerApi";
-import { filterOperatorsForType, formatFilterPayload, extractApiError } from "../../utils/wfsUtils";
+import { extractApiError } from "../../utils/wfsUtils";
 import { useLanguage } from "../../context/LanguageContext";
+import CqlFilterBuilder from "./CqlFilterBuilder";
 
-const { Text } = Typography;
 const { Option } = Select;
+const CHUNK_SIZE = 100;
 
 const AttributeTableModal = ({
   layer,
   visible,
   onClose,
   onSelectFeature,
+  initialCql = "",
+  onCqlFilterChange,
 }) => {
   const { t } = useLanguage();
 
@@ -44,33 +44,40 @@ const AttributeTableModal = ({
   // Loading & error
   const [isLoadingSchema, setIsLoadingSchema] = useState(false);
   const [isLoadingRows, setIsLoadingRows] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [schemaError, setSchemaError] = useState(null);
+  const [rowsError, setRowsError] = useState(null);
   const [hasNoPk, setHasNoPk] = useState(false);
 
-  // Pagination & Sort
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
+  // Infinite scroll & Sort
+  const [currentPage, setCurrentPage] = useState(1);
   const [sorter, setSorter] = useState({ field: null, order: null });
 
-  // Filter Builder state
+  // CQL Filter Builder state
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [filterRows, setFilterRows] = useState([]);
-  const [appliedFilters, setAppliedFilters] = useState(null);
+  const [appliedCql, setAppliedCql] = useState(initialCql || null);
 
   const abortControllerRef = useRef(null);
+  const tableContainerRef = useRef(null);
+  const isFetchingMoreRef = useRef(false);
 
   // 1. Fetch Schema saat modal dibuka atau layer berubah
   useEffect(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
     setSchema(null);
     setColumns([]);
     setVisibleColumns([]);
     setRows([]);
     setTotal(0);
     setSchemaError(null);
+    setRowsError(null);
     setHasNoPk(false);
-    setPagination({ current: 1, pageSize: 20 });
+    setCurrentPage(1);
     setSorter({ field: null, order: null });
-    setFilterRows([]);
-    setAppliedFilters(null);
+    setAppliedCql(initialCql ? String(initialCql).trim() : null);
+    isFetchingMoreRef.current = false;
 
     if (!visible || !layer) {
       return;
@@ -91,7 +98,7 @@ const AttributeTableModal = ({
           return;
         }
 
-        // Siapkan kolom tabel (sembunyikan kolom PK/gid dan geometri dari tampilan default)
+        // Siapkan kolom tabel (sembunyikan kolom PK/gid dan geometri)
         const allCols = schemaData.columns || [];
         const tableCols = allCols
           .filter((c) => !c.is_pk && c.local_type !== "geometry" && c.name !== "geometry")
@@ -116,7 +123,7 @@ const AttributeTableModal = ({
         if (err?.response?.status === 409) {
           setHasNoPk(true);
         } else {
-          setSchemaError(extractApiError(err) || t('failedLoadSchema', 'Gagal memuat skema layer.'));
+          setSchemaError(extractApiError(err) || t("failedLoadSchema", "Gagal memuat skema layer."));
         }
       } finally {
         setIsLoadingSchema(false);
@@ -126,119 +133,147 @@ const AttributeTableModal = ({
     fetchSchema();
   }, [visible, layer?.id, t]);
 
-  // 2. Fetch Features Data
-  const fetchFeatures = useCallback(async (page, pageSize, sortConfig, filters) => {
-    if (!layer || !schema?.has_pk) return;
+  // 2. Fetch Features Data (page 1 reset atau append chunk berikutnya saat scroll)
+  const fetchFeatures = useCallback(
+    async (pageNum, sortConfig, cqlExpression, append = false) => {
+      if (!layer || !schema?.has_pk) return;
 
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    abortControllerRef.current = new AbortController();
+      if (append) {
+        if (isFetchingMoreRef.current) return;
+        isFetchingMoreRef.current = true;
+        setIsLoadingMore(true);
+      } else {
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
+        abortControllerRef.current = new AbortController();
+        setIsLoadingRows(true);
+        setRowsError(null);
+      }
 
-    setIsLoadingRows(true);
+      const signal = abortControllerRef.current?.signal;
+      const payload = {
+        page: pageNum,
+        page_size: CHUNK_SIZE,
+      };
 
-    const payload = {
-      page,
-      page_size: pageSize,
-    };
+      if (sortConfig?.field && sortConfig?.order) {
+        payload.sort = [
+          {
+            field: sortConfig.field,
+            dir: sortConfig.order === "descend" ? "DESC" : "ASC",
+          },
+        ];
+      }
 
-    if (sortConfig?.field && sortConfig?.order) {
-      payload.sort = [{
-        field: sortConfig.field,
-        dir: sortConfig.order === "descend" ? "DESC" : "ASC",
-      }];
-    }
+      if (cqlExpression && String(cqlExpression).trim()) {
+        payload.cql_expression = String(cqlExpression).trim();
+      }
 
-    if (filters && Array.isArray(filters) && filters.length > 0) {
-      payload.filters = filters;
-    }
+      try {
+        const res = await layerApi.queryLayerFeatures(layer.id, payload, signal);
+        const rowsData = res?.rows || [];
+        const mappedRows = rowsData.map((r, idx) => ({
+          key: r.fid || `${pageNum}-${idx}`,
+          __fid: r.fid,
+          ...(r.properties || {}),
+        }));
 
-    try {
-      const res = await layerApi.queryLayerFeatures(layer.id, payload, abortControllerRef.current.signal);
-      const rowsData = res?.rows || [];
+        if (append) {
+          setRows((prev) => {
+            const seen = new Set(prev.map((item) => item.key));
+            const uniqueNew = mappedRows.filter((item) => !seen.has(item.key));
+            return [...prev, ...uniqueNew];
+          });
+        } else {
+          setRows(mappedRows);
+          const bodyEl = tableContainerRef.current?.querySelector(".ant-table-body");
+          if (bodyEl) bodyEl.scrollTop = 0;
+        }
 
-      // Map rows with __fid and properties
-      const mappedRows = rowsData.map((r, idx) => ({
-        key: r.fid || idx,
-        __fid: r.fid,
-        ...(r.properties || {}),
-      }));
+        setCurrentPage(pageNum);
+        setTotal(res?.total ?? mappedRows.length);
 
-      setRows(mappedRows);
-      setTotal(res?.total ?? mappedRows.length);
-    } catch (_err) {
-      // Aborted or fetch error
-    } finally {
-      setIsLoadingRows(false);
-    }
-  }, [layer, schema]);
+        if (!append && onCqlFilterChange) {
+          if (cqlExpression && String(cqlExpression).trim()) {
+            onCqlFilterChange(
+              layer.id,
+              String(cqlExpression).trim(),
+              res?.normalized_cql || String(cqlExpression).trim()
+            );
+          }
+        }
+      } catch (err) {
+        if (!signal?.aborted && err?.name !== "CanceledError" && err?.name !== "AbortError") {
+          setRowsError(extractApiError(err));
+        }
+      } finally {
+        if (append) {
+          isFetchingMoreRef.current = false;
+          setIsLoadingMore(false);
+        } else {
+          setIsLoadingRows(false);
+        }
+      }
+    },
+    [layer, schema]
+  );
 
-  // Trigger query saat pagination, sorter, atau appliedFilters berubah
+  // Trigger initial/reset query saat modal dibuka, sorter berubah, atau appliedCql berubah
   useEffect(() => {
     if (visible && layer && schema?.has_pk) {
-      fetchFeatures(pagination.current, pagination.pageSize, sorter, appliedFilters);
+      fetchFeatures(1, sorter, appliedCql, false);
     }
-  }, [visible, layer, schema, pagination.current, pagination.pageSize, sorter, appliedFilters, fetchFeatures]);
+  }, [visible, layer, schema, sorter, appliedCql, fetchFeatures]);
 
-  // Handle table change (pagination & sorting)
-  const handleTableChange = (newPagination, filters, newSorter) => {
-    setPagination({
-      current: newPagination.current,
-      pageSize: newPagination.pageSize,
-    });
+  const hasMoreRows = rows.length < total;
+
+  // Listener scroll pada .ant-table-body untuk memuat chunk berikutnya otomatis
+  useEffect(() => {
+    if (!visible || hasNoPk) return undefined;
+    const container = tableContainerRef.current;
+    const bodyEl = container?.querySelector(".ant-table-body");
+    if (!bodyEl) return undefined;
+
+    const handleScroll = () => {
+      if (isLoadingRows || isLoadingMore || isFetchingMoreRef.current || !hasMoreRows) {
+        return;
+      }
+      const distanceFromBottom = bodyEl.scrollHeight - bodyEl.scrollTop - bodyEl.clientHeight;
+      if (distanceFromBottom <= 120) {
+        fetchFeatures(currentPage + 1, sorter, appliedCql, true);
+      }
+    };
+
+    bodyEl.addEventListener("scroll", handleScroll, { passive: true });
+    return () => bodyEl.removeEventListener("scroll", handleScroll);
+  }, [
+    visible,
+    hasNoPk,
+    isLoadingRows,
+    isLoadingMore,
+    hasMoreRows,
+    rows.length,
+    currentPage,
+    sorter,
+    appliedCql,
+    fetchFeatures,
+  ]);
+
+  // Handle sorting change
+  const handleTableChange = (_pagination, _filters, newSorter) => {
     setSorter({
       field: newSorter.field || null,
       order: newSorter.order || null,
     });
   };
 
-  // Filter builder actions
-  const handleAddFilterRow = () => {
-    const availableCols = schema?.columns?.filter((c) => !c.is_pk && c.local_type !== "geometry") || [];
-    const firstCol = availableCols[0]?.name || "";
-    const firstType = availableCols[0]?.local_type || "string";
-    const ops = filterOperatorsForType(firstType);
-
-    setFilterRows((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        column: firstCol,
-        operator: ops[0] || "=",
-        value: "",
-      },
-    ]);
-  };
-
-  const handleFilterRowChange = (id, field, val) => {
-    setFilterRows((prev) =>
-      prev.map((r) => {
-        if (r.id !== id) return r;
-        const updated = { ...r, [field]: val };
-        if (field === "column") {
-          const colDef = schema?.columns?.find((c) => c.name === val);
-          const ops = filterOperatorsForType(colDef?.local_type || "string");
-          updated.operator = ops[0] || "=";
-        }
-        return updated;
-      })
-    );
-  };
-
-  const handleRemoveFilterRow = (id) => {
-    setFilterRows((prev) => prev.filter((r) => r.id !== id));
-  };
-
-  const handleApplyFilters = () => {
-    const formatted = formatFilterPayload(filterRows);
-    setAppliedFilters(formatted);
-    setPagination((prev) => ({ ...prev, current: 1 }));
-  };
-
-  const handleResetFilters = () => {
-    setFilterRows([]);
-    setAppliedFilters(null);
-    setPagination((prev) => ({ ...prev, current: 1 }));
+  const handleApplyCql = (nextExpression) => {
+    const clean = nextExpression && String(nextExpression).trim() ? String(nextExpression).trim() : null;
+    setAppliedCql(clean);
+    if (!clean && layer && onCqlFilterChange) {
+      onCqlFilterChange(layer.id, null, null);
+    }
   };
 
   // Handle locate feature (fetch geometri lengkap via getFeatureById)
@@ -255,6 +290,10 @@ const AttributeTableModal = ({
     }
   };
 
+  const schemaFilterColumns = (schema?.columns || []).filter(
+    (c) => !c.is_pk && !c.hidden && c.local_type !== "geometry" && c.name !== "geometry"
+  );
+
   // Kolom aksi 'Locate' di paling kiri
   const activeColumns = [
     {
@@ -263,7 +302,7 @@ const AttributeTableModal = ({
       width: 50,
       fixed: "left",
       render: (_, record) => (
-        <Tooltip title={t('locateOnMap', 'Sorot di Peta')}>
+        <Tooltip title={t("locateOnMap", "Sorot di Peta")}>
           <button
             type="button"
             onClick={(e) => {
@@ -286,17 +325,19 @@ const AttributeTableModal = ({
         <div className="flex items-center justify-between pr-8">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-slate-800">
-              {t('attributeTableTitle', 'Tabel Atribut')}: {layer?.display_name || layer?.layer_name || layer?.store_name}
+              {t("attributeTableTitle", "Tabel Atribut")}:{" "}
+              {layer?.display_name || layer?.layer_name || layer?.store_name}
             </span>
-            <Tag color="blue">{total} {t('features', 'Fitur')}</Tag>
+            <Tag color="blue">
+              {total.toLocaleString()} {t("features", "Fitur")}
+            </Tag>
           </div>
         </div>
       }
       open={visible}
       onCancel={onClose}
-      width={1000}
+      width={1020}
       footer={null}
-      destroyOnClose
       destroyOnHidden
       centered
       styles={{ body: { padding: "12px 16px" } }}
@@ -307,14 +348,13 @@ const AttributeTableModal = ({
           type="warning"
           showIcon
           icon={<AlertTriangle className="w-5 h-5 text-amber-600" />}
-          title={t('noPkWarningTitle', 'Layer Belum Memiliki Primary Key (gid)')}
-          message={t('noPkWarningTitle', 'Layer Belum Memiliki Primary Key (gid)')}
+          title={t("noPkWarningTitle", "Layer Belum Memiliki Primary Key (gid)")}
           description={
             <div>
               <p>
                 {t(
-                  'noPkWarningDesc',
-                  'Layer belum memiliki primary key (gid). Silakan hubungi admin atau jalankan migrasi scripts/add_gid_pk.py terlebih dahulu.'
+                  "noPkWarningDesc",
+                  "Layer belum memiliki primary key (gid). Silakan hubungi admin atau jalankan migrasi scripts/add_gid_pk.py terlebih dahulu."
                 )}
               </p>
               <div className="mt-2 text-xs text-slate-500 font-mono bg-amber-100/50 p-2 rounded">
@@ -326,9 +366,7 @@ const AttributeTableModal = ({
         />
       )}
 
-      {schemaError && (
-        <Alert type="error" title={schemaError} message={schemaError} showIcon className="mb-4" />
-      )}
+      {schemaError && <Alert type="error" title={schemaError} showIcon className="mb-4" />}
 
       {!hasNoPk && (
         <div className="space-y-3">
@@ -338,18 +376,24 @@ const AttributeTableModal = ({
               <Button
                 size="small"
                 icon={<Filter className="w-3.5 h-3.5" />}
-                type={appliedFilters ? "primary" : "default"}
+                type={appliedCql ? "primary" : "default"}
                 onClick={() => setIsFilterOpen((prev) => !prev)}
               >
-                {t('filterBuilder', 'Filter CQL')} {appliedFilters ? "(Aktif)" : ""}
+                {t("filterBuilder", "Filter CQL")} {appliedCql ? "(Aktif)" : ""}
               </Button>
+
+              {appliedCql && (
+                <Button size="small" onClick={() => handleApplyCql(null)}>
+                  {t("reset", "Reset")}
+                </Button>
+              )}
 
               <Button
                 size="small"
                 icon={<RefreshCw className={`w-3.5 h-3.5 ${isLoadingRows ? "animate-spin" : ""}`} />}
-                onClick={() => fetchFeatures(pagination.current, pagination.pageSize, sorter, appliedFilters)}
+                onClick={() => fetchFeatures(1, sorter, appliedCql, false)}
               >
-                {t('refresh', 'Refresh')}
+                {t("refresh", "Refresh")}
               </Button>
             </Space>
 
@@ -358,7 +402,7 @@ const AttributeTableModal = ({
               mode="multiple"
               size="small"
               maxTagCount="responsive"
-              placeholder={t('selectColumns', 'Pilih Kolom')}
+              placeholder={t("selectColumns", "Pilih Kolom")}
               value={visibleColumns}
               onChange={setVisibleColumns}
               style={{ minWidth: 200, maxWidth: 350 }}
@@ -371,115 +415,72 @@ const AttributeTableModal = ({
             </Select>
           </div>
 
-          {/* Panel Filter Builder */}
+          {/* Panel Select by Attributes / CQL Filter Detail */}
           {isFilterOpen && (
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
-              <div className="flex items-center justify-between">
-                <Text strong className="text-xs text-slate-600">
-                  {t('filterConditions', 'Kondisi Filter (AND)')}
-                </Text>
-                <Button size="small" type="dashed" icon={<Plus className="w-3 h-3" />} onClick={handleAddFilterRow}>
-                  {t('addCondition', 'Tambah Kondisi')}
-                </Button>
-              </div>
-
-              {filterRows.length === 0 ? (
-                <p className="text-xs text-slate-400 italic">
-                  {t('noFiltersConfigured', 'Belum ada filter. Klik "Tambah Kondisi" untuk menyaring fitur.')}
-                </p>
-              ) : (
-                <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                  {filterRows.map((row) => {
-                    const colDef = schema?.columns?.find((c) => c.name === row.column);
-                    const ops = filterOperatorsForType(colDef?.local_type || "string");
-                    const isNullOp = row.operator === "IS NULL" || row.operator === "IS NOT NULL";
-
-                    return (
-                      <div key={row.id} className="flex items-center gap-2">
-                        <Select
-                          size="small"
-                          value={row.column}
-                          onChange={(v) => handleFilterRowChange(row.id, "column", v)}
-                          style={{ width: 160 }}
-                        >
-                          {schema?.columns
-                            ?.filter((c) => !c.is_pk && c.local_type !== "geometry")
-                            .map((c) => (
-                              <Option key={c.name} value={c.name}>
-                                {c.name}
-                              </Option>
-                            ))}
-                        </Select>
-
-                        <Select
-                          size="small"
-                          value={row.operator}
-                          onChange={(v) => handleFilterRowChange(row.id, "operator", v)}
-                          style={{ width: 110 }}
-                        >
-                          {ops.map((op) => (
-                            <Option key={op} value={op}>
-                              {op}
-                            </Option>
-                          ))}
-                        </Select>
-
-                        {!isNullOp && (
-                          <Input
-                            size="small"
-                            placeholder={row.operator === "IN" ? "val1, val2" : "Nilai filter"}
-                            value={row.value}
-                            onChange={(e) => handleFilterRowChange(row.id, "value", e.target.value)}
-                            style={{ flex: 1 }}
-                          />
-                        )}
-
-                        <Button
-                          size="small"
-                          type="text"
-                          danger
-                          icon={<Trash2 className="w-3.5 h-3.5" />}
-                          onClick={() => handleRemoveFilterRow(row.id)}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
-                <Button size="small" onClick={handleResetFilters}>
-                  {t('reset', 'Reset')}
-                </Button>
-                <Button size="small" type="primary" onClick={handleApplyFilters}>
-                  {t('applyFilter', 'Terapkan Filter')}
-                </Button>
-              </div>
-            </div>
+            <CqlFilterBuilder
+              layerId={layer?.id}
+              layerTableName={schema?.table_name || layer?.geoserver_name || layer?.layer_name}
+              schemaColumns={schemaFilterColumns}
+              appliedExpression={appliedCql || ""}
+              onApply={handleApplyCql}
+              onClose={() => setIsFilterOpen(false)}
+            />
           )}
 
-          {/* Tabel Data Atribut */}
-          <Table
-            columns={activeColumns}
-            dataSource={rows}
-            loading={isLoadingSchema || isLoadingRows}
-            pagination={{
-              current: pagination.current,
-              pageSize: pagination.pageSize,
-              total,
-              showSizeChanger: true,
-              pageSizeOptions: ["10", "20", "50", "100"],
-              size: "small",
-            }}
-            onChange={handleTableChange}
-            scroll={{ x: "max-content", y: 360 }}
-            size="small"
-            bordered
-            onRow={(record) => ({
-              onDoubleClick: () => handleLocateRow(record),
-              className: "cursor-pointer hover:bg-blue-50/50",
-            })}
-          />
+          {rowsError && (
+            <Alert type="error" title={rowsError} showIcon closable onClose={() => setRowsError(null)} />
+          )}
+
+          {/* Tabel Data Atribut (Scroll Tanpa Pagination) */}
+          <div ref={tableContainerRef}>
+            <Table
+              columns={activeColumns}
+              dataSource={rows}
+              loading={isLoadingSchema || isLoadingRows}
+              pagination={false}
+              onChange={handleTableChange}
+              scroll={{ x: "max-content", y: 380 }}
+              size="small"
+              bordered
+              onRow={(record) => ({
+                onDoubleClick: () => handleLocateRow(record),
+                className: "cursor-pointer hover:bg-blue-50/50",
+              })}
+            />
+          </div>
+
+          {/* Status Bar Infinite Scroll */}
+          <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
+            <span>
+              {t("loadedFeaturesSummary", "Dimuat")}{" "}
+              <strong className="text-slate-700">{rows.length.toLocaleString()}</strong>{" "}
+              {t("ofTotalFeatures", "dari")}{" "}
+              <strong className="text-slate-700">{total.toLocaleString()}</strong>{" "}
+              {t("features", "fitur")}
+              {hasMoreRows && (
+                <span className="text-slate-400 ml-2">
+                  • {t("scrollForMore", "Scroll ke bawah untuk memuat baris berikutnya secara otomatis")}
+                </span>
+              )}
+            </span>
+
+            <div className="flex items-center gap-2">
+              {isLoadingMore && (
+                <span className="flex items-center gap-1.5 text-blue-600">
+                  <Spin size="small" />
+                  {t("loadingMoreFeatures", "Memuat baris berikutnya...")}
+                </span>
+              )}
+              {hasMoreRows && !isLoadingMore && (
+                <Button
+                  size="small"
+                  onClick={() => fetchFeatures(currentPage + 1, sorter, appliedCql, true)}
+                >
+                  {t("loadMore", "Muat Lagi")}
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </Modal>
@@ -487,4 +488,3 @@ const AttributeTableModal = ({
 };
 
 export default AttributeTableModal;
-

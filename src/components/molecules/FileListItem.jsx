@@ -10,6 +10,7 @@ import {
   SyncOutlined,
   ClockCircleOutlined,
   ExclamationCircleOutlined,
+  WarningOutlined,
 } from "@ant-design/icons";
 import { useLanguage } from "../../context/LanguageContext";
 
@@ -55,6 +56,8 @@ const FileListItem = ({
     progress = 0,
     errorMessage,
     geoserverName,
+    validationStatus = "valid",
+    validationMessages = [],
   } = fileItem;
 
   const typeConfig = FILE_TYPE_CONFIG[ext?.toLowerCase()] || {
@@ -68,14 +71,18 @@ const FileListItem = ({
   const isRunning = status === "RUNNING";
   const isQueued = status === "QUEUED";
   const isProcessing = isRunning || isQueued;
+  const hasPreError = !status && validationStatus === "error";
+  const hasPreWarning = !status && validationStatus === "warning";
 
   return (
     <div
       className={`p-3 rounded-lg border transition-all ${
         isCompleted
           ? "bg-emerald-50/50 border-emerald-200"
-          : isFailed
+          : isFailed || hasPreError
           ? "bg-red-50/50 border-red-200"
+          : hasPreWarning
+          ? "bg-amber-50/40 border-amber-200"
           : isProcessing
           ? "bg-blue-50/40 border-blue-200"
           : "bg-white border-slate-200 hover:border-slate-300 shadow-xs"
@@ -173,6 +180,29 @@ const FileListItem = ({
         <div className="mt-2 text-[11px] text-emerald-800 flex items-center gap-1.5 pl-13 font-mono">
           <span className="text-slate-400">Layer ID:</span>
           <span className="font-semibold">{geoserverName}</span>
+        </div>
+      )}
+
+      {/* Pre-upload validation alerts (Error / Warning) */}
+      {!status && validationMessages.length > 0 && (
+        <div className="mt-2 space-y-1">
+          {validationMessages.map((msg, idx) => (
+            <div
+              key={idx}
+              className={`text-[11px] p-2 rounded flex items-start gap-1.5 leading-snug ${
+                msg.type === "error"
+                  ? "text-red-700 bg-red-100/70"
+                  : "text-amber-800 bg-amber-100/70"
+              }`}
+            >
+              {msg.type === "error" ? (
+                <ExclamationCircleOutlined className="mt-0.5 flex-shrink-0 text-red-600" />
+              ) : (
+                <WarningOutlined className="mt-0.5 flex-shrink-0 text-amber-600" />
+              )}
+              <span>{msg.text}</span>
+            </div>
+          ))}
         </div>
       )}
 

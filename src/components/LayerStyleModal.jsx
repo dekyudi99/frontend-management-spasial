@@ -71,6 +71,7 @@ const STROKE_DASH_OPTIONS = [
   { id: "solid", labelKey: "lineSolid", defaultLabel: "Garis Utuh", value: null },
   { id: "dashed", labelKey: "lineDashed", defaultLabel: "Putus-putus", value: "6,4" },
   { id: "dotted", labelKey: "lineDotted", defaultLabel: "Titik-titik", value: "2,4" },
+  { id: "none", labelKey: "lineNone", defaultLabel: "Tanpa Garis", value: null },
 ];
 
 /**
@@ -295,7 +296,13 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
 
       loadVectorIcons(iconName);
 
-      if (sym.stroke_dasharray === "2,4") setStrokeDash("dotted");
+      const hasDisabledStroke =
+        isPolygon &&
+        ((sym.stroke_width !== undefined && Number(sym.stroke_width) === 0) ||
+          (sym.stroke_opacity !== undefined && Number(sym.stroke_opacity) === 0));
+
+      if (hasDisabledStroke) setStrokeDash("none");
+      else if (sym.stroke_dasharray === "2,4") setStrokeDash("dotted");
       else if (sym.stroke_dasharray) setStrokeDash("dashed");
       else setStrokeDash("solid");
 
@@ -602,6 +609,9 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
     setStrokeDash("solid");
   };
 
+  const isNoStroke = isPolygon && strokeDash === "none";
+  const effectiveStrokeWidth = isNoStroke ? 0 : (Number(strokeWidth) > 0 ? Number(strokeWidth) : 2);
+  const effectiveStrokeOpacity = isNoStroke ? 0 : (Number(strokeOpacity) > 0 ? Number(strokeOpacity) : 1.0);
   const svgDashArray = strokeDash === "dashed" ? "6,4" : strokeDash === "dotted" ? "2,4" : undefined;
 
   // React Query Mutation untuk menyimpan style ke GeoServer
@@ -680,8 +690,8 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
           fill_color: fillColor,
           fill_opacity: Number(fillOpacity),
           stroke_color: strokeColor,
-          stroke_width: Number(strokeWidth),
-          stroke_opacity: Number(strokeOpacity),
+          stroke_width: effectiveStrokeWidth,
+          stroke_opacity: effectiveStrokeOpacity,
           point_size: Number(pointSize),
           mark: isIconMode ? `icon:${selectedIcon}` : mark,
           stroke_dasharray: dashParam,
@@ -911,9 +921,9 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
                         points="26,4 48,18 40,48 12,48 4,18"
                         fill={fillColor}
                         fillOpacity={fillOpacity}
-                        stroke={strokeColor}
-                        strokeWidth={strokeWidth}
-                        strokeOpacity={strokeOpacity}
+                        stroke={isNoStroke ? "none" : strokeColor}
+                        strokeWidth={effectiveStrokeWidth}
+                        strokeOpacity={effectiveStrokeOpacity}
                         strokeDasharray={svgDashArray}
                       />
                     </svg>
@@ -1066,8 +1076,8 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
               {!isPoint && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">{t("linePattern", "Pola Garis")}</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {STROKE_DASH_OPTIONS.map((opt) => (
+                  <div className={`grid gap-2 ${isPolygon ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
+                    {(isPolygon ? STROKE_DASH_OPTIONS : STROKE_DASH_OPTIONS.filter((opt) => opt.id !== "none")).map((opt) => (
                       <button
                         key={opt.id}
                         type="button"
