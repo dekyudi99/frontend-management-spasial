@@ -95,6 +95,9 @@ const VectorLegendItem = ({ layer }) => {
   if (isPoint) {
     const cx = 9;
     const cy = 9;
+    const ptFill = fillOpacity === 0 ? "none" : fillColor;
+    const ptStroke = strokeWidth > 0 && strokeOpacity > 0 ? strokeColor : "none";
+    const ptStrokeWidth = strokeWidth > 0 && strokeOpacity > 0 ? Math.min(2, strokeWidth) : 0;
 
     const renderPointShape = () => {
       switch (mark) {
@@ -106,22 +109,24 @@ const VectorLegendItem = ({ layer }) => {
               width="12"
               height="12"
               rx="1"
-              fill={fillColor}
+              fill={ptFill}
               fillOpacity={fillOpacity}
-              stroke={strokeColor}
-              strokeWidth={Math.min(2, strokeWidth)}
+              stroke={ptStroke}
+              strokeWidth={ptStrokeWidth}
               strokeOpacity={strokeOpacity}
+              strokeDasharray={strokeDash}
             />
           );
         case "triangle":
           return (
             <polygon
               points="9,2 16,16 2,16"
-              fill={fillColor}
+              fill={ptFill}
               fillOpacity={fillOpacity}
-              stroke={strokeColor}
-              strokeWidth={Math.min(2, strokeWidth)}
+              stroke={ptStroke}
+              strokeWidth={ptStrokeWidth}
               strokeOpacity={strokeOpacity}
+              strokeDasharray={strokeDash}
             />
           );
         case "star": {
@@ -136,20 +141,22 @@ const VectorLegendItem = ({ layer }) => {
           return (
             <polygon
               points={points.join(" ")}
-              fill={fillColor}
+              fill={ptFill}
               fillOpacity={fillOpacity}
-              stroke={strokeColor}
-              strokeWidth={Math.min(2, strokeWidth)}
+              stroke={ptStroke}
+              strokeWidth={ptStrokeWidth}
               strokeOpacity={strokeOpacity}
+              strokeDasharray={strokeDash}
             />
           );
         }
         case "cross":
           return (
             <g
-              stroke={strokeColor}
-              strokeWidth={Math.min(2.5, strokeWidth)}
+              stroke={ptStroke === "none" ? fillColor : ptStroke}
+              strokeWidth={Math.min(2.5, Math.max(1.5, strokeWidth))}
               strokeOpacity={strokeOpacity}
+              strokeDasharray={strokeDash}
             >
               <line x1="3" y1="9" x2="15" y2="9" />
               <line x1="9" y1="3" x2="9" y2="15" />
@@ -162,11 +169,12 @@ const VectorLegendItem = ({ layer }) => {
               cx={cx}
               cy={cy}
               r="6"
-              fill={fillColor}
+              fill={ptFill}
               fillOpacity={fillOpacity}
-              stroke={strokeColor}
-              strokeWidth={Math.min(2, strokeWidth)}
+              stroke={ptStroke}
+              strokeWidth={ptStrokeWidth}
               strokeOpacity={strokeOpacity}
+              strokeDasharray={strokeDash}
             />
           );
       }
@@ -230,7 +238,7 @@ const VectorLegendItem = ({ layer }) => {
       <svg width="20" height="18" className="shrink-0 drop-shadow-2xs">
         <polygon
           points="10,2 18,7 15,16 5,16 2,7"
-          fill={fillColor}
+          fill={fillOpacity === 0 ? "none" : fillColor}
           fillOpacity={fillOpacity}
           stroke={strokeWidth > 0 && strokeOpacity > 0 ? strokeColor : "none"}
           strokeWidth={Math.min(2, strokeWidth)}

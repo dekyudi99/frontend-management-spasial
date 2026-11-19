@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   Combine,
   Maximize2,
+  Ban,
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import layerApi from "../api/LayerApi";
@@ -115,6 +116,88 @@ const BoundInput = ({ value, onCommit, disabled, className, placeholder }) => {
   );
 };
 
+/**
+ * Input pemilih warna kustom (color picker + input HEX #RRGGBB tervalidasi).
+ */
+const HexColorField = ({ label, value, onChange, disabled = false, extra = null }) => {
+  const [hexDraft, setHexDraft] = useState(null);
+  const displayedHex = hexDraft !== null ? hexDraft : (value || "#0d9488");
+
+  const normalizeHex = (raw) => {
+    const trimmed = String(raw || "").trim();
+    const withHash = trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+    if (/^#[0-9a-fA-F]{6}$/.test(withHash)) {
+      return withHash.toLowerCase();
+    }
+    if (/^#[0-9a-fA-F]{3}$/.test(withHash)) {
+      const r = withHash[1];
+      const g = withHash[2];
+      const b = withHash[3];
+      return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+    }
+    return null;
+  };
+
+  const handleTextChange = (e) => {
+    const raw = e.target.value;
+    setHexDraft(raw);
+    const fullMatch = String(raw).trim();
+    const candidate = fullMatch.startsWith("#") ? fullMatch : `#${fullMatch}`;
+    if (/^#[0-9a-fA-F]{6}$/.test(candidate)) {
+      onChange(candidate.toLowerCase());
+    }
+  };
+
+  const handleCommit = () => {
+    const normalized = normalizeHex(displayedHex);
+    if (normalized) {
+      onChange(normalized);
+    }
+    setHexDraft(null);
+  };
+
+  return (
+    <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold text-slate-700 truncate">{label}</span>
+        {extra}
+      </div>
+      <div className={`flex items-center gap-2 ${disabled ? "opacity-50 pointer-events-none" : ""}`}>
+        <label className="relative w-8 h-8 rounded-lg border border-slate-300 overflow-hidden shadow-2xs shrink-0 cursor-pointer bg-white">
+          <input
+            type="color"
+            disabled={disabled}
+            value={/^#[0-9a-fA-F]{6}$/.test(value || "") ? value : "#0d9488"}
+            onChange={(e) => {
+              const nextHex = e.target.value.toLowerCase();
+              setHexDraft(null);
+              onChange(nextHex);
+            }}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          />
+          <span
+            className="block w-full h-full"
+            style={{ backgroundColor: disabled ? "transparent" : value }}
+          />
+        </label>
+        <input
+          type="text"
+          maxLength={7}
+          disabled={disabled}
+          value={disabled ? "Transparent" : displayedHex}
+          onChange={handleTextChange}
+          onBlur={handleCommit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.target.blur();
+          }}
+          placeholder="#0d9488"
+          className="w-full px-2.5 py-1.5 text-xs font-mono bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500 uppercase"
+        />
+      </div>
+    </div>
+  );
+};
+
 const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) => {
   const { t, translateApi } = useLanguage();
   const queryClient = useQueryClient();
@@ -170,6 +253,7 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
   // Refs untuk debounce & AbortController request klasifikasi otomatis
   const abortControllerRef = useRef(null);
   const debounceTimerRef = useRef(null);
+  const lastFillOpacityRef = useRef(0.65);
 
   // Daftar seluruh Color Ramp
   const allRamps = useMemo(
@@ -284,7 +368,11 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
       setFillColor(sym.fill_color || "#0d9488");
       setStrokeColor(sym.stroke_color || "#0f766e");
       setStrokeWidth(sym.stroke_width !== undefined ? Number(sym.stroke_width) : 2);
-      setFillOpacity(sym.fill_opacity !== undefined ? Number(sym.fill_opacity) : 0.65);
+      const restoredOpacity = sym.fill_opacity !== undefined ? Number(sym.fill_opacity) : 0.65;
+      setFillOpacity(restoredOpacity);
+      if (restoredOpacity > 0) {
+        lastFillOpacityRef.current = restoredOpacity;
+      }
       setStrokeOpacity(sym.stroke_opacity !== undefined ? Number(sym.stroke_opacity) : 1.0);
       setPointSize(sym.point_size !== undefined ? Number(sym.point_size) : 8);
 
@@ -303,7 +391,7 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
       loadVectorIcons(iconName);
 
       const hasDisabledStroke =
-        isPolygon &&
+        (isPolygon || isPoint) &&
         ((sym.stroke_width !== undefined && Number(sym.stroke_width) === 0) ||
           (sym.stroke_opacity !== undefined && Number(sym.stroke_opacity) === 0));
 
@@ -618,6 +706,7 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
     setStrokeColor("#0f766e");
     setStrokeWidth(2);
     setFillOpacity(0.65);
+    lastFillOpacityRef.current = 0.65;
     setStrokeOpacity(1.0);
     setPointSize(8);
     setMark("circle");
@@ -625,10 +714,26 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
     setStrokeDash("solid");
   };
 
-  const isNoStroke = isPolygon && strokeDash === "none";
+  const isBlankFill = !isLine && (!isPoint || markerType === "shape") && Number(fillOpacity) === 0;
+  const isNoStroke = (isPolygon || (isPoint && markerType === "shape")) && strokeDash === "none";
   const effectiveStrokeWidth = isNoStroke ? 0 : (Number(strokeWidth) > 0 ? Number(strokeWidth) : 2);
   const effectiveStrokeOpacity = isNoStroke ? 0 : (Number(strokeOpacity) > 0 ? Number(strokeOpacity) : 1.0);
   const svgDashArray = strokeDash === "dashed" ? "6,4" : strokeDash === "dotted" ? "2,4" : undefined;
+
+  const handleToggleBlankFill = () => {
+    if (isBlankFill) {
+      setFillOpacity(lastFillOpacityRef.current > 0 ? lastFillOpacityRef.current : 0.65);
+      return;
+    }
+    if (Number(fillOpacity) > 0) {
+      lastFillOpacityRef.current = Number(fillOpacity);
+    }
+    setFillOpacity(0);
+    // Pastikan garis tetap terlihat saat blank fill aktif
+    if (strokeDash === "none") {
+      setStrokeDash("solid");
+    }
+  };
 
   // React Query Mutation untuk menyimpan style ke GeoServer
   const mutation = useMutation({
@@ -757,6 +862,12 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
       );
     }
 
+    const shapeFill = isBlankFill ? "none" : fillColor;
+    const shapeFillOpacity = isBlankFill ? 0 : fillOpacity;
+    const shapeStroke = isNoStroke ? "none" : strokeColor;
+    const shapeStrokeWidth = isNoStroke ? 0 : Math.min(3, effectiveStrokeWidth);
+    const shapeStrokeOpacity = effectiveStrokeOpacity;
+
     switch (mark) {
       case "square":
         return (
@@ -766,22 +877,24 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
             width={s}
             height={s}
             rx="1"
-            fill={fillColor}
-            fillOpacity={fillOpacity}
-            stroke={strokeColor}
-            strokeWidth={Math.min(3, strokeWidth)}
-            strokeOpacity={strokeOpacity}
+            fill={shapeFill}
+            fillOpacity={shapeFillOpacity}
+            stroke={shapeStroke}
+            strokeWidth={shapeStrokeWidth}
+            strokeOpacity={shapeStrokeOpacity}
+            strokeDasharray={svgDashArray}
           />
         );
       case "triangle":
         return (
           <polygon
             points={`${cx},${cy - s / 2} ${cx + s / 2},${cy + s / 2} ${cx - s / 2},${cy + s / 2}`}
-            fill={fillColor}
-            fillOpacity={fillOpacity}
-            stroke={strokeColor}
-            strokeWidth={Math.min(3, strokeWidth)}
-            strokeOpacity={strokeOpacity}
+            fill={shapeFill}
+            fillOpacity={shapeFillOpacity}
+            stroke={shapeStroke}
+            strokeWidth={shapeStrokeWidth}
+            strokeOpacity={shapeStrokeOpacity}
+            strokeDasharray={svgDashArray}
           />
         );
       case "star": {
@@ -796,11 +909,42 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
         return (
           <polygon
             points={points.join(" ")}
-            fill={fillColor}
-            fillOpacity={fillOpacity}
-            stroke={strokeColor}
-            strokeWidth={Math.min(3, strokeWidth)}
-            strokeOpacity={strokeOpacity}
+            fill={shapeFill}
+            fillOpacity={shapeFillOpacity}
+            stroke={shapeStroke}
+            strokeWidth={shapeStrokeWidth}
+            strokeOpacity={shapeStrokeOpacity}
+            strokeDasharray={svgDashArray}
+          />
+        );
+      }
+      case "cross": {
+        const half = s / 2;
+        const arm = Math.max(2, s * 0.18);
+        const d = [
+          `M ${cx - arm},${cy - half}`,
+          `H ${cx + arm}`,
+          `V ${cy - arm}`,
+          `H ${cx + half}`,
+          `V ${cy + arm}`,
+          `H ${cx + arm}`,
+          `V ${cy + half}`,
+          `H ${cx - arm}`,
+          `V ${cy + arm}`,
+          `H ${cx - half}`,
+          `V ${cy - arm}`,
+          `H ${cx - arm}`,
+          "Z",
+        ].join(" ");
+        return (
+          <path
+            d={d}
+            fill={shapeFill}
+            fillOpacity={shapeFillOpacity}
+            stroke={shapeStroke}
+            strokeWidth={shapeStrokeWidth}
+            strokeOpacity={shapeStrokeOpacity}
+            strokeDasharray={svgDashArray}
           />
         );
       }
@@ -810,11 +954,12 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
             cx={cx}
             cy={cy}
             r={Math.min(16, Math.max(4, pointSize))}
-            fill={fillColor}
-            fillOpacity={fillOpacity}
-            stroke={strokeColor}
-            strokeWidth={Math.min(3, strokeWidth)}
-            strokeOpacity={strokeOpacity}
+            fill={shapeFill}
+            fillOpacity={shapeFillOpacity}
+            stroke={shapeStroke}
+            strokeWidth={shapeStrokeWidth}
+            strokeOpacity={shapeStrokeOpacity}
+            strokeDasharray={svgDashArray}
           />
         );
     }
@@ -890,7 +1035,11 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
                 </div>
                 <div className="grid grid-cols-7 gap-2">
                   {VECTOR_PRESET_PALETTES.map((preset) => {
-                    const isSelected = fillColor.toLowerCase() === preset.fill.toLowerCase();
+                    const isSelected = isLine
+                      ? strokeColor.toLowerCase() === preset.stroke.toLowerCase()
+                      : !isBlankFill &&
+                        fillColor.toLowerCase() === preset.fill.toLowerCase() &&
+                        strokeColor.toLowerCase() === preset.stroke.toLowerCase();
                     return (
                       <button
                         key={preset.name}
@@ -920,6 +1069,52 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
                 </div>
               </div>
 
+              {/* Custom Color & Blank Fill (berlaku untuk Polygon, Line, dan Point Shape) */}
+              {(!isPoint || markerType === "shape") && (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                      <Palette className="w-3.5 h-3.5 text-teal-600" /> {t("customColorSection", "Warna Kustom & Isi (Fill)")}
+                    </label>
+                    {isBlankFill && (
+                      <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-medium">
+                        {t("blankFillHint", "Isi transparan — hanya garis tepi yang tampil")}
+                      </span>
+                    )}
+                  </div>
+                  <div className={`grid gap-2.5 ${isLine ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
+                    {!isLine && (
+                      <HexColorField
+                        label={t("fillColorLabel", "Warna Isi (Fill)")}
+                        value={fillColor}
+                        disabled={isBlankFill}
+                        onChange={(hex) => setFillColor(hex)}
+                        extra={
+                          <button
+                            type="button"
+                            onClick={handleToggleBlankFill}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-semibold transition cursor-pointer ${
+                              isBlankFill
+                                ? "bg-teal-600 text-white border-teal-600 shadow-2xs"
+                                : "bg-white text-slate-600 border-slate-300 hover:border-teal-400 hover:text-teal-700"
+                            }`}
+                          >
+                            <Ban className="w-3 h-3" />
+                            {t("blankFill", "Tanpa Isi (Blank)")}
+                          </button>
+                        }
+                      />
+                    )}
+                    <HexColorField
+                      label={t("lineColorLabel", "Warna Garis / Outline")}
+                      value={strokeColor}
+                      disabled={isNoStroke}
+                      onChange={(hex) => setStrokeColor(hex)}
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* Live Preview Card Vector */}
               <div className="p-3.5 bg-gradient-to-b from-slate-50 to-slate-100/70 border border-slate-200 rounded-xl">
                 <div className="flex items-center justify-between mb-2">
@@ -935,8 +1130,8 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
                     <svg width="52" height="52" className="drop-shadow-xs shrink-0">
                       <polygon
                         points="26,4 48,18 40,48 12,48 4,18"
-                        fill={fillColor}
-                        fillOpacity={fillOpacity}
+                        fill={isBlankFill ? "none" : fillColor}
+                        fillOpacity={isBlankFill ? 0 : fillOpacity}
                         stroke={isNoStroke ? "none" : strokeColor}
                         strokeWidth={effectiveStrokeWidth}
                         strokeOpacity={effectiveStrokeOpacity}
@@ -1088,25 +1283,38 @@ const LayerStyleModal = ({ open, onClose, layer, workspace, onStyleApplied }) =>
                 </div>
               )}
 
-              {/* Stroke Dash Pattern */}
-              {!isPoint && (
+              {/* Stroke Dash Pattern (Polygon, Line, dan Point Geometric Shape) */}
+              {(!isPoint || markerType === "shape") && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">{t("linePattern", "Pola Garis")}</label>
-                  <div className={`grid gap-2 ${isPolygon ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
-                    {(isPolygon ? STROKE_DASH_OPTIONS : STROKE_DASH_OPTIONS.filter((opt) => opt.id !== "none")).map((opt) => (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => setStrokeDash(opt.id)}
-                        className={`py-1.5 px-3 rounded-lg border text-xs font-medium text-center transition cursor-pointer ${
-                          strokeDash === opt.id
-                            ? "border-teal-500 bg-teal-50 text-teal-800 font-semibold ring-1 ring-teal-200"
-                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                        }`}
-                      >
-                        {t(opt.labelKey, opt.defaultLabel)}
-                      </button>
-                    ))}
+                  <div className={`grid gap-2 ${!isLine ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
+                    {(isLine ? STROKE_DASH_OPTIONS.filter((opt) => opt.id !== "none") : STROKE_DASH_OPTIONS).map((opt) => {
+                      const isNoneBlocked = opt.id === "none" && isBlankFill;
+                      const btn = (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          disabled={isNoneBlocked}
+                          onClick={() => setStrokeDash(opt.id)}
+                          className={`w-full py-1.5 px-3 rounded-lg border text-xs font-medium text-center transition ${
+                            isNoneBlocked
+                              ? "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed opacity-60"
+                              : strokeDash === opt.id
+                              ? "border-teal-500 bg-teal-50 text-teal-800 font-semibold ring-1 ring-teal-200 cursor-pointer"
+                              : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 cursor-pointer"
+                          }`}
+                        >
+                          {t(opt.labelKey, opt.defaultLabel)}
+                        </button>
+                      );
+                      return isNoneBlocked ? (
+                        <Tooltip key={opt.id} title={t("lineNoneBlockedByBlank", "Nonaktifkan Blank Fill sebelum memilih Tanpa Garis")}>
+                          <div>{btn}</div>
+                        </Tooltip>
+                      ) : (
+                        btn
+                      );
+                    })}
                   </div>
                 </div>
               )}
